@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="images">
+    <file>psm_logo.jpeg</file>
+    <file>ss_logo.jpeg</file>
+  </qresource>
+</RCC>
