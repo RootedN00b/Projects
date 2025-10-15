@@ -13,7 +13,7 @@ Each project is fully self-contained, with its own code, documentation, and a de
 
 Inside this repo, you’ll discover projects covering a wide range of topics, including:
 
-- 💻 **Software Development** — Full-stack, Python automation, CLI tools, and backend systems.
+- 💻 **Software Development** — Scripting, Python automation, CLI tools, GUI applications and backend systems.
     
 - 🧠 **Learning Projects** — Experiments, study notes, and practical exercises built while exploring new technologies.
     
