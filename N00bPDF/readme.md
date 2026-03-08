@@ -1,1 +1,4 @@
+If you've ever tried to email a PDF only to get bounced back with a "file too large" error, you know the frustration. Online PDF compressors exist, but most of them upload your files to someone else's server, slap a watermark on the result, or lock the good compression behind a paywall.
+So I built a small Bash script that does the job locally, in your terminal, using Ghostscript — free, open-source, and already installed on most Linux systems.
+Here's everything you need to know about it, how it works, and how to use it.
 
