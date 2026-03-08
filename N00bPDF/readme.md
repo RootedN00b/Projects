@@ -2,3 +2,4 @@ If you've ever tried to email a PDF only to get bounced back with a "file too la
 So I built a small Bash script that does the job locally, in your terminal, using Ghostscript — free, open-source, and already installed on most Linux systems.
 Here's everything you need to know about it, how it works, and how to use it.
 
+Read the article: https://blog.rootedn00b.tech/i-built-a-free-pdf-compressor-for-the-terminal-and-you-can-use-it-today
