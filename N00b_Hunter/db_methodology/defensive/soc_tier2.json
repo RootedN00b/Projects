@@ -1,0 +1,223 @@
+{
+  "SOC Tier 2 Methodology": {
+    "description": "SOC Tier 2 analyst playbook — deep investigation, containment, and incident management.",
+    "phases": [
+      {
+        "phase": "1. Incident Intake from Tier 1",
+        "steps": [
+          {
+            "step": "1.1",
+            "status": "[ ]",
+            "task": "Review full Tier 1 analysis and all attached IOCs"
+          },
+          {
+            "step": "1.2",
+            "status": "[ ]",
+            "task": "Confirm true positive — reproduce or independently validate"
+          },
+          {
+            "step": "1.3",
+            "status": "[ ]",
+            "task": "Assign incident severity (P1-P4) and classify incident type (intrusion/malware/data breach/etc.)"
+          },
+          {
+            "step": "1.4",
+            "status": "[ ]",
+            "task": "Open formal incident record in ITSM/IR platform"
+          },
+          {
+            "step": "1.5",
+            "status": "[ ]",
+            "task": "Notify stakeholders per severity SLA — manager, IR lead, CISO (P1/P2)"
+          }
+        ]
+      },
+      {
+        "phase": "2. Deep Investigation",
+        "steps": [
+          {
+            "step": "2.1",
+            "status": "[ ]",
+            "task": "Map the full attack timeline — earliest artifact back to present"
+          },
+          {
+            "step": "2.2",
+            "status": "[ ]",
+            "task": "Identify patient zero — first compromised asset/account"
+          },
+          {
+            "step": "2.3",
+            "status": "[ ]",
+            "task": "Determine initial access vector — phishing, exposed service, insider, supply chain"
+          },
+          {
+            "step": "2.4",
+            "status": "[ ]",
+            "task": "Trace lateral movement — what systems did the attacker reach?"
+          },
+          {
+            "step": "2.5",
+            "status": "[ ]",
+            "task": "Identify all compromised accounts — reset scope beyond initial alert"
+          },
+          {
+            "step": "2.6",
+            "status": "[ ]",
+            "task": "Determine attacker objective — ransomware, exfil, espionage, destruction"
+          },
+          {
+            "step": "2.7",
+            "status": "[ ]",
+            "task": "MITRE ATT&CK mapping — map observed TTPs to framework"
+          },
+          {
+            "step": "2.8",
+            "status": "[ ]",
+            "task": "Check for data exfiltration — unusual outbound connections, large transfers, DLP alerts"
+          }
+        ]
+      },
+      {
+        "phase": "3. Evidence Collection",
+        "steps": [
+          {
+            "step": "3.1",
+            "status": "[ ]",
+            "task": "Collect memory dump from compromised host (if required and possible)"
+          },
+          {
+            "step": "3.2",
+            "status": "[ ]",
+            "task": "Acquire disk image or triage collection (Velociraptor, KAPE)"
+          },
+          {
+            "step": "3.3",
+            "status": "[ ]",
+            "task": "Export relevant SIEM logs for the incident timeframe"
+          },
+          {
+            "step": "3.4",
+            "status": "[ ]",
+            "task": "Preserve firewall, proxy, DNS logs for the incident window"
+          },
+          {
+            "step": "3.5",
+            "status": "[ ]",
+            "task": "Document chain of custody for all evidence collected"
+          },
+          {
+            "step": "3.6",
+            "status": "[ ]",
+            "task": "Extract and submit all IOCs — hashes, IPs, domains, registry keys, mutexes"
+          }
+        ]
+      },
+      {
+        "phase": "4. Containment",
+        "steps": [
+          {
+            "step": "4.1",
+            "status": "[ ]",
+            "task": "Isolate compromised host — network block or EDR isolation (preserve for forensics)"
+          },
+          {
+            "step": "4.2",
+            "status": "[ ]",
+            "task": "Disable / reset compromised user accounts"
+          },
+          {
+            "step": "4.3",
+            "status": "[ ]",
+            "task": "Revoke active sessions and OAuth tokens for compromised accounts"
+          },
+          {
+            "step": "4.4",
+            "status": "[ ]",
+            "task": "Block attacker C2 domains/IPs at firewall, proxy, and DNS layer"
+          },
+          {
+            "step": "4.5",
+            "status": "[ ]",
+            "task": "Identify and block all attacker-controlled accounts or backdoors"
+          },
+          {
+            "step": "4.6",
+            "status": "[ ]",
+            "task": "Enable enhanced logging on affected systems"
+          }
+        ]
+      },
+      {
+        "phase": "5. Eradication",
+        "steps": [
+          {
+            "step": "5.1",
+            "status": "[ ]",
+            "task": "Remove all malware, backdoors, and persistence mechanisms found"
+          },
+          {
+            "step": "5.2",
+            "status": "[ ]",
+            "task": "Patch or mitigate exploited vulnerability"
+          },
+          {
+            "step": "5.3",
+            "status": "[ ]",
+            "task": "Verify no additional persistence exists (scheduled tasks, reg keys, services, cron)"
+          },
+          {
+            "step": "5.4",
+            "status": "[ ]",
+            "task": "Reset all potentially compromised credentials (not just confirmed)"
+          },
+          {
+            "step": "5.5",
+            "status": "[ ]",
+            "task": "Scan environment for lateral spread using all identified IOCs"
+          }
+        ]
+      },
+      {
+        "phase": "6. Recovery & Lessons Learned",
+        "steps": [
+          {
+            "step": "6.1",
+            "status": "[ ]",
+            "task": "Restore from clean backup or rebuild affected systems"
+          },
+          {
+            "step": "6.2",
+            "status": "[ ]",
+            "task": "Verify system integrity before reconnecting to network"
+          },
+          {
+            "step": "6.3",
+            "status": "[ ]",
+            "task": "Monitor recovered systems closely for 48-72 hours post-recovery"
+          },
+          {
+            "step": "6.4",
+            "status": "[ ]",
+            "task": "Write incident report — timeline, impact, root cause, actions taken"
+          },
+          {
+            "step": "6.5",
+            "status": "[ ]",
+            "task": "Conduct post-incident review — what detection gaps existed?"
+          },
+          {
+            "step": "6.6",
+            "status": "[ ]",
+            "task": "Update SIEM rules and detection content based on incident TTPs"
+          },
+          {
+            "step": "6.7",
+            "status": "[ ]",
+            "task": "Share IOCs with threat intel platform and relevant ISACs"
+          }
+        ]
+      }
+    ],
+    "mitre": "TA0001,TA0004,TA0006,TA0008,TA0010"
+  }
+}

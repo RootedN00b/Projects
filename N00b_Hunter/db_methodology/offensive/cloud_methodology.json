@@ -1,0 +1,369 @@
+{
+  "Cloud Methodology": {
+    "description": "Cloud penetration testing methodology covering AWS, Azure, and GCP from external recon to full account compromise.",
+    "phases": [
+      {
+        "phase": "1. Reconnaissance",
+        "steps": [
+          {
+            "step": "1.1",
+            "status": "[ ]",
+            "task": "Identify cloud provider — DNS records, response headers, WHOIS, Shodan"
+          },
+          {
+            "step": "1.2",
+            "status": "[ ]",
+            "task": "Enumerate S3/Azure Blob/GCS buckets — s3scanner, gcpbucketbrute"
+          },
+          {
+            "step": "1.3",
+            "status": "[ ]",
+            "task": "Search for leaked API keys/secrets — GitHub (truffleHog, gitleaks)"
+          },
+          {
+            "step": "1.4",
+            "status": "[ ]",
+            "task": "Check SSL certs for subdomain/service discovery — crt.sh"
+          },
+          {
+            "step": "1.5",
+            "status": "[ ]",
+            "task": "Identify cloud-hosted services — Shodan, Censys, FOFA"
+          },
+          {
+            "step": "1.6",
+            "status": "[ ]",
+            "task": "Azure tenant/domain enumeration — AADInternals, o365enum"
+          },
+          {
+            "step": "1.7",
+            "status": "[ ]",
+            "task": "AWS account ID enumeration via public S3 error messages"
+          }
+        ],
+        "mitre": "TA0043"
+      },
+      {
+        "phase": "2. Initial Access",
+        "steps": [
+          {
+            "step": "2.1",
+            "status": "[ ]",
+            "task": "Test access with discovered API keys — validate scope and permissions"
+          },
+          {
+            "step": "2.2",
+            "status": "[ ]",
+            "task": "AWS — try unauthenticated S3 access: aws s3 ls s3://{bucket} --no-sign-request"
+          },
+          {
+            "step": "2.3",
+            "status": "[ ]",
+            "task": "Azure — device code phishing flow / MSOLSpray password spraying"
+          },
+          {
+            "step": "2.4",
+            "status": "[ ]",
+            "task": "GCP — test unauthenticated storage access: gsutil ls gs://{bucket}"
+          },
+          {
+            "step": "2.5",
+            "status": "[ ]",
+            "task": "Exploit SSRF to reach cloud metadata service (169.254.169.254)"
+          },
+          {
+            "step": "2.6",
+            "status": "[ ]",
+            "task": "Exploit overly permissive IAM roles on public-facing functions"
+          }
+        ],
+        "mitre": "T1087.004"
+      },
+      {
+        "phase": "3. Enumeration (with creds)",
+        "steps": [
+          {
+            "step": "3.1",
+            "status": "[ ]",
+            "task": "AWS — enumerate-iam.py to identify all accessible permissions"
+          },
+          {
+            "step": "3.2",
+            "status": "[ ]",
+            "task": "AWS — list IAM users, roles, groups, policies"
+          },
+          {
+            "step": "3.3",
+            "status": "[ ]",
+            "task": "AWS — check for Secrets Manager and SSM Parameter Store secrets"
+          },
+          {
+            "step": "3.4",
+            "status": "[ ]",
+            "task": "Azure — AzureHound collection for all resources and roles"
+          },
+          {
+            "step": "3.5",
+            "status": "[ ]",
+            "task": "Azure — enumerate Key Vaults, storage accounts, VMs, service principals"
+          },
+          {
+            "step": "3.6",
+            "status": "[ ]",
+            "task": "GCP — enumerate IAM bindings, service accounts, secrets, GCS buckets"
+          },
+          {
+            "step": "3.7",
+            "status": "[ ]",
+            "task": "Identify overprivileged accounts (admin, owner, wildcard policies)"
+          },
+          {
+            "step": "3.8",
+            "status": "not_started",
+            "task": "AWS — enumerate Lambda Function URLs (unauthenticated endpoints): aws lambda list-function-url-configs --function-name <fn>"
+          },
+          {
+            "step": "3.9",
+            "status": "not_started",
+            "task": "AWS/Azure/GCP — enumerate AI/ML services: Bedrock models (aws bedrock list-foundation-models), Azure OpenAI (az cognitiveservices account list), Vertex AI (gcloud ai models list)"
+          }
+        ],
+        "mitre": "TA0001"
+      },
+      {
+        "phase": "4. Privilege Escalation",
+        "steps": [
+          {
+            "step": "4.1",
+            "status": "[ ]",
+            "task": "AWS — run Pacu iam__privesc_scan to identify escalation paths"
+          },
+          {
+            "step": "4.2",
+            "status": "[ ]",
+            "task": "AWS — attach AdministratorAccess policy to controlled user/role"
+          },
+          {
+            "step": "4.3",
+            "status": "[ ]",
+            "task": "AWS — assume-role into higher privilege role"
+          },
+          {
+            "step": "4.4",
+            "status": "[ ]",
+            "task": "AWS — Lambda code injection / environment variable override"
+          },
+          {
+            "step": "4.5",
+            "status": "[ ]",
+            "task": "Azure — abuse Managed Identity to get OAuth token from IMDS"
+          },
+          {
+            "step": "4.6",
+            "status": "[ ]",
+            "task": "Azure — app role assignment abuse for Global Admin escalation"
+          },
+          {
+            "step": "4.7",
+            "status": "[ ]",
+            "task": "GCP — service account key creation for persistence"
+          },
+          {
+            "step": "4.8",
+            "status": "[ ]",
+            "task": "GCP — update Cloud Function code with malicious handler"
+          }
+        ],
+        "mitre": "T1078.004"
+      },
+      {
+        "phase": "5. Lateral Movement",
+        "steps": [
+          {
+            "step": "5.1",
+            "status": "[ ]",
+            "task": "AWS — pivot via EC2 Instance Connect or SSM Session Manager"
+          },
+          {
+            "step": "5.2",
+            "status": "[ ]",
+            "task": "AWS — access cross-account roles via trust policy abuse"
+          },
+          {
+            "step": "5.3",
+            "status": "[ ]",
+            "task": "Azure — access other subscriptions via Managed Identity"
+          },
+          {
+            "step": "5.4",
+            "status": "[ ]",
+            "task": "GCP — impersonate other service accounts via token delegation"
+          },
+          {
+            "step": "5.5",
+            "status": "[ ]",
+            "task": "Steal credentials from cloud-native secrets stores"
+          }
+        ],
+        "mitre": "T1537"
+      },
+      {
+        "phase": "6. Data Exfiltration",
+        "steps": [
+          {
+            "step": "6.1",
+            "status": "[ ]",
+            "task": "AWS — sync S3 buckets: aws s3 sync s3://{bucket} ./loot/"
+          },
+          {
+            "step": "6.2",
+            "status": "[ ]",
+            "task": "AWS — export RDS snapshots to attacker account"
+          },
+          {
+            "step": "6.3",
+            "status": "[ ]",
+            "task": "Azure — download blobs: az storage blob download-batch"
+          },
+          {
+            "step": "6.4",
+            "status": "[ ]",
+            "task": "GCP — download GCS objects: gsutil -m cp -r gs://{bucket} ./loot/"
+          },
+          {
+            "step": "6.5",
+            "status": "[ ]",
+            "task": "Extract database connection strings and dump databases"
+          }
+        ],
+        "mitre": "TA0003"
+      },
+      {
+        "phase": "7. Defense Evasion",
+        "steps": [
+          {
+            "step": "7.1",
+            "status": "[ ]",
+            "task": "AWS — stop CloudTrail logging before sensitive operations"
+          },
+          {
+            "step": "7.2",
+            "status": "[ ]",
+            "task": "AWS — operate in regions without GuardDuty enabled"
+          },
+          {
+            "step": "7.3",
+            "status": "[ ]",
+            "task": "Azure — use Managed Identities instead of explicit credentials"
+          },
+          {
+            "step": "7.4",
+            "status": "[ ]",
+            "task": "GCP — use service account token to avoid direct user attribution"
+          },
+          {
+            "step": "7.5",
+            "status": "[ ]",
+            "task": "Minimize API call volume to avoid anomaly detection"
+          },
+          {
+            "step": "7.6",
+            "status": "not_started",
+            "task": "AWS — GuardDuty evasion: create suppression filter (CreateFilter with ARCHIVE action) or add attacker IP to trusted IP set (CreateIPSet)"
+          },
+          {
+            "step": "7.7",
+            "status": "not_started",
+            "task": "AWS — abuse Lambda Function URL with authType=NONE as covert C2 channel bypassing WAF/VPC controls: aws lambda create-function-url-config --auth-type NONE"
+          },
+          {
+            "step": "7.8",
+            "status": "not_started",
+            "task": "Azure — disable Defender for Cloud alerts on subscription: az security auto-provisioning-setting update --name mma --auto-provision Off"
+          }
+        ]
+      },
+      {
+        "phase": "8. Persistence (if in scope)",
+        "steps": [
+          {
+            "step": "8.1",
+            "status": "[ ]",
+            "task": "AWS — create hidden IAM user with access keys, no console login tag"
+          },
+          {
+            "step": "8.2",
+            "status": "[ ]",
+            "task": "AWS — add attacker-controlled principal to role trust policy"
+          },
+          {
+            "step": "8.3",
+            "status": "[ ]",
+            "task": "Azure — add credentials to existing app/service principal (secret or certificate)"
+          },
+          {
+            "step": "8.4",
+            "status": "[ ]",
+            "task": "Azure — register federated credential linking to attacker OIDC issuer"
+          },
+          {
+            "step": "8.5",
+            "status": "[ ]",
+            "task": "GCP — create persistent service account key for offline authentication"
+          },
+          {
+            "step": "8.6",
+            "status": "[ ]",
+            "task": "GCP — add attacker account to org IAM policy with editor/owner role"
+          }
+        ]
+      },
+      {
+        "phase": "9. Container / Kubernetes Attacks",
+        "steps": [
+          {
+            "step": "9.1",
+            "status": "[ ]",
+            "task": "Enumerate K8s cluster — kubectl get pods,secrets,cm,sa -A"
+          },
+          {
+            "step": "9.2",
+            "status": "[ ]",
+            "task": "Check service account permissions — kubectl auth can-i --list"
+          },
+          {
+            "step": "9.3",
+            "status": "[ ]",
+            "task": "Create privileged pod for node escape — mount /host and chroot"
+          },
+          {
+            "step": "9.4",
+            "status": "[ ]",
+            "task": "Read K8s secrets from etcd if accessible — etcdctl get / --prefix | grep -i password"
+          },
+          {
+            "step": "9.5",
+            "status": "[ ]",
+            "task": "Exploit misconfigured RBAC — create ClusterRoleBinding to cluster-admin"
+          },
+          {
+            "step": "9.6",
+            "status": "[ ]",
+            "task": "Compromise container registry (ACR/ECR/Artifact Registry) — inject malicious image layer"
+          },
+          {
+            "step": "9.7",
+            "status": "not_started",
+            "task": "AI/ML services — test for prompt injection in Bedrock/Azure OpenAI deployed models; enumerate accessible RAG datastores (Kendra, AI Search indexes); check for exposed embeddings buckets"
+          },
+          {
+            "step": "9.8",
+            "status": "not_started",
+            "task": "AWS SageMaker — enumerate public endpoints, notebook instances, and model artifacts in S3: aws sagemaker list-endpoints; check for unauthenticated inference endpoints"
+          }
+        ]
+      }
+    ],
+    "mitre": "T1078.004,T1530,T1552.005,T1648"
+  }
+}

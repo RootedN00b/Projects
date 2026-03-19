@@ -1,0 +1,2271 @@
+{
+  "Reconnaissance": {
+    "description": "Elastic detection queries for reconnaissance techniques mapped to MITRE ATT&CK.",
+    "commands": [
+      {
+        "description": "Internal Port Scanning",
+        "method": "SPL - MITTREATT&CK T1046",
+        "command": "network.transport:tcp AND event.dataset:network* | stats count() by source.ip | where count > 200"
+      },
+      {
+        "description": "External Port Scanning",
+        "method": "SPL - MITTREATT&CK T1046",
+        "command": "destination.ip:(10.* OR 192.168.* OR 172.16.*) AND network.transport:tcp"
+      },
+      {
+        "description": "SMB Share Enumeration",
+        "method": "SPL - MITTREATT&CK T1135",
+        "command": "event.code:5140"
+      },
+      {
+        "description": "LDAP Enumeration",
+        "method": "SPL - MITTREATT&CK T1087.002",
+        "command": "process.command_line:(ldapsearch OR Get-ADUser OR Get-ADComputer)"
+      },
+      {
+        "description": "Kerberos User Enumeration",
+        "method": "SPL - MITTREATT&CK T1087",
+        "command": "event.code:4768 AND winlog.event_data.Status:0x6"
+      },
+      {
+        "description": "DNS Brute Force",
+        "method": "SPL - MITTREATT&CK T1595",
+        "command": "event.dataset:dns AND dns.response_code:NXDOMAIN | stats count() by source.ip | where count > 50"
+      },
+      {
+        "description": "Network Configuration Discovery",
+        "method": "SPL - MITTREATT&CK T1016",
+        "command": "process.command_line:(ipconfig OR ifconfig)"
+      },
+      {
+        "description": "System Information Discovery",
+        "method": "SPL - MITTREATT&CK T1082",
+        "command": "process.command_line:(systeminfo OR uname)"
+      },
+      {
+        "description": "Domain Trust Enumeration",
+        "method": "SPL - MITTREATT&CK T1482",
+        "command": "process.command_line:(nltest /domain_trusts OR Get-ADTrust)"
+      },
+      {
+        "description": "Local Group Enumeration",
+        "method": "SPL - MITTREATT&CK T1069",
+        "command": "process.command_line:(net localgroup)"
+      },
+      {
+        "description": "Active Directory Query via PowerShell",
+        "method": "SPL - MITTREATT&CK T1087.002",
+        "command": "process.name:powershell.exe AND process.command_line:(Get-ADUser OR Get-ADGroup)"
+      },
+      {
+        "description": "Cloud Account Enumeration",
+        "method": "SPL - MITTREATT&CK T1087.004",
+        "command": "event.dataset:azure.auditlogs AND operation_name:\"List Users\""
+      },
+      {
+        "description": "Email Address Harvesting",
+        "method": "SPL - MITTREATT&CK T1589",
+        "command": "process.command_line:(\"Get-Mailbox\" OR \"Get-DistributionGroup\")"
+      },
+      {
+        "description": "Process Discovery",
+        "method": "SPL - MITTREATT&CK T1057",
+        "command": "process.command_line:(tasklist OR ps)"
+      },
+      {
+        "description": "Security Software Discovery",
+        "method": "SPL - MITTREATT&CK T1518.001",
+        "command": "process.command_line:(Get-MpComputerStatus OR sc query)"
+      },
+      {
+        "description": "File Share Discovery",
+        "method": "SPL - MITTREATT&CK T1135",
+        "command": "process.command_line:(net view)"
+      },
+      {
+        "description": "Remote System Discovery",
+        "method": "SPL - MITTREATT&CK T1018",
+        "command": "process.command_line:(arp -a OR ping)"
+      },
+      {
+        "description": "DNS Zone Transfer Attempt",
+        "method": "SPL - MITTREATT&CK T1590",
+        "command": "dns.question.type:AXFR"
+      },
+      {
+        "description": "User Account Enumeration",
+        "method": "SPL - MITTREATT&CK T1087",
+        "command": "process.command_line:(net user)"
+      },
+      {
+        "description": "Group Policy Enumeration",
+        "method": "SPL - MITTREATT&CK T1615",
+        "command": "process.command_line:(Get-GPO OR gpresult)"
+      },
+      {
+        "description": "Firewall Rule Discovery",
+        "method": "SPL - MITTREATT&CK T1518",
+        "command": "process.command_line:(netsh advfirewall show)"
+      },
+      {
+        "description": "Registry Discovery",
+        "method": "SPL - MITTREATT&CK T1012",
+        "command": "process.command_line:(reg query)"
+      },
+      {
+        "description": "Remote Desktop Discovery",
+        "method": "SPL - MITTREATT&CK T1018",
+        "command": "destination.port:3389"
+      },
+      {
+        "description": "Database Enumeration",
+        "method": "SPL - MITTREATT&CK T1046",
+        "command": "destination.port:(1433 OR 3306 OR 5432)"
+      },
+      {
+        "description": "Web Directory Enumeration",
+        "method": "SPL - MITTREATT&CK T1595",
+        "command": "http.request.method:GET AND url.path:(\"/admin\" OR \".env\")"
+      },
+      {
+        "description": "Cloud Storage Enumeration",
+        "method": "SPL - MITTREATT&CK T1087.004",
+        "command": "event.dataset:aws.cloudtrail AND event.action:ListBuckets"
+      },
+      {
+        "description": "Kerberoasting Prep (SPN Query)",
+        "method": "SPL - MITTREATT&CK T1558.003",
+        "command": "event.code:4769"
+      },
+      {
+        "description": "Admin Account Discovery",
+        "method": "SPL - MITTREATT&CK T1087",
+        "command": "winlog.event_data.TargetUserName:*admin*"
+      },
+      {
+        "description": "Password Policy Discovery",
+        "method": "SPL - MITTREATT&CK T1201",
+        "command": "process.command_line:(net accounts)"
+      },
+      {
+        "description": "Cloud Role Enumeration",
+        "method": "SPL - MITTREATT&CK T1069.003",
+        "command": "event.dataset:azure.auditlogs AND operation_name:\"List role assignments\""
+      },
+      {
+        "description": "ARP Table Enumeration",
+        "method": "SPL - MITTREATT&CK T1016",
+        "command": "process.command_line:(arp -a)"
+      },
+      {
+        "description": "Host Discovery via ICMP",
+        "method": "SPL - MITTREATT&CK T1018",
+        "command": "network.transport:icmp"
+      },
+      {
+        "description": "Service Discovery via NBT",
+        "method": "SPL - MITTREATT&CK T1046",
+        "command": "destination.port:137"
+      },
+      {
+        "description": "WMI Enumeration",
+        "method": "SPL - MITTREATT&CK T1047",
+        "command": "process.command_line:(wmic)"
+      },
+      {
+        "description": "Certificate Authority Enumeration",
+        "method": "SPL - MITTREATT&CK T1592",
+        "command": "process.command_line:(certutil -config)"
+      },
+      {
+        "description": "Scheduled Task Enumeration",
+        "method": "SPL - MITTREATT&CK T1053",
+        "command": "process.command_line:(schtasks /query)"
+      },
+      {
+        "description": "Network Route Enumeration",
+        "method": "SPL - MITTREATT&CK T1016",
+        "command": "process.command_line:(route print)"
+      },
+      {
+        "description": "Open File Enumeration",
+        "method": "SPL - MITTREATT&CK T1083",
+        "command": "process.command_line:(openfiles)"
+      },
+      {
+        "description": "DNS Cache Inspection",
+        "method": "SPL - MITTREATT&CK T1016",
+        "command": "process.command_line:(ipconfig /displaydns)"
+      },
+      {
+        "description": "Security Group Enumeration (AWS)",
+        "method": "SPL - MITTREATT&CK T1069.003",
+        "command": "event.dataset:aws.cloudtrail AND event.action:DescribeSecurityGroups"
+      },
+      {
+        "description": "Azure Subscription Enumeration",
+        "method": "SPL - MITTREATT&CK T1087.004",
+        "command": "event.dataset:azure.auditlogs AND operation_name:\"List Subscriptions\""
+      },
+      {
+        "description": "Public Cloud Storage Probing",
+        "method": "SPL - MITTREATT&CK T1595",
+        "command": "url.domain:*.blob.core.windows.net"
+      },
+      {
+        "description": "Printer Enumeration",
+        "method": "SPL - MITTREATT&CK T1046",
+        "command": "destination.port:9100"
+      },
+      {
+        "description": "RPC Endpoint Enumeration",
+        "method": "SPL - MITTREATT&CK T1046",
+        "command": "destination.port:135"
+      },
+      {
+        "description": "Kerberos Ticket Request Enumeration",
+        "method": "SPL - MITTREATT&CK T1558",
+        "command": "event.code:4768"
+      },
+      {
+        "description": "Netstat Discovery",
+        "method": "SPL - MITTREATT&CK T1049",
+        "command": "process.command_line:(netstat -ano)"
+      },
+      {
+        "description": "Domain Controller Discovery",
+        "method": "SPL - MITTREATT&CK T1018",
+        "command": "process.command_line:(nltest /dclist)"
+      },
+      {
+        "description": "Exchange Server Enumeration",
+        "method": "SPL - MITTREATT&CK T1087",
+        "command": "process.command_line:(Get-ExchangeServer)"
+      },
+      {
+        "description": "VM Enumeration",
+        "method": "SPL - MITTREATT&CK T1082",
+        "command": "process.command_line:(Get-VM)"
+      },
+      {
+        "description": "Container Enumeration",
+        "method": "SPL - MITTREATT&CK T1082",
+        "command": "process.command_line:(docker ps)"
+      }
+    ],
+    "mitre": "TA0043",
+    "tuning": "Tune on internal scanning traffic \u2014 exclude known scanners and monitoring tools. Alert on first-seen scanner behavior from endpoints."
+  },
+  "Intrusion": {
+    "description": "Elastic detection queries for Initial Access techniques mapped to MITRE ATT&CK.",
+    "mitre": "TA0001",
+    "tuning": "Correlate lateral movement with authentication logs. Alert on remote execution from non-standard admin tools.",
+    "commands": [
+      {
+        "description": "Password Spraying",
+        "method": "SPL - MITTREATT&CK T1110.003",
+        "command": "event.code:4625 | stats count() by source.ip | where count > 20"
+      },
+      {
+        "description": "Brute Force Login",
+        "method": "SPL - MITTREATT&CK T1110",
+        "command": "event.code:4625 AND winlog.event_data.LogonType:3"
+      },
+      {
+        "description": "RDP Brute Force",
+        "method": "SPL - MITTREATT&CK T1110",
+        "command": "event.code:4625 AND winlog.event_data.LogonType:10"
+      },
+      {
+        "description": "Successful Login After Failures",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "event.code:4624 AND winlog.event_data.LogonType:3"
+      },
+      {
+        "description": "VPN Login From New Country",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "event.dataset:vpn AND event.outcome:success AND source.geo.country_name:*"
+      },
+      {
+        "description": "Suspicious OAuth Consent",
+        "method": "SPL - MITTREATT&CK T1566.002",
+        "command": "event.dataset:azure.auditlogs AND operation_name:\"Consent to application\""
+      },
+      {
+        "description": "Malicious Email Attachment Opened",
+        "method": "SPL - MITTREATT&CK T1566.001",
+        "command": "process.parent.name:(outlook.exe) AND process.name:(winword.exe OR excel.exe)"
+      },
+      {
+        "description": "Macro Spawning PowerShell",
+        "method": "SPL - MITTREATT&CK T1566.001",
+        "command": "process.parent.name:(winword.exe OR excel.exe) AND process.name:powershell.exe"
+      },
+      {
+        "description": "Drive-by Download Execution",
+        "method": "SPL - MITTREATT&CK T1189",
+        "command": "process.parent.name:(chrome.exe OR msedge.exe OR firefox.exe) AND process.name:(cmd.exe OR powershell.exe)"
+      },
+      {
+        "description": "Web Shell File Creation",
+        "method": "SPL - MITTREATT&CK T1505.003",
+        "command": "file.extension:(php OR aspx OR jsp) AND event.action:file_create"
+      },
+      {
+        "description": "Public Facing App Exploit Attempt",
+        "method": "SPL - MITTREATT&CK T1190",
+        "command": "http.request.method:(POST OR GET) AND url.path:(\"/admin\" OR \".env\" OR \"wp-login\")"
+      },
+      {
+        "description": "Suspicious File Download",
+        "method": "SPL - MITTREATT&CK T1105",
+        "command": "event.action:download AND file.extension:(exe OR dll OR ps1)"
+      },
+      {
+        "description": "Execution From Temp Directory",
+        "method": "SPL - MITTREATT&CK T1204",
+        "command": "process.executable:(C:\\\\Users\\\\*\\\\AppData\\\\Local\\\\Temp\\\\*)"
+      },
+      {
+        "description": "Suspicious ISO Mounting",
+        "method": "SPL - MITTREATT&CK T1566.001",
+        "command": "file.extension:iso"
+      },
+      {
+        "description": "Remote Service Logon",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "event.code:4624 AND winlog.event_data.LogonType:5"
+      },
+      {
+        "description": "SMB Authentication From External IP",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "destination.port:445 AND NOT source.ip:(10.* OR 192.168.* OR 172.16.*)"
+      },
+      {
+        "description": "SSH Brute Force",
+        "method": "SPL - MITTREATT&CK T1110",
+        "command": "process.name:sshd AND event.outcome:failure"
+      },
+      {
+        "description": "Kerberos Pre-Auth Failure Spray",
+        "method": "SPL - MITTREATT&CK T1110",
+        "command": "event.code:4771"
+      },
+      {
+        "description": "Creation of New User Account",
+        "method": "SPL - MITTREATT&CK T1136",
+        "command": "event.code:4720"
+      },
+      {
+        "description": "Suspicious Cloud Admin Role Assignment",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "event.dataset:azure.auditlogs AND operation_name:\"Add member to role\""
+      },
+      {
+        "description": "WMI Remote Process Creation",
+        "method": "SPL - MITTREATT&CK T1047",
+        "command": "process.command_line:(wmic process call create)"
+      },
+      {
+        "description": "PsExec Service Installation",
+        "method": "SPL - MITTREATT&CK T1569.002",
+        "command": "service.name:PSEXESVC"
+      },
+      {
+        "description": "Suspicious MSI Installation",
+        "method": "SPL - MITTREATT&CK T1218",
+        "command": "process.name:msiexec.exe AND process.command_line:(http)"
+      },
+      {
+        "description": "Encoded PowerShell Execution",
+        "method": "SPL - MITTREATT&CK T1059.001",
+        "command": "process.command_line:(-enc OR -encodedcommand)"
+      },
+      {
+        "description": "Execution From Downloads Folder",
+        "method": "SPL - MITTREATT&CK T1204",
+        "command": "process.executable:(C:\\\\Users\\\\*\\\\Downloads\\\\*)"
+      },
+      {
+        "description": "Suspicious Scheduled Task Creation",
+        "method": "SPL - MITTREATT&CK T1053",
+        "command": "event.code:4698"
+      },
+      {
+        "description": "Cloud API Key Creation",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "event.dataset:aws.cloudtrail AND event.action:CreateAccessKey"
+      },
+      {
+        "description": "Azure Application Registration",
+        "method": "SPL - MITTREATT&CK T1136",
+        "command": "event.dataset:azure.auditlogs AND operation_name:\"Add application\""
+      },
+      {
+        "description": "Credential Stuffing Web App",
+        "method": "SPL - MITTREATT&CK T1110.004",
+        "command": "http.response.status_code:401 | stats count() by source.ip"
+      },
+      {
+        "description": "NTLM Authentication Spike",
+        "method": "SPL - MITTREATT&CK T1110",
+        "command": "event.code:4624 AND winlog.event_data.AuthenticationPackageName:NTLM"
+      },
+      {
+        "description": "Remote File Copy via SMB",
+        "method": "SPL - MITTREATT&CK T1105",
+        "command": "event.code:5145"
+      },
+      {
+        "description": "Unauthorized Cloud Login",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "event.dataset:azure.signinlogs AND risk_level:high"
+      },
+      {
+        "description": "Proxy Log Suspicious POST",
+        "method": "SPL - MITTREATT&CK T1190",
+        "command": "http.request.method:POST AND url.path:(\"/upload\")"
+      },
+      {
+        "description": "Malicious Script Interpreter Launch",
+        "method": "SPL - MITTREATT&CK T1059",
+        "command": "process.name:(powershell.exe OR wscript.exe OR cscript.exe)"
+      },
+      {
+        "description": "Executable From Email Cache",
+        "method": "SPL - MITTREATT&CK T1566",
+        "command": "process.executable:(*\\\\Content.Outlook\\\\*)"
+      },
+      {
+        "description": "Abnormal Account Lockout Spike",
+        "method": "SPL - MITTREATT&CK T1110",
+        "command": "event.code:4740"
+      },
+      {
+        "description": "Remote Registry Access",
+        "method": "SPL - MITTREATT&CK T1112",
+        "command": "destination.port:445 AND registry.path:*"
+      },
+      {
+        "description": "Malicious Browser Extension Install",
+        "method": "SPL - MITTREATT&CK T1176",
+        "command": "file.path:(*\\\\Extensions\\\\*)"
+      },
+      {
+        "description": "Cloud Storage Object Public Exposure",
+        "method": "SPL - MITTREATT&CK T1537",
+        "command": "event.dataset:aws.cloudtrail AND event.action:PutBucketPolicy"
+      },
+      {
+        "description": "Suspicious Docker Image Pull",
+        "method": "SPL - MITTREATT&CK T1610",
+        "command": "process.command_line:(docker pull)"
+      },
+      {
+        "description": "SSH Key Addition",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "file.path:(~/.ssh/authorized_keys)"
+      },
+      {
+        "description": "Suspicious WinRM Login",
+        "method": "SPL - MITTREATT&CK T1021.006",
+        "command": "destination.port:5985 OR destination.port:5986"
+      },
+      {
+        "description": "Office Spawning CMD",
+        "method": "SPL - MITTREATT&CK T1204",
+        "command": "process.parent.name:(winword.exe OR excel.exe) AND process.name:cmd.exe"
+      },
+      {
+        "description": "External FTP Login",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "destination.port:21 AND event.outcome:success"
+      },
+      {
+        "description": "Suspicious MSI Child Process",
+        "method": "SPL - MITTREATT&CK T1218",
+        "command": "process.parent.name:msiexec.exe"
+      },
+      {
+        "description": "PowerShell From Web Server",
+        "method": "SPL - MITTREATT&CK T1059.001",
+        "command": "process.parent.name:(w3wp.exe) AND process.name:powershell.exe"
+      },
+      {
+        "description": "Unusual Geo Login",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "source.geo.country_name:(\"Russia\" OR \"China\")"
+      },
+      {
+        "description": "Execution From Mounted Drive",
+        "method": "SPL - MITTREATT&CK T1204",
+        "command": "process.executable:(E:\\\\ OR F:\\\\)"
+      },
+      {
+        "description": "Abnormal Browser Child Process",
+        "method": "SPL - MITTREATT&CK T1189",
+        "command": "process.parent.name:(chrome.exe OR msedge.exe) AND process.name:(powershell.exe OR cmd.exe)"
+      },
+      {
+        "description": "Remote Service Logon Using Admin Account",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "event.code:4624 AND winlog.event_data.LogonType:3 AND user.name:*admin*"
+      }
+    ]
+  },
+  "Exploitation": {
+    "description": "Elastic detection queries for exploitation and execution techniques mapped to MITRE ATT&CK.",
+    "mitre": "TA0002",
+    "tuning": "Alert on web server child process anomalies. Tune parent-child process rules per application stack.",
+    "commands": [
+      {
+        "description": "Encoded PowerShell Execution",
+        "method": "SPL - MITTREATT&CK T1059.001",
+        "command": "process.name:powershell.exe AND process.command_line:(-enc OR -encodedcommand)"
+      },
+      {
+        "description": "Suspicious Rundll32 Execution",
+        "method": "SPL - MITTREATT&CK T1218.011",
+        "command": "process.name:rundll32.exe AND process.command_line:(http OR https)"
+      },
+      {
+        "description": "Regsvr32 Remote Script Execution",
+        "method": "SPL - MITTREATT&CK T1218.010",
+        "command": "process.name:regsvr32.exe AND process.command_line:(http OR scrobj.dll)"
+      },
+      {
+        "description": "Mshta Remote Execution",
+        "method": "SPL - MITTREATT&CK T1218.005",
+        "command": "process.name:mshta.exe AND process.command_line:(http)"
+      },
+      {
+        "description": "WMI Remote Execution",
+        "method": "SPL - MITTREATT&CK T1047",
+        "command": "process.command_line:(wmic process call create)"
+      },
+      {
+        "description": "Service Creation",
+        "method": "SPL - MITTREATT&CK T1569.002",
+        "command": "event.code:7045"
+      },
+      {
+        "description": "Command Shell Spawned by Web Server",
+        "method": "SPL - MITTREATT&CK T1505.003",
+        "command": "process.parent.name:(w3wp.exe OR httpd.exe) AND process.name:cmd.exe"
+      },
+      {
+        "description": "LSASS Memory Access",
+        "method": "SPL - MITTREATT&CK T1003.001",
+        "command": "process.command_line:(lsass) AND process.name:(procdump.exe OR rundll32.exe)"
+      },
+      {
+        "description": "Credential Dumping via Mimikatz Indicators",
+        "method": "SPL - MITTREATT&CK T1003",
+        "command": "process.command_line:(sekurlsa OR logonpasswords)"
+      },
+      {
+        "description": "Suspicious Scheduled Task Creation",
+        "method": "SPL - MITTREATT&CK T1053",
+        "command": "event.code:4698"
+      },
+      {
+        "description": "Registry Run Key Persistence",
+        "method": "SPL - MITTREATT&CK T1547.001",
+        "command": "registry.path:(*\\\\Run OR *\\\\RunOnce)"
+      },
+      {
+        "description": "DLL Search Order Hijacking",
+        "method": "SPL - MITTREATT&CK T1574.001",
+        "command": "file.extension:dll AND file.path:(C:\\\\Users\\\\Public\\\\*)"
+      },
+      {
+        "description": "Process Injection Indicators",
+        "method": "SPL - MITTREATT&CK T1055",
+        "command": "event.code:10 AND process.name:(explorer.exe OR lsass.exe)"
+      },
+      {
+        "description": "Suspicious MSI Execution",
+        "method": "SPL - MITTREATT&CK T1218",
+        "command": "process.name:msiexec.exe AND process.command_line:(http)"
+      },
+      {
+        "description": "Execution From Temp Directory",
+        "method": "SPL - MITTREATT&CK T1204",
+        "command": "process.executable:(*\\\\Temp\\\\*)"
+      },
+      {
+        "description": "Exploit Public-Facing App",
+        "method": "SPL - MITTREATT&CK T1190",
+        "command": "http.response.status_code:500 AND url.path:(\"/admin\" OR \"/wp-login\")"
+      },
+      {
+        "description": "Remote Thread Creation",
+        "method": "SPL - MITTREATT&CK T1055.001",
+        "command": "event.code:8"
+      },
+      {
+        "description": "Suspicious Binary From Downloads",
+        "method": "SPL - MITTREATT&CK T1204",
+        "command": "process.executable:(*\\\\Downloads\\\\*)"
+      },
+      {
+        "description": "Office Spawning PowerShell",
+        "method": "SPL - MITTREATT&CK T1204",
+        "command": "process.parent.name:(winword.exe OR excel.exe) AND process.name:powershell.exe"
+      },
+      {
+        "description": "Reflective DLL Load Pattern",
+        "method": "SPL - MITTREATT&CK T1620",
+        "command": "process.command_line:(LoadLibrary OR VirtualAlloc)"
+      },
+      {
+        "description": "Encoded Command in CMD",
+        "method": "SPL - MITTREATT&CK T1059",
+        "command": "process.name:cmd.exe AND process.command_line:(base64)"
+      },
+      {
+        "description": "Suspicious Java Execution",
+        "method": "SPL - MITTREATT&CK T1059.005",
+        "command": "process.name:java.exe AND process.command_line:(-jar)"
+      },
+      {
+        "description": "Container Escape Attempt",
+        "method": "SPL - MITTREATT&CK T1611",
+        "command": "process.command_line:(docker exec)"
+      },
+      {
+        "description": "Abnormal Script Interpreter Usage",
+        "method": "SPL - MITTREATT&CK T1059",
+        "command": "process.name:(wscript.exe OR cscript.exe)"
+      },
+      {
+        "description": "Credential Dump via SAM Access",
+        "method": "SPL - MITTREATT&CK T1003.002",
+        "command": "file.path:(C:\\\\Windows\\\\System32\\\\config\\\\SAM)"
+      },
+      {
+        "description": "Suspicious Child of Services.exe",
+        "method": "SPL - MITTREATT&CK T1569",
+        "command": "process.parent.name:services.exe AND process.name:(cmd.exe OR powershell.exe)"
+      },
+      {
+        "description": "Web Shell Execution",
+        "method": "SPL - MITTREATT&CK T1505.003",
+        "command": "process.parent.name:(w3wp.exe) AND process.command_line:(cmd)"
+      },
+      {
+        "description": "Suspicious GPO Script Execution",
+        "method": "SPL - MITTREATT&CK T1053",
+        "command": "process.command_line:(\\\\SYSVOL\\\\)"
+      },
+      {
+        "description": "Malicious Driver Load",
+        "method": "SPL - MITTREATT&CK T1547.006",
+        "command": "event.code:7045 AND service.type:kernel"
+      },
+      {
+        "description": "Direct System Call Indicators",
+        "method": "SPL - MITTREATT&CK T1106",
+        "command": "process.command_line:(NtCreateThreadEx)"
+      },
+      {
+        "description": "Powershell Download Cradle",
+        "method": "SPL - MITTREATT&CK T1105",
+        "command": "process.command_line:(Invoke-WebRequest OR IEX)"
+      },
+      {
+        "description": "Fileless Execution Pattern",
+        "method": "SPL - MITTREATT&CK T1059",
+        "command": "process.command_line:(-nop -w hidden)"
+      },
+      {
+        "description": "Abnormal IIS Module Load",
+        "method": "SPL - MITTREATT&CK T1505.004",
+        "command": "file.path:(C:\\\\Windows\\\\System32\\\\inetsrv\\\\*)"
+      },
+      {
+        "description": "Suspicious Curl or Wget Usage",
+        "method": "SPL - MITTREATT&CK T1105",
+        "command": "process.name:(curl.exe OR wget.exe)"
+      },
+      {
+        "description": "Registry Modification of Security Settings",
+        "method": "SPL - MITTREATT&CK T1112",
+        "command": "registry.path:(*\\\\Security\\\\*)"
+      },
+      {
+        "description": "Abnormal Use of Certutil",
+        "method": "SPL - MITTREATT&CK T1105",
+        "command": "process.name:certutil.exe AND process.command_line:(-urlcache)"
+      },
+      {
+        "description": "Suspicious BITS Transfer",
+        "method": "SPL - MITTREATT&CK T1197",
+        "command": "process.name:bitsadmin.exe"
+      },
+      {
+        "description": "Kernel Exploit Indicators",
+        "method": "SPL - MITTREATT&CK T1068",
+        "command": "event.code:4672"
+      },
+      {
+        "description": "Suspicious Process Hollowing Pattern",
+        "method": "SPL - MITTREATT&CK T1055.012",
+        "command": "process.command_line:(CreateProcess OR WriteProcessMemory)"
+      },
+      {
+        "description": "Web Application Deserialization Attempt",
+        "method": "SPL - MITTREATT&CK T1190",
+        "command": "http.request.body:(\"__VIEWSTATE\")"
+      },
+      {
+        "description": "Local Privilege Exploit Binary Execution",
+        "method": "SPL - MITTREATT&CK T1068",
+        "command": "process.executable:(C:\\\\Users\\\\Public\\\\*)"
+      },
+      {
+        "description": "Abnormal Parent-Child Relationship",
+        "method": "SPL - MITTREATT&CK T1059",
+        "command": "process.parent.name:(explorer.exe) AND process.name:(powershell.exe)"
+      },
+      {
+        "description": "Suspicious Dynamic Code Compilation",
+        "method": "SPL - MITTREATT&CK T1027",
+        "command": "process.command_line:(csc.exe)"
+      },
+      {
+        "description": "Reverse Shell Indicators",
+        "method": "SPL - MITTREATT&CK T1059",
+        "command": "process.command_line:(nc.exe OR ncat.exe)"
+      },
+      {
+        "description": "Suspicious Use of At.exe",
+        "method": "SPL - MITTREATT&CK T1053.002",
+        "command": "process.name:at.exe"
+      },
+      {
+        "description": "Abnormal SMB Pipe Access",
+        "method": "SPL - MITTREATT&CK T1021.002",
+        "command": "file.path:(\\\\PIPE\\\\*)"
+      },
+      {
+        "description": "Unusual DLL Loaded by System Process",
+        "method": "SPL - MITTREATT&CK T1574",
+        "command": "process.name:(lsass.exe) AND file.extension:dll"
+      },
+      {
+        "description": "Exploit Attempt via RPC",
+        "method": "SPL - MITTREATT&CK T1047",
+        "command": "destination.port:135"
+      },
+      {
+        "description": "Encoded Script Block Logging Event",
+        "method": "SPL - MITTREATT&CK T1059.001",
+        "command": "event.code:4104 AND message:(FromBase64String)"
+      },
+      {
+        "description": "Abnormal Execution of LOLBins",
+        "method": "SPL - MITTREATT&CK T1218",
+        "command": "process.name:(rundll32.exe OR regsvr32.exe OR mshta.exe)"
+      }
+    ]
+  },
+  "Privilege_Escalation": {
+    "description": "Elastic detection queries for privilege escalation techniques mapped to MITRE ATT&CK.",
+    "mitre": "T1068",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context.",
+    "commands": [
+      {
+        "description": "User Added to Local Administrators Group",
+        "method": "SPL - MITTREATT&CK T1068",
+        "command": "event.code:(4732 OR 4728) AND winlog.event_data.TargetSid:*S-1-5-32-544*"
+      },
+      {
+        "description": "New Domain Admin Added",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "event.code:4728 AND winlog.event_data.TargetUserName:\"Domain Admins\""
+      },
+      {
+        "description": "DCSync Attempt",
+        "method": "SPL - MITTREATT&CK T1003.006",
+        "command": "event.code:4662 AND winlog.event_data.Properties:*replication*"
+      },
+      {
+        "description": "Kerberos Golden Ticket Usage",
+        "method": "SPL - MITTREATT&CK T1558.001",
+        "command": "event.code:4769 AND winlog.event_data.TicketEncryptionType:0x17"
+      },
+      {
+        "description": "Shadow Credentials Modification",
+        "method": "SPL - MITTREATT&CK T1556",
+        "command": "event.code:5136 AND winlog.event_data.AttributeLDAPDisplayName:msDS-KeyCredentialLink"
+      },
+      {
+        "description": "AdminSDHolder Modification",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "event.code:5136 AND winlog.event_data.ObjectDN:*AdminSDHolder*"
+      },
+      {
+        "description": "Service Binary Path Modification",
+        "method": "SPL - MITTREATT&CK T1574.011",
+        "command": "event.code:7040"
+      },
+      {
+        "description": "Scheduled Task With SYSTEM Privilege",
+        "method": "SPL - MITTREATT&CK T1053",
+        "command": "event.code:4698 AND winlog.event_data.RunLevel:HighestAvailable"
+      },
+      {
+        "description": "UAC Bypass Indicators",
+        "method": "SPL - MITTREATT&CK T1548.002",
+        "command": "process.parent.name:explorer.exe AND process.name:(cmd.exe OR powershell.exe) AND user.name:Administrator"
+      },
+      {
+        "description": "Token Manipulation Activity",
+        "method": "SPL - MITTREATT&CK T1134",
+        "command": "event.code:4672"
+      },
+      {
+        "description": "Abuse of SeDebugPrivilege",
+        "method": "SPL - MITTREATT&CK T1134",
+        "command": "event.code:4672 AND winlog.event_data.PrivilegeList:*SeDebugPrivilege*"
+      },
+      {
+        "description": "Credential Dumping LSASS Access",
+        "method": "SPL - MITTREATT&CK T1003.001",
+        "command": "process.command_line:(lsass)"
+      },
+      {
+        "description": "New Service Installed as SYSTEM",
+        "method": "SPL - MITTREATT&CK T1543.003",
+        "command": "event.code:7045"
+      },
+      {
+        "description": "Registry IFEO Debugger Key Abuse",
+        "method": "SPL - MITTREATT&CK T1546.012",
+        "command": "registry.path:*Image File Execution Options*"
+      },
+      {
+        "description": "SAM Database Access",
+        "method": "SPL - MITTREATT&CK T1003.002",
+        "command": "file.path:(C:\\\\Windows\\\\System32\\\\config\\\\SAM)"
+      },
+      {
+        "description": "Abnormal RunAs Usage",
+        "method": "SPL - MITTREATT&CK T1548",
+        "command": "process.name:runas.exe"
+      },
+      {
+        "description": "Privilege Escalation via Exploit Binary",
+        "method": "SPL - MITTREATT&CK T1068",
+        "command": "process.executable:(C:\\\\Users\\\\Public\\\\*)"
+      },
+      {
+        "description": "Modification of GPO Permissions",
+        "method": "SPL - MITTREATT&CK T1484.001",
+        "command": "event.code:4739"
+      },
+      {
+        "description": "Local Account Created",
+        "method": "SPL - MITTREATT&CK T1136.001",
+        "command": "event.code:4720"
+      },
+      {
+        "description": "Abnormal LSA Registry Modification",
+        "method": "SPL - MITTREATT&CK T1112",
+        "command": "registry.path:*\\\\Control\\\\Lsa*"
+      },
+      {
+        "description": "Sudoers File Modification (Linux)",
+        "method": "SPL - MITTREATT&CK T1548.003",
+        "command": "file.path:(/etc/sudoers)"
+      },
+      {
+        "description": "SetUID Binary Creation",
+        "method": "SPL - MITTREATT&CK T1548.001",
+        "command": "file.mode:*s* AND file.path:(/usr/bin/*)"
+      },
+      {
+        "description": "Modification of /etc/passwd",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "file.path:(/etc/passwd)"
+      },
+      {
+        "description": "Abuse of AlwaysInstallElevated",
+        "method": "SPL - MITTREATT&CK T1548.002",
+        "command": "registry.path:*AlwaysInstallElevated*"
+      },
+      {
+        "description": "Creation of High Privilege Cloud Role",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "event.dataset:azure.auditlogs AND operation_name:\"Add member to role\""
+      },
+      {
+        "description": "Pass-the-Hash Indicators",
+        "method": "SPL - MITTREATT&CK T1550.002",
+        "command": "event.code:4624 AND winlog.event_data.AuthenticationPackageName:NTLM"
+      },
+      {
+        "description": "Kerberos Silver Ticket Usage",
+        "method": "SPL - MITTREATT&CK T1558.002",
+        "command": "event.code:4769 AND winlog.event_data.ServiceName:*"
+      },
+      {
+        "description": "Abuse of Delegation",
+        "method": "SPL - MITTREATT&CK T1558",
+        "command": "event.code:4769 AND winlog.event_data.TransitedServices:*"
+      },
+      {
+        "description": "Local Group Policy Script Abuse",
+        "method": "SPL - MITTREATT&CK T1037",
+        "command": "process.command_line:(\\\\SYSVOL\\\\)"
+      },
+      {
+        "description": "Creation of Persistent Admin Account",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "event.code:4720 AND user.name:*admin*"
+      },
+      {
+        "description": "Unauthorized Modification of ACL",
+        "method": "SPL - MITTREATT&CK T1222",
+        "command": "event.code:4670"
+      },
+      {
+        "description": "Abuse of WMI Permanent Event Subscription",
+        "method": "SPL - MITTREATT&CK T1546.003",
+        "command": "process.command_line:(__EventFilter)"
+      },
+      {
+        "description": "Elevation via Service Account Abuse",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "event.code:4624 AND winlog.event_data.LogonType:5"
+      },
+      {
+        "description": "Modification of Security Descriptor",
+        "method": "SPL - MITTREATT&CK T1222",
+        "command": "event.code:5136"
+      },
+      {
+        "description": "Elevation via DLL Hijack",
+        "method": "SPL - MITTREATT&CK T1574",
+        "command": "file.extension:dll AND file.path:(C:\\\\ProgramData\\\\*)"
+      },
+      {
+        "description": "Abnormal SeImpersonatePrivilege Usage",
+        "method": "SPL - MITTREATT&CK T1134",
+        "command": "event.code:4672 AND winlog.event_data.PrivilegeList:*SeImpersonatePrivilege*"
+      },
+      {
+        "description": "LSA Secrets Access",
+        "method": "SPL - MITTREATT&CK T1003.004",
+        "command": "process.command_line:(lsadump)"
+      },
+      {
+        "description": "Creation of Scheduled Task as SYSTEM",
+        "method": "SPL - MITTREATT&CK T1053",
+        "command": "event.code:4698 AND winlog.event_data.Author:*SYSTEM*"
+      },
+      {
+        "description": "Abnormal Use of SeTakeOwnershipPrivilege",
+        "method": "SPL - MITTREATT&CK T1134",
+        "command": "event.code:4672 AND winlog.event_data.PrivilegeList:*SeTakeOwnershipPrivilege*"
+      },
+      {
+        "description": "Service Running With Elevated Token",
+        "method": "SPL - MITTREATT&CK T1543",
+        "command": "process.parent.name:services.exe AND event.code:4688"
+      },
+      {
+        "description": "Abuse of Backup Privilege",
+        "method": "SPL - MITTREATT&CK T1134",
+        "command": "event.code:4672 AND winlog.event_data.PrivilegeList:*SeBackupPrivilege*"
+      },
+      {
+        "description": "Elevation via MSI Abuse",
+        "method": "SPL - MITTREATT&CK T1548.002",
+        "command": "process.name:msiexec.exe AND user.name:*SYSTEM*"
+      },
+      {
+        "description": "Unauthorized AD Object Modification",
+        "method": "SPL - MITTREATT&CK T1484",
+        "command": "event.code:5136"
+      },
+      {
+        "description": "Modification of Kerberos Policy",
+        "method": "SPL - MITTREATT&CK T1484",
+        "command": "event.code:4713"
+      },
+      {
+        "description": "Abnormal Admin Logon Type 2",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "event.code:4624 AND winlog.event_data.LogonType:2 AND user.name:*admin*"
+      },
+      {
+        "description": "Credential Guard Tampering",
+        "method": "SPL - MITTREATT&CK T1562",
+        "command": "registry.path:*DeviceGuard*"
+      },
+      {
+        "description": "Modification of Restricted Groups",
+        "method": "SPL - MITTREATT&CK T1484",
+        "command": "event.code:4735"
+      },
+      {
+        "description": "Abuse of Print Spooler Privilege",
+        "method": "SPL - MITTREATT&CK T1068",
+        "command": "destination.port:445 AND process.name:spoolsv.exe"
+      },
+      {
+        "description": "Abnormal Security Package Load",
+        "method": "SPL - MITTREATT&CK T1556",
+        "command": "registry.path:*Security Packages*"
+      },
+      {
+        "description": "Elevation via Scheduled Service Restart",
+        "method": "SPL - MITTREATT&CK T1543",
+        "command": "event.code:7036 AND winlog.event_data.Param1:*running*"
+      }
+    ]
+  },
+  "Lateral_Movement": {
+    "description": "Elastic detection queries for lateral movement techniques mapped to MITRE ATT&CK.",
+    "mitre": "T1021",
+    "tuning": "Baseline normal admin movement patterns in your environment before enabling alerting. Exclude DC replication traffic. Alert on first-seen lateral paths between host pairs.",
+    "commands": [
+      {
+        "description": "RDP Logon",
+        "method": "SPL - MITTREATT&CK T1021.001",
+        "command": "event.code:4624 AND winlog.event_data.LogonType:10"
+      },
+      {
+        "description": "SMB Admin Share Access",
+        "method": "SPL - MITTREATT&CK T1021.002",
+        "command": "winlog.event_data.ShareName:(\\\\*\\ADMIN$ OR \\\\*\\C$)"
+      },
+      {
+        "description": "PsExec Service Creation",
+        "method": "SPL - MITTREATT&CK T1569.002",
+        "command": "service.name:PSEXESVC"
+      },
+      {
+        "description": "WMI Remote Execution",
+        "method": "SPL - MITTREATT&CK T1047",
+        "command": "process.command_line:(wmic process call create)"
+      },
+      {
+        "description": "WinRM Remote Session",
+        "method": "SPL - MITTREATT&CK T1021.006",
+        "command": "destination.port:(5985 OR 5986)"
+      },
+      {
+        "description": "SSH Lateral Movement",
+        "method": "SPL - MITTREATT&CK T1021.004",
+        "command": "destination.port:22 AND event.outcome:success"
+      },
+      {
+        "description": "Remote Service Installation",
+        "method": "SPL - MITTREATT&CK T1569.002",
+        "command": "event.code:7045"
+      },
+      {
+        "description": "DCOM Remote Execution",
+        "method": "SPL - MITTREATT&CK T1021.003",
+        "command": "process.command_line:(dcom OR mmc.exe)"
+      },
+      {
+        "description": "Pass-the-Hash Authentication",
+        "method": "SPL - MITTREATT&CK T1550.002",
+        "command": "event.code:4624 AND winlog.event_data.AuthenticationPackageName:NTLM"
+      },
+      {
+        "description": "Kerberos Ticket Reuse",
+        "method": "SPL - MITTREATT&CK T1550.003",
+        "command": "event.code:4769"
+      },
+      {
+        "description": "Remote Task Scheduler Execution",
+        "method": "SPL - MITTREATT&CK T1053",
+        "command": "event.code:4698"
+      },
+      {
+        "description": "Admin Share File Transfer",
+        "method": "SPL - MITTREATT&CK T1105",
+        "command": "event.code:5145"
+      },
+      {
+        "description": "Remote Registry Access",
+        "method": "SPL - MITTREATT&CK T1021",
+        "command": "destination.port:445 AND registry.path:*"
+      },
+      {
+        "description": "PowerShell Remoting",
+        "method": "SPL - MITTREATT&CK T1021.006",
+        "command": "process.command_line:(Enter-PSSession OR Invoke-Command)"
+      },
+      {
+        "description": "Abnormal Admin Logon Across Hosts",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "event.code:4624 AND user.name:*admin*"
+      },
+      {
+        "description": "Net Use Remote Share Mapping",
+        "method": "SPL - MITTREATT&CK T1021.002",
+        "command": "process.command_line:(net use)"
+      },
+      {
+        "description": "Remote Desktop Client Execution",
+        "method": "SPL - MITTREATT&CK T1021.001",
+        "command": "process.name:mstsc.exe"
+      },
+      {
+        "description": "Lateral Movement via Scheduled Task",
+        "method": "SPL - MITTREATT&CK T1053",
+        "command": "process.command_line:(schtasks /create)"
+      },
+      {
+        "description": "Remote Process Creation Event",
+        "method": "SPL - MITTREATT&CK T1021",
+        "command": "event.code:4688 AND winlog.event_data.SubjectLogonId:*"
+      },
+      {
+        "description": "Abnormal NTLM Authentication",
+        "method": "SPL - MITTREATT&CK T1550.002",
+        "command": "event.code:4624 AND winlog.event_data.AuthenticationPackageName:NTLM"
+      },
+      {
+        "description": "SMB Pipe Usage",
+        "method": "SPL - MITTREATT&CK T1021.002",
+        "command": "file.path:(\\\\PIPE\\\\*)"
+      },
+      {
+        "description": "Remote WMI Subscription Creation",
+        "method": "SPL - MITTREATT&CK T1047",
+        "command": "process.command_line:(__EventFilter)"
+      },
+      {
+        "description": "PsExec Named Pipe Creation",
+        "method": "SPL - MITTREATT&CK T1569.002",
+        "command": "file.path:(\\\\PSEXESVC)"
+      },
+      {
+        "description": "Remote File Copy via Robocopy",
+        "method": "SPL - MITTREATT&CK T1105",
+        "command": "process.name:robocopy.exe"
+      },
+      {
+        "description": "Abnormal Kerberos Service Ticket Requests",
+        "method": "SPL - MITTREATT&CK T1558",
+        "command": "event.code:4769"
+      },
+      {
+        "description": "Remote Execution via WMIC",
+        "method": "SPL - MITTREATT&CK T1047",
+        "command": "process.name:wmic.exe"
+      },
+      {
+        "description": "Lateral Movement via RDP Clipboard",
+        "method": "SPL - MITTREATT&CK T1021.001",
+        "command": "process.name:rdpclip.exe"
+      },
+      {
+        "description": "Abnormal Service Start After Remote Logon",
+        "method": "SPL - MITTREATT&CK T1569",
+        "command": "event.code:7036"
+      },
+      {
+        "description": "Remote Execution via At.exe",
+        "method": "SPL - MITTREATT&CK T1053.002",
+        "command": "process.name:at.exe"
+      },
+      {
+        "description": "Remote MMC Usage",
+        "method": "SPL - MITTREATT&CK T1021.003",
+        "command": "process.name:mmc.exe"
+      },
+      {
+        "description": "Cross-Host PowerShell Session",
+        "method": "SPL - MITTREATT&CK T1021.006",
+        "command": "process.command_line:(New-PSSession)"
+      },
+      {
+        "description": "SMB Session Setup Spike",
+        "method": "SPL - MITTREATT&CK T1021.002",
+        "command": "destination.port:445"
+      },
+      {
+        "description": "RPC Lateral Movement",
+        "method": "SPL - MITTREATT&CK T1021",
+        "command": "destination.port:135"
+      },
+      {
+        "description": "Remote Scheduled Task Execution",
+        "method": "SPL - MITTREATT&CK T1053",
+        "command": "process.command_line:(schtasks /run)"
+      },
+      {
+        "description": "Pass-the-Ticket Indicators",
+        "method": "SPL - MITTREATT&CK T1550.003",
+        "command": "event.code:4769 AND winlog.event_data.LogonGuid:*"
+      },
+      {
+        "description": "SSH Key Propagation",
+        "method": "SPL - MITTREATT&CK T1021.004",
+        "command": "file.path:(~/.ssh/authorized_keys)"
+      },
+      {
+        "description": "Abnormal Admin Logon Type 3",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "event.code:4624 AND winlog.event_data.LogonType:3 AND user.name:*admin*"
+      },
+      {
+        "description": "SMB File Write to Remote Host",
+        "method": "SPL - MITTREATT&CK T1105",
+        "command": "event.code:5145 AND winlog.event_data.AccessMask:0x2"
+      },
+      {
+        "description": "Remote Registry Service Start",
+        "method": "SPL - MITTREATT&CK T1021",
+        "command": "service.name:RemoteRegistry"
+      },
+      {
+        "description": "Cross-Host Kerberos TGS Requests",
+        "method": "SPL - MITTREATT&CK T1558",
+        "command": "event.code:4769 AND winlog.event_data.ServiceName:*"
+      },
+      {
+        "description": "Unusual Admin Account Use Across Hosts",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "event.code:4624 AND user.name:*admin*"
+      },
+      {
+        "description": "Remote Process via PsExec",
+        "method": "SPL - MITTREATT&CK T1569.002",
+        "command": "process.parent.name:psexec.exe"
+      },
+      {
+        "description": "Lateral Movement via FTP",
+        "method": "SPL - MITTREATT&CK T1021",
+        "command": "destination.port:21"
+      },
+      {
+        "description": "Remote WinRM PowerShell Child Process",
+        "method": "SPL - MITTREATT&CK T1021.006",
+        "command": "process.parent.name:wsmprovhost.exe"
+      },
+      {
+        "description": "SMB Named Pipe Creation",
+        "method": "SPL - MITTREATT&CK T1021.002",
+        "command": "file.path:(\\\\PIPE\\\\*)"
+      },
+      {
+        "description": "Cross-System Service Installation",
+        "method": "SPL - MITTREATT&CK T1569.002",
+        "command": "event.code:7045"
+      },
+      {
+        "description": "Abnormal Lateral Movement via RDP From Non-Admin",
+        "method": "SPL - MITTREATT&CK T1021.001",
+        "command": "event.code:4624 AND winlog.event_data.LogonType:10 AND NOT user.name:*admin*"
+      },
+      {
+        "description": "Remote Execution via WMI Provider Host",
+        "method": "SPL - MITTREATT&CK T1047",
+        "command": "process.name:WmiPrvSE.exe AND process.parent.name:svchost.exe"
+      },
+      {
+        "description": "Cross-Host Credential Reuse Pattern",
+        "method": "SPL - MITTREATT&CK T1550",
+        "command": "event.code:4624 AND winlog.event_data.LogonGuid:*"
+      },
+      {
+        "description": "Multiple Remote Logons Within Short Interval",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "event.code:4624 | stats count() by user.name | where count > 10"
+      }
+    ]
+  },
+  "Hunt - Beaconing via Fixed Interval Connections": {
+    "description": "Proactively hunt for C2 beaconing by detecting outbound connections firing at suspiciously regular intervals.",
+    "commands": [
+      {
+        "description": "Detect connections to same external IP at near-fixed intervals (jitter < 5s).",
+        "method": "Elastic KQL",
+        "command": "event.category: network AND network.direction: outbound AND NOT destination.ip: (10.0.0.0/8 OR 172.16.0.0/12 OR 192.168.0.0/16) | stats avg(@timestamp) as avg_ts, stddev(@timestamp) as jitter by destination.ip, source.ip | where jitter < 5000"
+      },
+      {
+        "description": "EQL \u2014 sequence of 10 outbound connections to same IP within 10 minutes.",
+        "method": "Elastic EQL",
+        "command": "sequence by source.ip, destination.ip with maxspan=10m [network where network.direction == \"outbound\"] with runs=10"
+      },
+      {
+        "description": "Hunt for long-duration low-bandwidth sessions (slow beacons).",
+        "method": "Elastic KQL",
+        "command": "event.category: network AND network.direction: outbound AND network.bytes < 1024 AND event.duration > 600000000000 AND NOT destination.ip: (10.0.0.0/8 OR 172.16.0.0/12 OR 192.168.0.0/16)"
+      }
+    ],
+    "mitre": "T1071",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - DNS Tunneling": {
+    "description": "Proactively hunt for data exfiltration or C2 over DNS using high-entropy subdomains and excessive TXT queries.",
+    "commands": [
+      {
+        "description": "Detect high volume of unique DNS subdomains for a single parent domain.",
+        "method": "Elastic KQL",
+        "command": "event.category: network AND network.protocol: dns AND dns.question.type: A | stats dc(dns.question.name) as unique_subdomains by dns.question.registered_domain | where unique_subdomains > 100"
+      },
+      {
+        "description": "Hunt for excessive TXT record queries \u2014 common in DNS tunnel tools.",
+        "method": "Elastic KQL",
+        "command": "network.protocol: dns AND dns.question.type: TXT | stats count() by source.ip, dns.question.registered_domain | where count > 20"
+      },
+      {
+        "description": "Detect abnormally long DNS query names (>50 chars in subdomain label).",
+        "method": "Elastic KQL",
+        "command": "network.protocol: dns AND dns.question.name: * | where length(dns.question.name) > 50 AND dns.question.type: (A OR TXT OR CNAME)"
+      },
+      {
+        "description": "Hunt for NULL, ANY, or PRIVATE DNS record types used by tunneling tools.",
+        "method": "Elastic KQL",
+        "command": "network.protocol: dns AND dns.question.type: (NULL OR ANY OR PRIVATE OR HINFO)"
+      }
+    ],
+    "mitre": "T1071.004",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - LSASS Credential Dumping": {
+    "description": "Proactively hunt for LSASS memory access patterns indicative of Mimikatz, Nanodump, or similar tools.",
+    "commands": [
+      {
+        "description": "LSASS handle open by unexpected process (Sysmon 10).",
+        "method": "Elastic KQL",
+        "command": "event.code: 10 AND winlog.event_data.TargetImage: *lsass.exe AND NOT winlog.event_data.SourceImage: (C:\\\\Windows\\\\System32\\\\svchost.exe OR C:\\\\Windows\\\\System32\\\\csrss.exe OR C:\\\\Windows\\\\System32\\\\werfault.exe OR C:\\\\Program Files\\\\*)"
+      },
+      {
+        "description": "EQL \u2014 process opening LSASS then immediately writing a file (dump).",
+        "method": "Elastic EQL",
+        "command": "sequence by host.id with maxspan=30s [process where event.code == \"10\" and winlog.event_data.TargetImage : \"*lsass.exe\"] [file where file.extension in (\"dmp\",\"bin\",\"dat\") and file.size > 1000000]"
+      },
+      {
+        "description": "Hunt for comsvcs.dll MiniDump via rundll32.",
+        "method": "Elastic KQL",
+        "command": "process.name: rundll32.exe AND process.command_line: (*comsvcs* AND *MiniDump*)"
+      },
+      {
+        "description": "Detect procdump targeting lsass.exe.",
+        "method": "Elastic KQL",
+        "command": "process.name: (procdump.exe OR procdump64.exe) AND process.command_line: *lsass*"
+      }
+    ],
+    "mitre": "T1003.001",
+    "tuning": "Alert on LSASS/SAM access from non-system processes. Whitelist backup agents and EDR sensors. Correlate credential access with subsequent unusual auth activity in Elastic."
+  },
+  "Hunt - Scheduled Task Persistence": {
+    "description": "Proactively hunt for scheduled tasks created by attackers for persistence or lateral movement.",
+    "commands": [
+      {
+        "description": "Scheduled task created by non-admin utility or script (Event 4698).",
+        "method": "Elastic KQL",
+        "command": "event.code: 4698 AND NOT winlog.event_data.SubjectUserName: (*$ OR SYSTEM) AND winlog.event_data.TaskContent: (*powershell* OR *cmd.exe* OR *wscript* OR *mshta*)"
+      },
+      {
+        "description": "schtasks.exe creating task with SYSTEM privilege.",
+        "method": "Elastic KQL",
+        "command": "process.name: schtasks.exe AND process.command_line: (*SYSTEM* AND (/create OR /sc OR /tr))"
+      },
+      {
+        "description": "EQL \u2014 scheduled task creation followed by execution within 5 min.",
+        "method": "Elastic EQL",
+        "command": "sequence by host.id with maxspan=5m [process where process.name == \"schtasks.exe\" and process.command_line : \"*/create*\"] [process where process.command_line : (\"*powershell*\",\"*cmd.exe*\")]"
+      },
+      {
+        "description": "Hunt XML task files written directly to system task directory.",
+        "method": "Elastic KQL",
+        "command": "file.path: C:\\\\Windows\\\\System32\\\\Tasks\\\\* AND event.action: (created OR modified) AND NOT process.name: (taskhost.exe OR svchost.exe OR mmc.exe)"
+      }
+    ],
+    "mitre": "T1053.005",
+    "tuning": "Alert on persistence outside business hours or from unusual accounts. Whitelist software deployment mechanisms. Cross-reference with Elastic change management records."
+  },
+  "Hunt - WMI Persistence & Lateral Movement": {
+    "description": "Proactively hunt for WMI event subscriptions used for fileless persistence.",
+    "commands": [
+      {
+        "description": "WMI event subscription created \u2014 EventFilter + Consumer binding.",
+        "method": "Elastic KQL",
+        "command": "event.code: (5857 OR 5858 OR 5859 OR 5860 OR 5861) AND winlog.event_data.ConsumerName: * AND NOT winlog.event_data.ConsumerName: NTEventLogEventConsumer"
+      },
+      {
+        "description": "WmiPrvSE spawning unusual child processes.",
+        "method": "Elastic EQL",
+        "command": "process where process.parent.name == \"WmiPrvSE.exe\" and process.name in (\"cmd.exe\",\"powershell.exe\",\"cscript.exe\",\"mshta.exe\",\"regsvr32.exe\")"
+      },
+      {
+        "description": "Detect wmic.exe used for remote process execution.",
+        "method": "Elastic KQL",
+        "command": "process.name: wmic.exe AND process.command_line: (*node:* AND *process call create*)"
+      }
+    ],
+    "mitre": "T1546.003",
+    "tuning": "Baseline normal admin movement patterns in your environment before enabling alerting. Exclude DC replication traffic. Alert on first-seen lateral paths between host pairs."
+  },
+  "Hunt - Suspicious PowerShell Activity": {
+    "description": "Proactively hunt for malicious PowerShell \u2014 encoded commands, download cradles, AMSI bypass, and reflective loading.",
+    "commands": [
+      {
+        "description": "Base64-encoded PowerShell command execution (Event 4104).",
+        "method": "Elastic KQL",
+        "command": "event.code: 4104 AND powershell.file.script_block_text: (*FromBase64String* OR *-EncodedCommand* OR *-enc *)"
+      },
+      {
+        "description": "Download cradle patterns in script block logs.",
+        "method": "Elastic KQL",
+        "command": "event.code: 4104 AND powershell.file.script_block_text: (*Net.WebClient* OR *DownloadString* OR *DownloadFile* OR *IEX* OR *Invoke-Expression*) AND powershell.file.script_block_text: (*http* OR *ftp*)"
+      },
+      {
+        "description": "PowerShell using reflection to load assemblies in memory.",
+        "method": "Elastic KQL",
+        "command": "event.code: 4104 AND powershell.file.script_block_text: (*Reflection.Assembly* OR *[System.Reflection* OR *Assembly.Load* OR *UnsafeLoadFrom*)"
+      },
+      {
+        "description": "Hunt for PowerShell spawned from non-standard parents.",
+        "method": "Elastic EQL",
+        "command": "process where process.name == \"powershell.exe\" and process.parent.name in (\"mshta.exe\",\"wscript.exe\",\"cscript.exe\",\"winword.exe\",\"excel.exe\",\"outlook.exe\",\"regsvr32.exe\")"
+      },
+      {
+        "description": "Detect PowerShell running without window (hidden execution).",
+        "method": "Elastic KQL",
+        "command": "process.name: powershell.exe AND process.command_line: (*-WindowStyle Hidden* OR *-W H* OR *-NonInteractive* OR *-NoProfile*) AND process.command_line: (*-enc* OR *IEX* OR *DownloadString*)"
+      }
+    ],
+    "mitre": "T1059.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - Registry Persistence": {
+    "description": "Proactively hunt for attacker-created registry run keys, AppInit DLLs, and image file execution options hijacks.",
+    "commands": [
+      {
+        "description": "New value written to Run/RunOnce registry keys (Sysmon 13).",
+        "method": "Elastic KQL",
+        "command": "event.code: 13 AND winlog.event_data.TargetObject: (HKLM\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run* OR HKCU\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run*) AND NOT process.name: (msiexec.exe OR setup.exe OR install*)"
+      },
+      {
+        "description": "Image File Execution Options (IFEO) debugger hijack.",
+        "method": "Elastic KQL",
+        "command": "event.code: 13 AND winlog.event_data.TargetObject: *Image File Execution Options* AND winlog.event_data.Details: *"
+      },
+      {
+        "description": "AppInit_DLLs modified \u2014 DLL injection persistence.",
+        "method": "Elastic KQL",
+        "command": "event.code: 13 AND winlog.event_data.TargetObject: *AppInit_DLLs AND winlog.event_data.Details: (* AND NOT \"\")"
+      },
+      {
+        "description": "Hunt for Security Support Provider (SSP) DLL registration.",
+        "method": "Elastic KQL",
+        "command": "event.code: 13 AND winlog.event_data.TargetObject: *Security Packages* AND winlog.event_data.Details: (* AND NOT kerberos AND NOT msapsspc AND NOT schannel)"
+      }
+    ],
+    "mitre": "T1547.001",
+    "tuning": "Alert on persistence outside business hours or from unusual accounts. Whitelist software deployment mechanisms. Cross-reference with Elastic change management records."
+  },
+  "Hunt - Data Exfiltration over HTTPS": {
+    "description": "Proactively hunt for large outbound data transfers to unexpected external destinations.",
+    "commands": [
+      {
+        "description": "Hunt for large outbound HTTPS sessions exceeding 10MB to new destinations.",
+        "method": "Elastic KQL",
+        "command": "event.category: network AND destination.port: 443 AND network.direction: outbound AND network.bytes > 10485760 AND NOT destination.ip: (10.0.0.0/8 OR 172.16.0.0/12 OR 192.168.0.0/16) | stats sum(network.bytes) as total by destination.ip, source.ip | sort total desc"
+      },
+      {
+        "description": "Detect processes not normally making HTTPS connections sending large data.",
+        "method": "Elastic EQL",
+        "command": "network where network.direction == \"outbound\" and destination.port == 443 and network.bytes > 5000000 and process.name in (\"notepad.exe\",\"mspaint.exe\",\"calc.exe\",\"svchost.exe\",\"regsvr32.exe\")"
+      },
+      {
+        "description": "Hunt for POST requests with unusually large body size.",
+        "method": "Elastic KQL",
+        "command": "event.dataset: network_traffic.http AND http.request.method: POST AND http.request.body.bytes > 1048576 AND network.direction: outbound"
+      }
+    ],
+    "mitre": "T1048.002",
+    "tuning": "Baseline normal data transfer volumes before alerting on exfiltration. Alert on transfers to new destinations. Tune DNS exfil detection on query entropy and subdomain count."
+  },
+  "Hunt - Lateral Movement via RDP": {
+    "description": "Proactively hunt for unusual RDP usage, brute force, and RDP tunneling.",
+    "commands": [
+      {
+        "description": "Multiple failed RDP logons then success (brute then success pattern).",
+        "method": "Elastic EQL",
+        "command": "sequence by source.ip with maxspan=5m [authentication where event.code == \"4625\" and winlog.event_data.LogonType == \"10\"] with runs=5 [authentication where event.code == \"4624\" and winlog.event_data.LogonType == \"10\"]"
+      },
+      {
+        "description": "RDP logon from source IP that has never connected before.",
+        "method": "Elastic KQL",
+        "command": "event.code: 4624 AND winlog.event_data.LogonType: 10 | stats count() by source.ip | where count < 2"
+      },
+      {
+        "description": "Hunt for RDP over non-standard ports (mstsc to port != 3389).",
+        "method": "Elastic KQL",
+        "command": "process.name: mstsc.exe AND network.direction: outbound AND NOT destination.port: 3389"
+      },
+      {
+        "description": "Detect RDP session followed immediately by new process execution.",
+        "method": "Elastic EQL",
+        "command": "sequence by host.id with maxspan=2m [authentication where event.code == \"4624\" and winlog.event_data.LogonType == \"10\"] [process where process.name in (\"cmd.exe\",\"powershell.exe\",\"net.exe\",\"whoami.exe\")]"
+      }
+    ],
+    "mitre": "T1021.001",
+    "tuning": "Baseline normal admin movement patterns in your environment before enabling alerting. Exclude DC replication traffic. Alert on first-seen lateral paths between host pairs."
+  },
+  "Hunt - Supply Chain & DLL Hijacking": {
+    "description": "Proactively hunt for DLL search order hijacking, phantom DLL loading, and sideloading.",
+    "commands": [
+      {
+        "description": "DLL loaded from user-writable path by privileged process (Sysmon 7).",
+        "method": "Elastic KQL",
+        "command": "event.code: 7 AND winlog.event_data.ImageLoaded: (C:\\\\Users\\\\* OR C:\\\\ProgramData\\\\* OR C:\\\\Temp\\\\*) AND process.name: (lsass.exe OR svchost.exe OR winlogon.exe)"
+      },
+      {
+        "description": "Unsigned DLL loaded by signed process.",
+        "method": "Elastic KQL",
+        "command": "event.code: 7 AND winlog.event_data.Signed: \"false\" AND process.code_signature.trusted: true AND NOT winlog.event_data.ImageLoaded: (C:\\\\Windows\\\\* OR C:\\\\Program Files\\\\*)"
+      },
+      {
+        "description": "Hunt for DLL with same name as system DLL but from different path.",
+        "method": "Elastic KQL",
+        "command": "event.code: 7 AND winlog.event_data.ImageLoaded: (* AND NOT C:\\\\Windows\\\\System32\\\\* AND NOT C:\\\\Windows\\\\SysWOW64\\\\*) AND winlog.event_data.Description: *Windows*"
+      }
+    ],
+    "mitre": "T1195.002",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - Suspicious Network Reconnaissance": {
+    "description": "Proactively hunt for internal network scanning, enumeration, and host discovery.",
+    "commands": [
+      {
+        "description": "Single host initiating connections to >20 unique internal IPs on port 445.",
+        "method": "Elastic KQL",
+        "command": "event.category: network AND destination.port: 445 AND destination.ip: (10.0.0.0/8 OR 172.16.0.0/12 OR 192.168.0.0/16) | stats dc(destination.ip) as targets by source.ip | where targets > 20"
+      },
+      {
+        "description": "ICMP sweep \u2014 one source pinging >50 hosts in 1 minute.",
+        "method": "Elastic KQL",
+        "command": "network.transport: icmp AND icmp.type: 8 | stats dc(destination.ip) as hosts by source.ip, bin(@timestamp, 1m) | where hosts > 50"
+      },
+      {
+        "description": "nmap or masscan process execution.",
+        "method": "Elastic KQL",
+        "command": "process.name: (nmap OR masscan OR zmap OR rustscan) OR process.command_line: (*nmap* OR *--scan-delay* OR *-sS* OR *masscan*)"
+      },
+      {
+        "description": "NetBIOS NS queries flood \u2014 host discovery via name resolution.",
+        "method": "Elastic KQL",
+        "command": "network.protocol: nbns AND dns.question.type: NB | stats dc(destination.ip) as targets by source.ip | where targets > 30"
+      }
+    ],
+    "mitre": "T1046",
+    "tuning": "Tune on internal traffic anomalies. Whitelist known scanners, monitoring agents, and backup systems. Alert on internal scanning from endpoints (not servers) as high priority."
+  },
+  "Hunt - Token Impersonation & Privilege Escalation": {
+    "description": "Proactively hunt for token theft, impersonation, and privilege escalation attempts.",
+    "commands": [
+      {
+        "description": "A non-SYSTEM process enabling SeDebugPrivilege (Event 4703).",
+        "method": "Elastic KQL",
+        "command": "event.code: 4703 AND winlog.event_data.EnabledPrivilegeList: *SeDebugPrivilege AND NOT winlog.event_data.SubjectUserName: (SYSTEM OR *$)"
+      },
+      {
+        "description": "Token duplication via CreateProcessWithTokenW \u2014 lateral escalation indicator.",
+        "method": "Elastic KQL",
+        "command": "event.code: 4624 AND winlog.event_data.LogonType: 9 AND winlog.event_data.LogonProcessName: Advapi"
+      },
+      {
+        "description": "Hunt for juicy-potato or similar named pipe impersonation tools.",
+        "method": "Elastic KQL",
+        "command": "process.command_line: (*JuicyPotato* OR *PrintSpoofer* OR *RoguePotato* OR *SweetPotato* OR *GodPotato*)"
+      }
+    ],
+    "mitre": "T1134",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - Ransomware Pre-Staging": {
+    "description": "Proactively hunt for ransomware pre-deployment activity \u2014 shadow copy deletion, backup kills, and mass file operations.",
+    "commands": [
+      {
+        "description": "Shadow copy deletion via vssadmin or wmic.",
+        "method": "Elastic KQL",
+        "command": "process.name: (vssadmin.exe OR wmic.exe) AND process.command_line: (*delete shadows* OR *Delete Shadows* OR *shadowcopy delete*)"
+      },
+      {
+        "description": "bcdedit disabling recovery options.",
+        "method": "Elastic KQL",
+        "command": "process.name: bcdedit.exe AND process.command_line: (*recoveryenabled No* OR *bootstatuspolicy ignoreallfailures*)"
+      },
+      {
+        "description": "Mass file rename or extension change across >100 files in 60 seconds.",
+        "method": "Elastic EQL",
+        "command": "sequence by host.id with maxspan=60s [file where event.action == \"rename\" and file.extension not in (\"tmp\",\"log\")] with runs=100"
+      },
+      {
+        "description": "Backup software or Windows Backup service killed.",
+        "method": "Elastic KQL",
+        "command": "process.name: (taskkill.exe OR net.exe OR sc.exe) AND process.command_line: (*vss* OR *backup* OR *MSSQLFDLauncher* OR *sql* OR *sophos* OR *defender*)"
+      }
+    ],
+    "mitre": "T1486",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - Cloud Credential Theft (IMDS & Metadata)": {
+    "description": "Proactively hunt for EC2/Azure IMDS credential theft and abuse.",
+    "commands": [
+      {
+        "description": "Unexpected process querying AWS EC2 metadata endpoint.",
+        "method": "Elastic KQL",
+        "command": "destination.ip: 169.254.169.254 AND destination.port: 80 AND NOT process.name: (amazon-ssm-agent OR aws-cli OR python* OR curl OR wget)"
+      },
+      {
+        "description": "AWS credential usage from new IP after IMDS query.",
+        "method": "Elastic EQL",
+        "command": "sequence by host.id with maxspan=5m [network where destination.ip == \"169.254.169.254\"] [network where destination.ip != \"169.254.169.254\" and network.direction == \"outbound\" and destination.port in (443,80)]"
+      },
+      {
+        "description": "Detect curl or wget directly querying Azure IMDS endpoint.",
+        "method": "Elastic KQL",
+        "command": "process.name: (curl OR wget) AND process.command_line: *169.254.169.254* AND process.command_line: *metadata*"
+      }
+    ],
+    "mitre": "T1552.005",
+    "tuning": "Alert on LSASS/SAM access from non-system processes. Whitelist backup agents and EDR sensors. Correlate credential access with subsequent unusual auth activity in Elastic."
+  },
+  "Hunt - Webshell Activity": {
+    "description": "Proactively hunt for webshells dropped on web servers and their command execution.",
+    "commands": [
+      {
+        "description": "Web server process (IIS/Apache) spawning cmd or powershell.",
+        "method": "Elastic EQL",
+        "command": "process where process.parent.name in (\"w3wp.exe\",\"httpd.exe\",\"nginx.exe\",\"tomcat\",\"java.exe\") and process.name in (\"cmd.exe\",\"powershell.exe\",\"sh\",\"bash\",\"python\",\"perl\")"
+      },
+      {
+        "description": "Suspicious file write to web root by web server process.",
+        "method": "Elastic KQL",
+        "command": "file.path: (C:\\\\inetpub\\\\* OR /var/www/* OR /srv/www/*) AND event.action: (created OR modified) AND process.name: (w3wp.exe OR httpd OR apache OR nginx) AND file.extension: (php OR asp OR aspx OR jsp OR cfm)"
+      },
+      {
+        "description": "Hunt for China Chopper webshell pattern in HTTP requests.",
+        "method": "Elastic KQL",
+        "command": "event.dataset: network_traffic.http AND http.request.body.content: (*eval(base64_decode* OR *assert($_POST* OR *passthru* OR *system($_GET*)"
+      }
+    ],
+    "mitre": "T1505.003",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - Kerberos Delegation Abuse": {
+    "description": "Proactively hunt for unconstrained delegation exploitation and S4U2Proxy abuse.",
+    "commands": [
+      {
+        "description": "TGT delegation to unconstrained delegation host \u2014 forwardable TGT in ticket.",
+        "method": "Elastic KQL",
+        "command": "event.code: 4769 AND winlog.event_data.TicketOptions: *0x40810000* AND NOT winlog.event_data.ServiceName: *$"
+      },
+      {
+        "description": "S4U2Self TGS request for another user \u2014 constrained delegation abuse.",
+        "method": "Elastic KQL",
+        "command": "event.code: 4769 AND winlog.event_data.TransmittedServices: * AND NOT winlog.event_data.TargetUserName: (winlog.event_data.ServiceName)"
+      },
+      {
+        "description": "Rubeus or getST.py used for S4U delegation.",
+        "method": "Elastic KQL",
+        "command": "process.command_line: (*s4u* OR *getST* OR *Rubeus* AND (*s4u* OR *tgtdeleg* OR *asktgt*))"
+      }
+    ],
+    "mitre": "T1134.001",
+    "tuning": "Whitelist legitimate Kerberos service accounts and scheduled tasks. Alert on RC4/DES downgrade requests for high-privilege SPNs. Cross-reference with Elastic identity logs."
+  },
+  "Hunt - Suspicious Service Installation": {
+    "description": "Proactively hunt for attacker-installed services used for persistence or execution.",
+    "commands": [
+      {
+        "description": "New service installed by non-standard process (Event 7045).",
+        "method": "Elastic KQL",
+        "command": "event.code: 7045 AND NOT winlog.event_data.ImagePath: (C:\\\\Windows\\\\* OR C:\\\\Program Files\\\\*) AND NOT process.name: (msiexec.exe OR TrustedInstaller.exe)"
+      },
+      {
+        "description": "Service binary pointing to TEMP or user writable path.",
+        "method": "Elastic KQL",
+        "command": "event.code: 7045 AND winlog.event_data.ImagePath: (C:\\\\Temp\\\\* OR C:\\\\Users\\\\* OR C:\\\\ProgramData\\\\* OR *\\\\AppData\\\\*)"
+      },
+      {
+        "description": "Service that runs powershell or cmd directly.",
+        "method": "Elastic KQL",
+        "command": "event.code: 7045 AND winlog.event_data.ImagePath: (*powershell* OR *cmd.exe* OR *wscript* OR *cscript*)"
+      }
+    ],
+    "mitre": "T1543.003",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - Suspicious Archive & Compression Activity": {
+    "description": "Proactively hunt for data staging via compression tools prior to exfiltration.",
+    "commands": [
+      {
+        "description": "Archive tool compressing large volumes of data in sensitive directories.",
+        "method": "Elastic KQL",
+        "command": "process.name: (7z.exe OR WinRAR.exe OR zip.exe OR tar) AND process.command_line: (*Documents* OR *Desktop* OR *Users* OR *finance* OR *confidential*)"
+      },
+      {
+        "description": "7zip or rar with password flag \u2014 encrypted staging.",
+        "method": "Elastic KQL",
+        "command": "process.name: (7z.exe OR rar.exe OR WinRAR.exe) AND process.command_line: (*-p* OR *-hp* OR *passwd*)"
+      },
+      {
+        "description": "Compress-Archive PowerShell cmdlet on sensitive file paths.",
+        "method": "Elastic KQL",
+        "command": "event.code: 4104 AND powershell.file.script_block_text: (*Compress-Archive* OR *ZipFile* OR *System.IO.Compression*) AND powershell.file.script_block_text: (*Document* OR *Password* OR *SAM* OR *NTDS*)"
+      }
+    ],
+    "mitre": "T1074.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - Living-off-the-Land Network Pivoting": {
+    "description": "Proactively hunt for tunneling and pivoting using built-in Windows tools.",
+    "commands": [
+      {
+        "description": "netsh portproxy rule added \u2014 TCP port forwarding.",
+        "method": "Elastic KQL",
+        "command": "process.name: netsh.exe AND process.command_line: (*portproxy* AND *add v4tov4*)"
+      },
+      {
+        "description": "SSH tunneling spawned from unexpected parent or user.",
+        "method": "Elastic KQL",
+        "command": "process.name: ssh.exe AND process.command_line: (*-L* OR *-R* OR *-D* OR *-N*) AND NOT process.parent.name: (explorer.exe OR openssh*)"
+      },
+      {
+        "description": "chisel, ligolo, or plink tunneling tools.",
+        "method": "Elastic KQL",
+        "command": "process.name: (chisel* OR plink.exe OR ligolo*) OR process.command_line: (*chisel* OR *plink* OR *ligolo*)"
+      }
+    ],
+    "mitre": "T1090",
+    "tuning": "Tune on internal traffic anomalies. Whitelist known scanners, monitoring agents, and backup systems. Alert on internal scanning from endpoints (not servers) as high priority."
+  },
+  "Hunt - Unusual Parent-Child Process Chains": {
+    "description": "Proactively hunt for abnormal process ancestry \u2014 common attacker technique to evade EDR.",
+    "commands": [
+      {
+        "description": "Explorer.exe spawning network-capable children directly.",
+        "method": "Elastic EQL",
+        "command": "process where process.parent.name == \"explorer.exe\" and process.name in (\"powershell.exe\",\"cmd.exe\",\"cscript.exe\",\"wscript.exe\",\"mshta.exe\",\"regsvr32.exe\")"
+      },
+      {
+        "description": "svchost.exe spawning cmd or powershell without a legitimate parent service.",
+        "method": "Elastic EQL",
+        "command": "process where process.parent.name == \"svchost.exe\" and process.name in (\"cmd.exe\",\"powershell.exe\") and not process.parent.args : \"-k*\""
+      },
+      {
+        "description": "taskhostw or taskhost spawning interactive shell.",
+        "method": "Elastic KQL",
+        "command": "process.parent.name: (taskhostw.exe OR taskhost.exe) AND process.name: (cmd.exe OR powershell.exe OR net.exe)"
+      }
+    ],
+    "mitre": "T1059",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - Active Directory Modification": {
+    "description": "Proactively hunt for unauthorized changes to AD objects, group memberships, and GPOs.",
+    "commands": [
+      {
+        "description": "User added to sensitive groups (Domain Admins, Enterprise Admins) \u2014 Event 4728/4732.",
+        "method": "Elastic KQL",
+        "command": "event.code: (4728 OR 4732 OR 4756) AND winlog.event_data.TargetUserName: (\"Domain Admins\" OR \"Enterprise Admins\" OR \"Schema Admins\" OR \"Administrators\")"
+      },
+      {
+        "description": "GPO created or modified by non-admin account.",
+        "method": "Elastic KQL",
+        "command": "event.code: (5136 OR 5137 OR 5141) AND winlog.event_data.ObjectClass: groupPolicyContainer AND NOT winlog.event_data.SubjectUserName: (*admin* OR *$)"
+      },
+      {
+        "description": "AdminSDHolder modified \u2014 stealth persistent admin rights.",
+        "method": "Elastic KQL",
+        "command": "event.code: 5136 AND winlog.event_data.ObjectDN: *AdminSDHolder*"
+      },
+      {
+        "description": "msDS-AllowedToActOnBehalfOfOtherIdentity written \u2014 RBCD attack.",
+        "method": "Elastic KQL",
+        "command": "event.code: 5136 AND winlog.event_data.AttributeLDAPDisplayName: msDS-AllowedToActOnBehalfOfOtherIdentity"
+      }
+    ],
+    "mitre": "T1222",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - Unusual Cloud API Calls": {
+    "description": "Proactively hunt for unusual AWS/Azure/GCP API activity indicating reconnaissance or escalation.",
+    "commands": [
+      {
+        "description": "Enumerate all IAM users, roles, or policies \u2014 recon.",
+        "method": "Elastic KQL",
+        "command": "event.dataset: aws.cloudtrail AND event.action: (ListUsers OR ListRoles OR ListPolicies OR GetAccountAuthorizationDetails) AND NOT aws.cloudtrail.user_identity.type: AssumedRole"
+      },
+      {
+        "description": "New IAM access key created for existing user.",
+        "method": "Elastic KQL",
+        "command": "event.dataset: aws.cloudtrail AND event.action: CreateAccessKey AND NOT aws.cloudtrail.user_identity.arn: *automated-provisioning*"
+      },
+      {
+        "description": "Root account API activity \u2014 any call.",
+        "method": "Elastic KQL",
+        "command": "event.dataset: aws.cloudtrail AND aws.cloudtrail.user_identity.type: Root AND NOT event.action: (ConsoleLogin)"
+      },
+      {
+        "description": "EC2 security group rules opened to 0.0.0.0/0.",
+        "method": "Elastic KQL",
+        "command": "event.dataset: aws.cloudtrail AND event.action: AuthorizeSecurityGroupIngress AND aws.cloudtrail.request_parameters: *0.0.0.0/0*"
+      }
+    ],
+    "mitre": "T1078.004",
+    "tuning": "Correlate Elastic API calls with identity and network context. Alert on API calls from unexpected geographic regions or source IPs. Whitelist legitimate automation and CI/CD pipelines."
+  },
+  "Hunt - Suspicious Logon Patterns": {
+    "description": "Proactively hunt for impossible travel, off-hours logons, and stale account reactivation.",
+    "commands": [
+      {
+        "description": "Same account logging in from two countries within 1 hour (impossible travel).",
+        "method": "Elastic KQL",
+        "command": "event.code: 4624 | stats dc(source.geo.country_name) as countries, min(@timestamp) as first, max(@timestamp) as last by winlog.event_data.TargetUserName | where countries > 1 AND (last - first) < 3600000"
+      },
+      {
+        "description": "Logon outside business hours (before 06:00 or after 22:00) for non-service accounts.",
+        "method": "Elastic KQL",
+        "command": "event.code: 4624 AND NOT winlog.event_data.TargetUserName: *$ AND (hour(@timestamp) < 6 OR hour(@timestamp) > 22)"
+      },
+      {
+        "description": "Previously disabled account re-enabled and used within 10 minutes.",
+        "method": "Elastic EQL",
+        "command": "sequence by winlog.event_data.TargetUserName with maxspan=10m [iam where event.code == \"4722\"] [authentication where event.code == \"4624\"]"
+      }
+    ],
+    "mitre": "T1078",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - Linux Persistence & Rootkit": {
+    "description": "Proactively hunt for Linux persistence mechanisms \u2014 cron jobs, systemd units, LD_PRELOAD rootkits, and SSH key backdoors.",
+    "commands": [
+      {
+        "description": "Cron job written by non-root process or unexpected user.",
+        "method": "Elastic KQL",
+        "command": "file.path: (/etc/cron* OR /var/spool/cron/*) AND event.action: (created OR modified) AND NOT process.name: (cron OR crontab OR puppet OR ansible OR chef)"
+      },
+      {
+        "description": "Systemd service unit file created in user-controlled directory.",
+        "method": "Elastic KQL",
+        "command": "file.path: (/etc/systemd/system/* OR /home/*/.config/systemd/*) AND event.action: created AND file.extension: service"
+      },
+      {
+        "description": "LD_PRELOAD or LD_LIBRARY_PATH set in shell profile \u2014 rootkit loader.",
+        "method": "Elastic KQL",
+        "command": "file.path: (/etc/ld.so.preload OR /home/*/.bashrc OR /home/*/.profile OR /etc/profile) AND event.action: modified AND process.name: (* AND NOT (vi OR vim OR nano OR bash))"
+      },
+      {
+        "description": "SSH authorized_keys modified by non-interactive process.",
+        "method": "Elastic KQL",
+        "command": "file.path: /home/*/.ssh/authorized_keys AND event.action: modified AND NOT process.name: (sshd OR ssh-agent OR puppet OR ansible)"
+      },
+      {
+        "description": "EQL \u2014 setuid binary created outside /bin /sbin /usr.",
+        "method": "Elastic EQL",
+        "command": "file where event.action == \"created\" and file.mode : \"*s*\" and not file.path : (\"/bin/*\",\"/sbin/*\",\"/usr/*\")"
+      }
+    ],
+    "mitre": "T1547",
+    "tuning": "Alert on persistence outside business hours or from unusual accounts. Whitelist software deployment mechanisms. Cross-reference with Elastic change management records."
+  },
+  "Hunt - Living-off-the-Land: Linux Binaries": {
+    "description": "Proactively hunt for GTFOBin-style abuse of trusted Linux utilities.",
+    "commands": [
+      {
+        "description": "curl or wget piped to bash \u2014 download and execute pattern.",
+        "method": "Elastic KQL",
+        "command": "process.name: (bash OR sh OR zsh) AND process.command_line: ((*curl* AND *| bash*) OR (*wget* AND *| bash*) OR (*curl* AND *| sh*))"
+      },
+      {
+        "description": "python or perl one-liner reverse shell.",
+        "method": "Elastic KQL",
+        "command": "process.command_line: (*python* AND (*socket* OR *subprocess* OR *os.system*) OR *perl* AND (*socket* OR *exec*))"
+      },
+      {
+        "description": "find or awk used with -exec to run commands as root.",
+        "method": "Elastic KQL",
+        "command": "process.name: (find OR awk) AND process.command_line: (*-exec* OR *system(* OR *BEGIN*) AND process.parent.name: (sudo OR su)"
+      },
+      {
+        "description": "nc (netcat) listening or connecting \u2014 reverse shell.",
+        "method": "Elastic KQL",
+        "command": "process.name: (nc OR ncat OR netcat) AND process.command_line: (*-l* OR *-e /bin/bash* OR *-e /bin/sh*)"
+      }
+    ],
+    "mitre": "T1218",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - Container Escape & Kubernetes Abuse": {
+    "description": "Proactively hunt for container breakout, privileged pod abuse, and Kubernetes API server attacks.",
+    "commands": [
+      {
+        "description": "Process running inside container attempting to access host /proc.",
+        "method": "Elastic KQL",
+        "command": "file.path: /proc/1/environ AND container.id: * AND process.name: (* AND NOT (ps OR top OR proc))"
+      },
+      {
+        "description": "K8s service account token read from non-pod process.",
+        "method": "Elastic KQL",
+        "command": "file.path: /var/run/secrets/kubernetes.io/serviceaccount/token AND event.action: (read OR opened) AND NOT process.name: (java OR node OR python OR ruby)"
+      },
+      {
+        "description": "kubectl exec into production namespace pod.",
+        "method": "Elastic KQL",
+        "command": "event.dataset: kubernetes.audit AND kubernetes.audit.verb: create AND kubernetes.audit.objectRef.subresource: exec AND NOT kubernetes.audit.objectRef.namespace: (kube-system OR monitoring)"
+      },
+      {
+        "description": "ClusterRoleBinding created granting cluster-admin.",
+        "method": "Elastic KQL",
+        "command": "event.dataset: kubernetes.audit AND kubernetes.audit.verb: create AND kubernetes.audit.objectRef.resource: clusterrolebindings AND kubernetes.audit.requestObject.roleRef.name: cluster-admin"
+      }
+    ],
+    "mitre": "T1611",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - macOS Specific Threats": {
+    "description": "Proactively hunt for macOS-specific persistence, TCC bypass, and Gatekeeper evasion.",
+    "commands": [
+      {
+        "description": "LaunchAgent or LaunchDaemon plist created by non-Apple process.",
+        "method": "Elastic KQL",
+        "command": "file.path: (/Library/LaunchDaemons/* OR /Library/LaunchAgents/* OR /Users/*/Library/LaunchAgents/*) AND event.action: created AND NOT process.name: (installer OR softwareupdate OR jamf)"
+      },
+      {
+        "description": "osascript (AppleScript) executing shell commands.",
+        "method": "Elastic KQL",
+        "command": "process.name: osascript AND process.command_line: (*do shell script* OR *bash* OR *curl* OR *python*)"
+      },
+      {
+        "description": "TCC database modified \u2014 privacy bypass attempt.",
+        "method": "Elastic KQL",
+        "command": "file.path: /Library/Application Support/com.apple.TCC/TCC.db AND event.action: modified AND NOT process.name: (tccd OR cfprefsd)"
+      },
+      {
+        "description": "Extended attribute quarantine removed (Gatekeeper bypass).",
+        "method": "Elastic KQL",
+        "command": "process.name: xattr AND process.command_line: (*-d com.apple.quarantine* OR *-c *)"
+      }
+    ],
+    "mitre": "T1059.004",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - Memory-Only & Fileless Threats": {
+    "description": "Proactively hunt for in-memory payloads, process hollowing, and fileless execution.",
+    "commands": [
+      {
+        "description": "Process with no corresponding file on disk (hollowed process).",
+        "method": "Elastic KQL",
+        "command": "process.executable: * AND NOT file.path: * AND event.type: process_started"
+      },
+      {
+        "description": "PE image loaded from memory without file-backed section (Sysmon 7).",
+        "method": "Elastic KQL",
+        "command": "event.code: 7 AND winlog.event_data.Signed: false AND NOT winlog.event_data.ImageLoaded: (C:\\\\* OR /usr/* OR /bin/*)"
+      },
+      {
+        "description": "VirtualAlloc + WriteProcessMemory + CreateRemoteThread \u2014 classic injection triad.",
+        "method": "Elastic EQL",
+        "command": "sequence by process.pid with maxspan=10s [api where winlog.event_data.api == \"VirtualAllocEx\"] [api where winlog.event_data.api == \"WriteProcessMemory\"] [api where winlog.event_data.api == \"CreateRemoteThread\"]"
+      },
+      {
+        "description": "PowerShell executing from memory with no script file on disk.",
+        "method": "Elastic KQL",
+        "command": "event.code: 4104 AND powershell.file.script_block_text: * AND NOT powershell.file.path: *"
+      }
+    ],
+    "mitre": "T1620",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - Active Directory Certificate Services (ADCS) Abuse": {
+    "description": "Proactively hunt for ESC1-ESC8 ADCS privilege escalation and certificate theft.",
+    "commands": [
+      {
+        "description": "Certificate requested with SAN for another user (ESC1).",
+        "method": "Elastic KQL",
+        "command": "event.code: 4886 AND winlog.event_data.Requester: * AND winlog.event_data.Attributes: *san:upn*"
+      },
+      {
+        "description": "Certipy or Certify tool execution.",
+        "method": "Elastic KQL",
+        "command": "process.command_line: (*certipy* OR *Certify* OR *Certify.exe* OR *certi*) AND process.command_line: (*find* OR *request* OR *auth* OR *shadow*)"
+      },
+      {
+        "description": "Certificate template with dangerous EKU (Any Purpose or No EKU) modified.",
+        "method": "Elastic KQL",
+        "command": "event.code: 4899 AND winlog.event_data.OldTemplateContent: * AND winlog.event_data.NewTemplateContent: (*2.5.29.37.0* OR *\"Any Purpose\"*)"
+      },
+      {
+        "description": "NTLM relay to ADCS HTTP endpoint (ESC8) \u2014 unusual web request to CA.",
+        "method": "Elastic KQL",
+        "command": "event.dataset: network_traffic.http AND url.path: (*certsrv* OR *certenroll*) AND http.request.method: POST AND NOT source.ip: ({authorized_ca_clients})"
+      }
+    ],
+    "mitre": "T1649",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - Credential Access via Browser": {
+    "description": "Proactively hunt for browser credential theft, cookie export, and saved password extraction.",
+    "commands": [
+      {
+        "description": "Process accessing Chrome or Edge Login Data SQLite DB.",
+        "method": "Elastic KQL",
+        "command": "file.path: (*\\\\Chrome\\\\User Data\\\\Default\\\\Login Data OR *\\\\Edge\\\\User Data\\\\Default\\\\Login Data) AND event.action: (read OR opened) AND NOT process.name: (chrome.exe OR msedge.exe OR brave.exe)"
+      },
+      {
+        "description": "Process reading browser Cookies file.",
+        "method": "Elastic KQL",
+        "command": "file.path: (*\\\\Cookies OR *\\\\Network\\\\Cookies) AND event.action: (read OR opened) AND NOT process.name: (chrome.exe OR msedge.exe OR firefox.exe OR brave.exe)"
+      },
+      {
+        "description": "LaZagne or browser stealer process execution.",
+        "method": "Elastic KQL",
+        "command": "process.command_line: (*lazagne* OR *Get-BrowserData* OR *BrowserStealer* OR *SharpChrome*)"
+      },
+      {
+        "description": "DPAPI master key decryption by non-browser process.",
+        "method": "Elastic KQL",
+        "command": "process.command_line: (*CryptUnprotectData* OR *dpapi::chrome* OR *dpapi::cred*) AND NOT process.name: (chrome.exe OR msedge.exe OR svchost.exe)"
+      }
+    ],
+    "mitre": "T1555.003",
+    "tuning": "Alert on LSASS/SAM access from non-system processes. Whitelist backup agents and EDR sensors. Correlate credential access with subsequent unusual auth activity in Elastic."
+  },
+  "Hunt - Email-Based Threats": {
+    "description": "Proactively hunt for business email compromise, inbox rule abuse, and email-delivered malware.",
+    "commands": [
+      {
+        "description": "Inbox forwarding rule created to external address.",
+        "method": "Elastic KQL",
+        "command": "event.dataset: o365.audit AND event.action: (New-InboxRule OR Set-InboxRule) AND o365.audit.Parameters: (*ForwardTo* OR *ForwardAsAttachmentTo* OR *RedirectTo*) AND NOT o365.audit.Parameters: *@yourdomain.com*"
+      },
+      {
+        "description": "Mass email deletion \u2014 evidence destruction.",
+        "method": "Elastic KQL",
+        "command": "event.dataset: o365.audit AND event.action: (HardDelete OR MoveToDeletedItems OR Purge) | stats count() by o365.audit.UserId | where count > 200"
+      },
+      {
+        "description": "Email sent with attachment matching known malware extension from compromised account.",
+        "method": "Elastic KQL",
+        "command": "event.dataset: o365.audit AND event.action: Send AND o365.audit.Parameters: (*Attachments* AND (*.exe* OR *.js* OR *.lnk* OR *.hta* OR *.iso*))"
+      }
+    ],
+    "mitre": "T1566",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - PrintNightmare & Spooler Abuse": {
+    "description": "Proactively hunt for Print Spooler exploitation, PrintNightmare, and SpoolFool attacks.",
+    "commands": [
+      {
+        "description": "DLL dropped into Windows\\System32\\spool\\drivers by non-spooler process.",
+        "method": "Elastic KQL",
+        "command": "file.path: C:\\\\Windows\\\\System32\\\\spool\\\\drivers\\\\* AND event.action: created AND file.extension: dll AND NOT process.name: (spoolsv.exe OR msiexec.exe OR printui.exe)"
+      },
+      {
+        "description": "Remote print driver installation from non-admin user (CVE-2021-34527).",
+        "method": "Elastic KQL",
+        "command": "event.code: 808 AND winlog.event_data.Param3: (* AND NOT (C:\\\\Windows\\\\* OR C:\\\\Program Files\\\\*))"
+      },
+      {
+        "description": "spoolsv.exe spawning unexpected child process.",
+        "method": "Elastic EQL",
+        "command": "process where process.parent.name == \"spoolsv.exe\" and process.name not in (\"splwow64.exe\",\"PrintIsolationHost.exe\")"
+      }
+    ],
+    "mitre": "T1068",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - Endpoint Detection Evasion": {
+    "description": "Proactively hunt for EDR and AV evasion techniques \u2014 unhooking, tampering, and exclusion abuse.",
+    "commands": [
+      {
+        "description": "Windows Defender exclusion path or process added.",
+        "method": "Elastic KQL",
+        "command": "event.code: (5007 OR 5010 OR 5012) AND winlog.event_data.NewValue: (*ExclusionPath* OR *ExclusionProcess* OR *ExclusionExtension* OR *DisableRealtimeMonitoring*)"
+      },
+      {
+        "description": "EDR driver or service stopped or unloaded.",
+        "method": "Elastic KQL",
+        "command": "event.code: 7036 AND winlog.event_data.ServiceName: (*CrowdStrike* OR *SentinelOne* OR *CarbonBlack* OR *Cylance* OR *MsMpEng*) AND winlog.event_data.ServiceState: stopped"
+      },
+      {
+        "description": "ntdll.dll reloaded from disk \u2014 userland hook removal.",
+        "method": "Elastic KQL",
+        "command": "event.code: 7 AND winlog.event_data.ImageLoaded: *ntdll.dll AND winlog.event_data.Signed: true AND process.name: (* AND NOT (ntdll.dll OR lsass.exe OR svchost.exe))"
+      },
+      {
+        "description": "Process patching own memory to remove EDR hooks (Sysmon 8 self-injection).",
+        "method": "Elastic KQL",
+        "command": "event.code: 8 AND winlog.event_data.SourceImage: winlog.event_data.TargetImage"
+      }
+    ],
+    "mitre": "T1562.001",
+    "tuning": "Alert on defense tool modification from non-privileged sources. Whitelist scheduled maintenance windows. Correlate with subsequent suspicious activity for context."
+  },
+  "Hunt - Sysmon: Process Create, Network, Pipe, WMI & Evasion (Events 1,3,6,11,15,17-22,25)": {
+    "description": "Proactive threat hunting using Sysmon telemetry for process creation anomalies, network pivots, BYOVD driver loads, file drops, ADS, named pipe C2, WMI subscription persistence, DNS tunneling, and process tampering. Covers Sysmon Events 1, 3, 6, 11, 15, 17, 18, 19, 20, 21, 22, 25.",
+    "commands": [
+      {
+        "description": "Sysmon 1 \u2014 Office or browser spawning LOLBin/shell (spearphish initial execution, T1566).",
+        "method": "Elastic KQL",
+        "command": "event.code: 1 AND process.parent.name: (WINWORD.EXE OR EXCEL.EXE OR POWERPNT.EXE OR outlook.exe OR chrome.exe OR firefox.exe OR msedge.exe) AND process.name: (cmd.exe OR powershell.exe OR wscript.exe OR mshta.exe OR cscript.exe OR regsvr32.exe OR certutil.exe OR rundll32.exe)"
+      },
+      {
+        "description": "Sysmon 1 \u2014 Execution from user-writable path by non-system account (dropper staging, T1204).",
+        "method": "Elastic KQL",
+        "command": "event.code: 1 AND process.executable: (C:\\\\Users\\\\* OR C:\\\\ProgramData\\\\* OR C:\\\\Windows\\\\Temp\\\\* OR C:\\\\Temp\\\\*) AND NOT process.code_signature.trusted: true AND NOT process.name: (msiexec.exe OR setup.exe)"
+      },
+      {
+        "description": "Sysmon 3 \u2014 Outbound connection from LOLBin or script interpreter (T1071, T1105).",
+        "method": "Elastic KQL",
+        "command": "event.code: 3 AND process.name: (powershell.exe OR cmd.exe OR certutil.exe OR mshta.exe OR wscript.exe OR cscript.exe OR regsvr32.exe OR bitsadmin.exe OR curl.exe OR wget.exe) AND NOT destination.ip: (10.0.0.0/8 OR 172.16.0.0/12 OR 192.168.0.0/16 OR 127.0.0.1)"
+      },
+      {
+        "description": "Sysmon 6 \u2014 Driver loaded from user-writable path \u2014 BYOVD staging (T1014, T1543).",
+        "method": "Elastic KQL",
+        "command": "event.code: 6 AND winlog.event_data.ImageLoaded: (C:\\\\Users\\\\* OR C:\\\\ProgramData\\\\* OR C:\\\\Temp\\\\* OR C:\\\\Windows\\\\Temp\\\\*) AND winlog.event_data.Signed: \"true\""
+      },
+      {
+        "description": "Sysmon 6 \u2014 Known vulnerable driver by filename \u2014 BYOVD kill-chain enumeration.",
+        "method": "Elastic KQL",
+        "command": "event.code: 6 AND winlog.event_data.ImageLoaded: (*gdrv.sys* OR *dbutil_2_3.sys* OR *rtcore64.sys* OR *AsrDrv104.sys* OR *mhyprot2.sys* OR *iqvw64e.sys* OR *KProcess.sys* OR *procexp152.sys* OR *HackSys*)"
+      },
+      {
+        "description": "Sysmon 11 \u2014 Executable or script dropped to suspicious writable path (stager/dropper, T1105).",
+        "method": "Elastic KQL",
+        "command": "event.code: 11 AND winlog.event_data.TargetFilename: (C:\\\\Windows\\\\Temp\\\\* OR C:\\\\Users\\\\*\\\\AppData\\\\Local\\\\Temp\\\\* OR C:\\\\ProgramData\\\\*) AND winlog.event_data.TargetFilename: (*.exe OR *.dll OR *.bat OR *.ps1 OR *.vbs OR *.hta OR *.js OR *.scr)"
+      },
+      {
+        "description": "Sysmon 15 \u2014 Alternate Data Stream write \u2014 payload hidden in NTFS stream (T1564.004).",
+        "method": "Elastic KQL",
+        "command": "event.code: 15 AND winlog.event_data.TargetFilename: *:* AND NOT winlog.event_data.TargetFilename: (*:Zone.Identifier OR *:AFP_* OR *:com.apple* OR *:{*})"
+      },
+      {
+        "description": "Sysmon 17 \u2014 Named pipe created matching Cobalt Strike defaults (T1071, T1573).",
+        "method": "Elastic KQL",
+        "command": "event.code: 17 AND winlog.event_data.PipeName: (*postex_* OR *msagent_* OR *MSSE-* OR *mojo.* OR *status_* OR *IEFrame* OR *wkssvc* OR *scerpc_priv* OR *spoolss_*)"
+      },
+      {
+        "description": "Sysmon 18 \u2014 Named pipe connected from unexpected process \u2014 C2 IPC channel.",
+        "method": "Elastic KQL",
+        "command": "event.code: 18 AND NOT process.name: (svchost.exe OR lsass.exe OR chrome.exe OR firefox.exe OR msedge.exe OR explorer.exe OR spoolsv.exe) AND winlog.event_data.PipeName: (* AND NOT \\\\pipe\\\\wkssvc AND NOT \\\\pipe\\\\srvsvc AND NOT \\\\pipe\\\\netlogon AND NOT \\\\pipe\\\\lsarpc)"
+      },
+      {
+        "description": "Sysmon 19 \u2014 WMI Event Filter registered \u2014 persistence (T1546.003).",
+        "method": "Elastic KQL",
+        "command": "event.code: 19 AND NOT winlog.event_data.User: (NT AUTHORITY\\\\SYSTEM)"
+      },
+      {
+        "description": "Sysmon 20 \u2014 WMI Event Consumer registered \u2014 CommandLine or ActiveScript consumer for persistence.",
+        "method": "Elastic KQL",
+        "command": "event.code: 20 AND winlog.event_data.Destination: (* AND NOT (scrcons.exe OR mofcomp.exe OR wmiprvse.exe))"
+      },
+      {
+        "description": "Sysmon 21 \u2014 WMI FilterToConsumerBinding \u2014 completes WMI subscription persistence triplet (T1546.003).",
+        "method": "Elastic KQL",
+        "command": "event.code: 21"
+      },
+      {
+        "description": "Sysmon 22 \u2014 Scripting process issuing DNS query for non-standard domain \u2014 C2 or DGA (T1071.004).",
+        "method": "Elastic KQL",
+        "command": "event.code: 22 AND process.name: (powershell.exe OR cmd.exe OR wscript.exe OR cscript.exe OR mshta.exe OR rundll32.exe) AND NOT winlog.event_data.QueryName: (*.microsoft.com OR *.windows.com OR *.office.com OR *.live.com OR *.windowsupdate.com)"
+      },
+      {
+        "description": "Sysmon 25 \u2014 Process tampering / hollowing \u2014 image replaced in memory (T1055.012).",
+        "method": "Elastic KQL",
+        "command": "event.code: 25 AND NOT process.name: (MpCopyAccelerator.exe OR msiexec.exe OR MsMpEng.exe)"
+      }
+    ],
+    "mitre": "T1055",
+    "tuning": "Tune on internal traffic anomalies. Whitelist known scanners, monitoring agents, and backup systems. Alert on internal scanning from endpoints (not servers) as high priority."
+  },
+  "Hunt - RBCD & ADIDNS Wildcard Injection": {
+    "description": "Hunt for RBCD attack setup (msDS-AllowedToActOnBehalfOfOtherIdentity writes) and ADIDNS wildcard record injection enabling LLMNR/NBT-NS MITM without Responder.",
+    "commands": [
+      {
+        "description": "Hunt for msDS-AllowedToActOnBehalfOfOtherIdentity attribute modification (Event 5136)",
+        "method": "Elastic KQL",
+        "command": "event.code: \"5136\" and winlog.event_data.AttributeLDAPDisplayName: \"msDS-AllowedToActOnBehalfOfOtherIdentity\"\n| fields @timestamp, winlog.event_data.SubjectUserName, winlog.event_data.ObjectDN, winlog.event_data.OperationType, host.name"
+      },
+      {
+        "description": "Hunt for machine account created by non-admin user (MAQ abuse for RBCD)",
+        "method": "Elastic KQL",
+        "command": "event.code: \"4741\" and not winlog.event_data.SubjectUserName: (*admin* or *svc* or *SYSTEM*)\n| fields @timestamp, winlog.event_data.TargetUserName, winlog.event_data.SubjectUserName, winlog.event_data.SubjectLogonId, host.name"
+      },
+      {
+        "description": "Hunt for ADIDNS wildcard record creation \u2014 new DNS node in DomainDnsZones (Event 5137)",
+        "method": "Elastic KQL",
+        "command": "event.code: \"5137\" and winlog.event_data.ObjectDN: *DomainDnsZones* and winlog.event_data.ObjectClass: \"dnsNode\"\n| fields @timestamp, winlog.event_data.SubjectUserName, winlog.event_data.ObjectDN, host.name"
+      },
+      {
+        "description": "Hunt for Responder-like activity correlated with new ADIDNS records \u2014 NTLMv2 captures from new IPs",
+        "method": "Elastic KQL",
+        "command": "event.code: \"4776\" and winlog.event_data.PackageName: \"NTLM V2\"\n| stats count() by winlog.event_data.Workstation, winlog.event_data.TargetUserName\n| where count > 5\n| sort count desc"
+      }
+    ],
+    "mitre": "T1584.002",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - PwnKit & Polkit Exploitation": {
+    "description": "Hunt for CVE-2021-4034 (PwnKit) pkexec privilege escalation and D-Bus service abuse on Linux endpoints.",
+    "commands": [
+      {
+        "description": "Hunt for pkexec executing without expected --user or action arguments (PwnKit indicator)",
+        "method": "Elastic KQL",
+        "command": "process.name: \"pkexec\" and not process.args: (\"--user\" or \"--help\" or \"--version\" or \"--list\")\n| fields @timestamp, host.name, user.name, process.args, process.parent.name"
+      },
+      {
+        "description": "Hunt for pkexec spawning shell or interpreter (successful privilege escalation)",
+        "method": "Elastic KQL",
+        "command": "process.parent.name: \"pkexec\" and process.name: (\"bash\" or \"sh\" or \"python*\" or \"perl\" or \"ruby\")\n| fields @timestamp, host.name, user.name, process.name, process.parent.name, process.args"
+      },
+      {
+        "description": "Hunt for pkexec executing with effective UID 0 (root) from non-root initiator",
+        "method": "Elastic KQL",
+        "command": "process.name: \"pkexec\" and user.id: \"0\" and not process.real_user.id: \"0\"\n| fields @timestamp, host.name, user.name, user.id, process.real_user.id, process.args"
+      },
+      {
+        "description": "Hunt for D-Bus method calls to privileged services from unexpected processes",
+        "method": "Elastic KQL",
+        "command": "process.name: (\"dbus-send\" or \"gdbus\") and process.args: (\"org.freedesktop.PolicyKit1\" or \"org.freedesktop.hostname1\" or \"org.freedesktop.systemd1\")\nand not process.parent.name: (\"gnome-shell\" or \"polkit-kde-authentication-agent-1\" or \"systemd\")\n| fields @timestamp, host.name, user.name, process.name, process.args, process.parent.name"
+      }
+    ],
+    "mitre": "T1068",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  },
+  "Hunt - Discord & Telegram C2": {
+    "description": "Hunt for Discord and Telegram being abused as Command & Control channels \u2014 process connections to API endpoints, bot token patterns, and suspicious PowerShell/Python using messaging APIs.",
+    "commands": [
+      {
+        "description": "Hunt for processes making outbound connections to Discord/Telegram API endpoints",
+        "method": "Elastic KQL",
+        "command": "network.destination.domain: (\"discord.com\" or \"discordapp.com\" or \"api.telegram.org\" or \"gateway.discord.gg\")\nand not process.name: (\"chrome.exe\" or \"firefox.exe\" or \"msedge.exe\" or \"Discord.exe\" or \"Telegram.exe\")\n| fields @timestamp, host.name, user.name, process.name, network.destination.domain, network.destination.port"
+      },
+      {
+        "description": "Hunt for PowerShell/Python with Discord bot token or Telegram bot token in arguments",
+        "method": "Elastic KQL",
+        "command": "process.name: (\"powershell.exe\" or \"python.exe\" or \"python3\") and process.command_line: (\"discord\" or \"telegram\" or \"BOT_TOKEN\" or \"api.telegram.org\" or \"discord.com/api\")\n| fields @timestamp, host.name, user.name, process.command_line"
+      },
+      {
+        "description": "Hunt for cmd.exe/powershell.exe spawned by Discord/Telegram process (reverse shell via C2)",
+        "method": "Elastic KQL",
+        "command": "process.parent.name: (\"Discord.exe\" or \"Telegram.exe\") and process.name: (\"cmd.exe\" or \"powershell.exe\" or \"wscript.exe\")\n| fields @timestamp, host.name, user.name, process.name, process.parent.name, process.command_line"
+      },
+      {
+        "description": "Hunt for high-frequency API polling to Discord/Telegram (C2 beacon \u2014 every N seconds)",
+        "method": "Elastic KQL",
+        "command": "network.destination.domain: (\"discord.com\" or \"api.telegram.org\")\n| stats count() by process.name, host.name, bin(@timestamp, 5m)\n| where count > 20\n| sort count desc"
+      }
+    ],
+    "mitre": "T1102.002",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Elastic data sources for context."
+  }
+}

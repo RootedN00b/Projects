@@ -1,0 +1,814 @@
+{
+  "Hunt - Beaconing via Fixed Interval Connections": {
+    "description": "Proactively hunt for C2 beaconing by capturing and analyzing outbound connections with consistent timing.",
+    "commands": [
+      {
+        "description": "Capture all outbound TCP connections to external IPs for timing analysis.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp[tcpflags] & tcp-syn != 0 and not dst net 10.0.0.0/8 and not dst net 172.16.0.0/12 and not dst net 192.168.0.0/16' -w beacon_capture.pcap"
+      },
+      {
+        "description": "Filter Wireshark capture to show repeated connections to same destination \u2014 sort by time delta.",
+        "method": "Wireshark Display Filter",
+        "command": "ip.dst == <suspect_ip> && tcp.flags.syn == 1 && !tcp.flags.ack == 1"
+      },
+      {
+        "description": "Hunt for HTTP/S connections with identical user-agent and fixed interval to same host.",
+        "method": "Wireshark Display Filter",
+        "command": "http.user_agent contains \"<suspicious_ua>\" && ip.dst == <suspect_ip>"
+      },
+      {
+        "description": "Capture long-duration low-bandwidth TCP sessions (slow beacons) to external IPs.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp and not net 10.0.0.0/8 and not net 172.16.0.0/12 and not net 192.168.0.0/16 and less 100' -w slow_beacon.pcap"
+      }
+    ],
+    "mitre": "T1071",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - DNS Tunneling": {
+    "description": "Proactively hunt for DNS-based C2 and data exfiltration over the wire.",
+    "commands": [
+      {
+        "description": "Capture all DNS traffic for offline analysis of query lengths and types.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'udp port 53 or tcp port 53' -w dns_capture.pcap"
+      },
+      {
+        "description": "Hunt for DNS queries with abnormally long names (>50 chars label).",
+        "method": "Wireshark Display Filter",
+        "command": "dns && dns.qry.name.len > 50"
+      },
+      {
+        "description": "Hunt for TXT record DNS queries \u2014 common in DNS tunnel tools (iodine, dnscat2).",
+        "method": "Wireshark Display Filter",
+        "command": "dns.qry.type == 16"
+      },
+      {
+        "description": "Hunt for NULL or ANY record type queries \u2014 dnscat2, DNS exfil tools.",
+        "method": "Wireshark Display Filter",
+        "command": "dns.qry.type == 10 || dns.qry.type == 255"
+      },
+      {
+        "description": "Capture and count NXDOMAIN responses \u2014 DGA or tunnel activity indicator.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'udp port 53' -r dns_capture.pcap | grep -i 'NXDomain' | awk '{print $NF}' | sort | uniq -c | sort -rn | head -50"
+      },
+      {
+        "description": "DNS over non-standard port \u2014 tunneling bypassing DNS monitoring.",
+        "method": "Wireshark Display Filter",
+        "command": "dns && !(udp.port == 53) && !(tcp.port == 53)"
+      }
+    ],
+    "mitre": "T1071.004",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - ARP Spoofing & Layer 2 Attacks": {
+    "description": "Proactively hunt for ARP poisoning, DHCP starvation, and man-in-the-middle attacks.",
+    "commands": [
+      {
+        "description": "Capture ARP traffic and look for same IP announced from different MACs.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'arp' -w arp_capture.pcap"
+      },
+      {
+        "description": "Detect ARP replies not preceded by requests (gratuitous ARP \u2014 MITM indicator).",
+        "method": "Wireshark Display Filter",
+        "command": "arp.opcode == 2 && !(arp.src.proto_ipv4 == arp.dst.proto_ipv4)"
+      },
+      {
+        "description": "Detect same IP claimed by multiple MAC addresses (ARP spoofing).",
+        "method": "Wireshark Display Filter",
+        "command": "arp && arp.opcode == 2"
+      },
+      {
+        "description": "Detect DHCP starvation \u2014 flood of DISCOVER from unique MACs.",
+        "method": "Wireshark Display Filter",
+        "command": "bootp.option.dhcp == 1 && bootp.type == 1"
+      },
+      {
+        "description": "Hunt for rogue DHCP OFFER from unexpected server IP.",
+        "method": "Wireshark Display Filter",
+        "command": "bootp.option.dhcp == 2 && !(ip.src == <authorized_dhcp_server>)"
+      },
+      {
+        "description": "Capture DHCP starvation attack \u2014 high volume DISCOVER from varied MACs.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'udp port 67 or udp port 68' -w dhcp_capture.pcap && tcpdump -r dhcp_capture.pcap | grep 'DHCP Discover' | awk '{print $8}' | sort | uniq | wc -l"
+      }
+    ],
+    "mitre": "T1557.002",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - LLMNR & NBNS Poisoning (Responder)": {
+    "description": "Proactively hunt for Responder-style LLMNR and NetBIOS Name Service poisoning attacks.",
+    "commands": [
+      {
+        "description": "Capture LLMNR queries and responses for analysis.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'udp port 5355' -w llmnr_capture.pcap"
+      },
+      {
+        "description": "Detect LLMNR responses not from the legitimate DNS server.",
+        "method": "Wireshark Display Filter",
+        "command": "llmnr.type == 1 && !(ip.src == <dns_server_ip>)"
+      },
+      {
+        "description": "Hunt for NBNS responses from unexpected hosts.",
+        "method": "Wireshark Display Filter",
+        "command": "nbns && nbns.flags.response == 1 && !(ip.src == <authorized_wins_server>)"
+      },
+      {
+        "description": "Capture both LLMNR and NBNS traffic for Responder detection.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'udp port 5355 or udp port 137' -w responder_hunt.pcap"
+      }
+    ],
+    "mitre": "T1557.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - SMB Lateral Movement & Exploitation": {
+    "description": "Proactively hunt for SMB enumeration, lateral movement, and exploitation over the wire.",
+    "commands": [
+      {
+        "description": "Capture all SMB traffic for analysis.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp port 445 or tcp port 139' -w smb_capture.pcap"
+      },
+      {
+        "description": "Detect SMB null session attempts \u2014 anonymous IPC$ access.",
+        "method": "Wireshark Display Filter",
+        "command": "smb2 && smb2.tree contains \"IPC$\" && smb2.sesid == 0"
+      },
+      {
+        "description": "Hunt for PsExec over SMB \u2014 PSEXESVC pipe creation.",
+        "method": "Wireshark Display Filter",
+        "command": "smb2.pipe contains \"PSEXESVC\" || smb.pipe contains \"PSEXESVC\""
+      },
+      {
+        "description": "Hunt for SMBv1 usage \u2014 vulnerable protocol exploitation.",
+        "method": "Wireshark Display Filter",
+        "command": "smb && smb.dialect == 0x0002"
+      },
+      {
+        "description": "Detect EternalBlue exploit pattern \u2014 large SMB negotiate request.",
+        "method": "Wireshark Display Filter",
+        "command": "smb && tcp.len > 1000 && smb.cmd == 0x72"
+      },
+      {
+        "description": "Capture SMB traffic between two specific hosts for lateral movement analysis.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp port 445 and (host <src_ip> and host <dst_ip>)' -w smb_lateral.pcap"
+      }
+    ],
+    "mitre": "T1021.002",
+    "tuning": "Baseline normal admin movement patterns in your environment before enabling alerting. Exclude DC replication traffic. Alert on first-seen lateral paths between host pairs."
+  },
+  "Hunt - Kerberos Attacks over the Wire": {
+    "description": "Proactively hunt for Kerberoasting, AS-REP roasting, and ticket forgery at the packet level.",
+    "commands": [
+      {
+        "description": "Capture all Kerberos traffic for offline analysis.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp port 88 or udp port 88' -w kerberos_capture.pcap"
+      },
+      {
+        "description": "Hunt for AS-REQ without pre-authentication (AS-REP Roasting).",
+        "method": "Wireshark Display Filter",
+        "command": "kerberos.msg_type == 10 && !(kerberos.padata_type == 2)"
+      },
+      {
+        "description": "Hunt for TGS-REQ using RC4 encryption (Kerberoasting).",
+        "method": "Wireshark Display Filter",
+        "command": "kerberos.msg_type == 12 && kerberos.etype == 23"
+      },
+      {
+        "description": "Hunt for anomalously large Kerberos tickets (Golden/Silver Ticket forged PAC).",
+        "method": "Wireshark Display Filter",
+        "command": "kerberos && frame.len > 1500 && kerberos.msg_type == 12"
+      },
+      {
+        "description": "Capture Kerberos traffic from specific host suspected of roasting.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp port 88 and host <suspect_ip>' -w kerberoast_suspect.pcap"
+      }
+    ],
+    "mitre": "T1558",
+    "tuning": "Whitelist legitimate Kerberos service accounts and scheduled tasks. Alert on RC4/DES downgrade requests for high-privilege SPNs. Cross-reference with Wireshark/tcpdump identity logs."
+  },
+  "Hunt - C2 over HTTP & HTTPS": {
+    "description": "Proactively hunt for HTTP/S-based C2 traffic, tunneling, and malicious callbacks.",
+    "commands": [
+      {
+        "description": "Capture HTTP traffic to non-standard ports \u2014 C2 hiding on port 8080, 4443, etc.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp and (dst port 4443 or dst port 8443 or dst port 8080 or dst port 2083 or dst port 2087) and not src net 10.0.0.0/8' -w c2_nonstandard.pcap"
+      },
+      {
+        "description": "Hunt for Cobalt Strike default HTTP C2 malleable profile patterns.",
+        "method": "Wireshark Display Filter",
+        "command": "http.request.uri contains \"/submit.php\" || http.user_agent contains \"Mozilla/4.0 (compatible; MSIE 8.0\" || http.user_agent contains \"curl/7.67\""
+      },
+      {
+        "description": "Hunt for Metasploit Meterpreter reverse HTTPS callback (stage 1).",
+        "method": "Wireshark Display Filter",
+        "command": "ssl.handshake.type == 1 && ssl.handshake.extensions_server_name == \"\" && tcp.dstport == 4444"
+      },
+      {
+        "description": "Detect HTTP POST with unusually large body \u2014 exfil or staging.",
+        "method": "Wireshark Display Filter",
+        "command": "http.request.method == \"POST\" && http.content_length > 1048576"
+      },
+      {
+        "description": "Hunt for HTTPS to IPs (no SNI / hostname) \u2014 malware often connects to raw IP.",
+        "method": "Wireshark Display Filter",
+        "command": "ssl.handshake.type == 1 && !(ssl.handshake.extensions_server_name) && ip.dst != 0.0.0.0"
+      },
+      {
+        "description": "Capture and inspect cleartext HTTP C2 channels.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n -A 'tcp port 80 and not src net 10.0.0.0/8 and not src net 192.168.0.0/16' | grep -E '(POST|GET|User-Agent|Cookie|Authorization)'"
+      }
+    ],
+    "mitre": "T1071.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - ICMP & Covert Channels": {
+    "description": "Proactively hunt for data exfiltration and C2 over ICMP.",
+    "commands": [
+      {
+        "description": "Capture ICMP traffic with large payloads \u2014 ICMP tunneling (icmpsh, ptunnel).",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'icmp and greater 100' -w icmp_tunnel.pcap"
+      },
+      {
+        "description": "Detect ICMP echo with unusually large or non-standard payload.",
+        "method": "Wireshark Display Filter",
+        "command": "icmp.type == 8 && data.len > 64"
+      },
+      {
+        "description": "Hunt for ICMP replies without corresponding requests (tunnel asymmetry).",
+        "method": "Wireshark Display Filter",
+        "command": "icmp.type == 0 && !(icmp.resp_to)"
+      },
+      {
+        "description": "Hunt for ICMP data containing printable ASCII (cleartext exfil).",
+        "method": "Wireshark Display Filter",
+        "command": "icmp && data"
+      }
+    ],
+    "mitre": "T1095",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - RDP Brute Force & Hijacking": {
+    "description": "Proactively hunt for RDP attacks, brute force, and session hijacking at packet level.",
+    "commands": [
+      {
+        "description": "Capture RDP traffic from external sources for analysis.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp port 3389 and not src net 10.0.0.0/8 and not src net 172.16.0.0/12 and not src net 192.168.0.0/16' -w rdp_external.pcap"
+      },
+      {
+        "description": "Hunt for RDP connection attempts (SYN flood pattern = brute).",
+        "method": "Wireshark Display Filter",
+        "command": "tcp.dstport == 3389 && tcp.flags.syn == 1 && !tcp.flags.ack == 1"
+      },
+      {
+        "description": "Detect RDP on non-standard port.",
+        "method": "Wireshark Display Filter",
+        "command": "rdp && !(tcp.port == 3389)"
+      },
+      {
+        "description": "Count RDP SYN attempts per source \u2014 brute force threshold.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp dst port 3389 and tcp[tcpflags] & tcp-syn != 0' | awk '{print $3}' | cut -d. -f1-4 | sort | uniq -c | sort -rn | head -20"
+      }
+    ],
+    "mitre": "T1021.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - Data Exfiltration over FTP & Non-Standard Protocols": {
+    "description": "Proactively hunt for data exfiltration using FTP, IRC, and other non-HTTP protocols.",
+    "commands": [
+      {
+        "description": "Capture FTP traffic \u2014 cleartext credential and file transfer.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n -A 'tcp port 21' -w ftp_capture.pcap"
+      },
+      {
+        "description": "Hunt for FTP login from unexpected host.",
+        "method": "Wireshark Display Filter",
+        "command": "ftp.request.command == \"USER\" || ftp.request.command == \"PASS\""
+      },
+      {
+        "description": "Detect IRC communication \u2014 potential C2 over IRC.",
+        "method": "Wireshark Display Filter",
+        "command": "irc || tcp.dstport == 6667 || tcp.dstport == 6697"
+      },
+      {
+        "description": "Capture all non-standard outbound ports for triage.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp and not dst net 10.0.0.0/8 and not dst port 80 and not dst port 443 and not dst port 53 and not dst port 25 and not dst port 143' -w nonstandard_ports.pcap"
+      }
+    ],
+    "mitre": "T1048.003",
+    "tuning": "Baseline normal data transfer volumes before alerting on exfiltration. Alert on transfers to new destinations. Tune DNS exfil detection on query entropy and subdomain count."
+  },
+  "Hunt - TLS Anomalies & Certificate Inspection": {
+    "description": "Proactively hunt for malicious TLS usage, self-signed certificates, and expired certs used by malware.",
+    "commands": [
+      {
+        "description": "Capture TLS handshakes for certificate inspection.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp port 443 and tcp[20] == 22' -w tls_handshakes.pcap"
+      },
+      {
+        "description": "Hunt for self-signed TLS certificates \u2014 common in malware C2.",
+        "method": "Wireshark Display Filter",
+        "command": "ssl.handshake.certificate && x509ce.basicConstraints_cA == 1 && !(tls.handshake.extensions_server_name)"
+      },
+      {
+        "description": "Detect expired TLS certificates \u2014 malware often uses expired certs.",
+        "method": "Wireshark Display Filter",
+        "command": "x509sat.utcTime"
+      },
+      {
+        "description": "Hunt for TLS 1.0 usage \u2014 outdated, potential legacy malware or scanning.",
+        "method": "Wireshark Display Filter",
+        "command": "ssl.record.version == 0x0301"
+      },
+      {
+        "description": "Hunt for JA3 fingerprint matching known malware C2 client profiles.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp port 443' -w tls_capture.pcap && tshark -r tls_capture.pcap -T fields -e ip.src -e ip.dst -e tls.handshake.ja3"
+      }
+    ],
+    "mitre": "T1557",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - LDAP Enumeration over the Wire": {
+    "description": "Proactively hunt for BloodHound, ldapdomaindump, and other LDAP enumeration tools at packet level.",
+    "commands": [
+      {
+        "description": "Capture LDAP traffic from non-DC hosts.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp port 389 or tcp port 636 or tcp port 3268' and not host <dc_ip> -w ldap_capture.pcap"
+      },
+      {
+        "description": "Hunt for high-volume LDAP search requests \u2014 BloodHound indicator.",
+        "method": "Wireshark Display Filter",
+        "command": "ldap.protocolOp == 3 && ip.src != <dc_ip>"
+      },
+      {
+        "description": "Detect LDAP search for sensitive attributes (BloodHound signatures).",
+        "method": "Wireshark Display Filter",
+        "command": "ldap.filter contains \"msDS-AllowedToDelegateTo\" || ldap.filter contains \"trustedDomain\" || ldap.filter contains \"msDS-GroupMSAMembership\""
+      },
+      {
+        "description": "Hunt for LDAP bind with simple authentication (cleartext credentials).",
+        "method": "Wireshark Display Filter",
+        "command": "ldap.protocolOp == 0 && ldap.simple"
+      }
+    ],
+    "mitre": "T1018",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - Internal Port Scanning": {
+    "description": "Proactively hunt for internal reconnaissance and host discovery on the network.",
+    "commands": [
+      {
+        "description": "Detect SYN port scan \u2014 single source, many destinations or ports.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp[tcpflags] == tcp-syn' -w syn_scan.pcap && tcpdump -r syn_scan.pcap | awk '{print $3}' | cut -d. -f1-4 | sort | uniq -c | sort -rn | head -20"
+      },
+      {
+        "description": "Hunt for TCP SYN scan with no established sessions (no SYN-ACK).",
+        "method": "Wireshark Display Filter",
+        "command": "tcp.flags.syn == 1 && !tcp.flags.ack == 1 && tcp.analysis.retransmission"
+      },
+      {
+        "description": "Detect NULL scan (no flags set) \u2014 nmap -sN.",
+        "method": "Wireshark Display Filter",
+        "command": "tcp.flags == 0x000"
+      },
+      {
+        "description": "Detect FIN scan \u2014 nmap -sF.",
+        "method": "Wireshark Display Filter",
+        "command": "tcp.flags == 0x001 && !(tcp.flags.ack == 1)"
+      },
+      {
+        "description": "Detect XMAS scan \u2014 nmap -sX (FIN+PSH+URG).",
+        "method": "Wireshark Display Filter",
+        "command": "tcp.flags.fin == 1 && tcp.flags.push == 1 && tcp.flags.urg == 1"
+      },
+      {
+        "description": "Detect ICMP host sweep.",
+        "method": "Wireshark Display Filter",
+        "command": "icmp.type == 8 && ip.dst matches \"<subnet_regex>\""
+      }
+    ],
+    "mitre": "T1046",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - Credential Sniffing": {
+    "description": "Proactively hunt for cleartext credentials and hash captures on the wire.",
+    "commands": [
+      {
+        "description": "Capture cleartext HTTP basic auth credentials.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n -A 'tcp port 80' | grep -i 'authorization: basic' | base64 -d"
+      },
+      {
+        "description": "Hunt for FTP credentials in cleartext.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n -A 'tcp port 21' | grep -E '(USER|PASS) '"
+      },
+      {
+        "description": "Hunt for Telnet or cleartext management session.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp port 23' -A -w telnet_capture.pcap"
+      },
+      {
+        "description": "Detect NTLM challenge-response over SMB \u2014 offline cracking possible.",
+        "method": "Wireshark Display Filter",
+        "command": "ntlmssp && ntlmssp.messagetype == 0x00000003"
+      },
+      {
+        "description": "Hunt for NTLMv1 authentication \u2014 weaker hash, crackable.",
+        "method": "Wireshark Display Filter",
+        "command": "ntlmssp && ntlmssp.NTLM_NTLM_Negotiate_Flags.W == 0 && ntlmssp.messagetype == 0x00000003"
+      }
+    ],
+    "mitre": "T1040",
+    "tuning": "Alert on LSASS/SAM access from non-system processes. Whitelist backup agents and EDR sensors. Correlate credential access with subsequent unusual auth activity in Wireshark/tcpdump."
+  },
+  "Hunt - Malware Traffic Patterns": {
+    "description": "Proactively hunt for known malware network signatures and traffic patterns.",
+    "commands": [
+      {
+        "description": "Hunt for Emotet/TrickBot style URI patterns in HTTP traffic.",
+        "method": "Wireshark Display Filter",
+        "command": "http.request.uri matches \"/[a-zA-Z]{4,8}/[a-zA-Z]{4,8}\\.php\" && http.request.method == \"POST\""
+      },
+      {
+        "description": "Detect Cobalt Strike HTTP staging URI \u2014 64 char alpha URI.",
+        "method": "Wireshark Display Filter",
+        "command": "http.request.uri matches \"/[A-Za-z0-9]{64}\""
+      },
+      {
+        "description": "Capture and follow TCP stream of suspicious connection.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'host <suspect_ip>' -w suspect_traffic.pcap && tshark -r suspect_traffic.pcap -q -z follow,tcp,ascii,0"
+      },
+      {
+        "description": "Hunt for known malware ports \u2014 RATs, botnet C2.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp and (dst port 1177 or dst port 3460 or dst port 4444 or dst port 5554 or dst port 6667 or dst port 9001 or dst port 31337)' -w malware_ports.pcap"
+      },
+      {
+        "description": "Hunt for HTTP requests with no referer and randomized user agents.",
+        "method": "Wireshark Display Filter",
+        "command": "http.request && !(http.referer) && http.request.method == \"GET\""
+      }
+    ],
+    "mitre": "T1071",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - IPv6 & Dual-Stack Attacks": {
+    "description": "Proactively hunt for IPv6-based attacks, rogue router advertisements, and dual-stack evasion.",
+    "commands": [
+      {
+        "description": "Capture all IPv6 traffic for analysis \u2014 many environments ignore it.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'ip6' -w ipv6_traffic.pcap"
+      },
+      {
+        "description": "Hunt for rogue IPv6 Router Advertisement \u2014 network redirect attack.",
+        "method": "Wireshark Display Filter",
+        "command": "icmpv6.type == 134 && !(ipv6.src == <authorized_router_ipv6>)"
+      },
+      {
+        "description": "Detect ISATAP or Teredo IPv6 tunneling over IPv4 \u2014 policy bypass.",
+        "method": "Wireshark Display Filter",
+        "command": "ip.proto == 41 || udp.dstport == 3544"
+      },
+      {
+        "description": "Hunt for IPv6 extension header abuse \u2014 covert channel.",
+        "method": "Wireshark Display Filter",
+        "command": "ipv6.nxt == 60 || ipv6.nxt == 43"
+      },
+      {
+        "description": "Capture rogue RA and DHCPv6 for dual-stack hijack.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'icmp6 and ip6[40] == 134 or udp and port 547' -w ipv6_rogue_ra.pcap"
+      }
+    ],
+    "mitre": "T1557.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - Encrypted Tunnel & VPN Abuse": {
+    "description": "Proactively hunt for unauthorized VPN usage, SSH tunneling, and encrypted covert channels.",
+    "commands": [
+      {
+        "description": "Capture WireGuard traffic to detect unauthorized VPN usage.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'udp port 51820' -w wireguard.pcap"
+      },
+      {
+        "description": "Hunt for OpenVPN traffic on default port.",
+        "method": "Wireshark Display Filter",
+        "command": "udp.dstport == 1194 || tcp.dstport == 1194"
+      },
+      {
+        "description": "Detect SSH port forwarding \u2014 large data over SSH from unexpected host.",
+        "method": "Wireshark Display Filter",
+        "command": "ssh && tcp.len > 1000 && ip.src != <authorized_ssh_servers>"
+      },
+      {
+        "description": "Hunt for Tor traffic \u2014 connect to guard nodes on port 9001/443.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp port 9001 or tcp port 9030 or tcp port 9050' -w tor_traffic.pcap"
+      },
+      {
+        "description": "Detect stunnel or socat encrypted relay on non-standard ports.",
+        "method": "Wireshark Display Filter",
+        "command": "ssl.handshake.type == 1 && tcp.dstport > 10000 && !(ssl.handshake.extensions_server_name)"
+      }
+    ],
+    "mitre": "T1090",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - Wireless & 802.11 Attacks": {
+    "description": "Proactively hunt for wireless deauthentication, evil twin, and 802.11 protocol attacks using captured wireless frames.",
+    "commands": [
+      {
+        "description": "Capture wireless management frames for deauth attack analysis.",
+        "method": "tcpdump",
+        "command": "tcpdump -i wlan0mon -n 'type mgt subtype deauth' -w deauth_attack.pcap"
+      },
+      {
+        "description": "Hunt for 802.11 deauthentication flood \u2014 DoS or pre-4-way-handshake attack.",
+        "method": "Wireshark Display Filter",
+        "command": "wlan.fc.type_subtype == 0x000c"
+      },
+      {
+        "description": "Hunt for EAPOL handshake capture \u2014 WPA2 cracking attempt.",
+        "method": "Wireshark Display Filter",
+        "command": "eapol && wlan.fc.type_subtype == 0x0008"
+      },
+      {
+        "description": "Detect rogue AP beacon with same SSID as corporate network.",
+        "method": "Wireshark Display Filter",
+        "command": "wlan.fc.type_subtype == 0x0008 && wlan_mgt.ssid == \"<corporate_ssid>\" && !(wlan.ta == <authorized_ap_mac>)"
+      }
+    ],
+    "mitre": "T1200",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - Exfiltration via Uncommon Protocols": {
+    "description": "Proactively hunt for data exfiltration hidden in uncommon or abuse protocols.",
+    "commands": [
+      {
+        "description": "Hunt for large SMTP DATA payload \u2014 email exfil.",
+        "method": "Wireshark Display Filter",
+        "command": "smtp.command == \"DATA\" && tcp.len > 102400"
+      },
+      {
+        "description": "Detect unusually large NTP payload \u2014 NTP covert channel.",
+        "method": "Wireshark Display Filter",
+        "command": "ntp && udp.length > 100"
+      },
+      {
+        "description": "Hunt for HTTP CONNECT to unexpected internal hosts \u2014 proxy tunnel.",
+        "method": "Wireshark Display Filter",
+        "command": "http.request.method == \"CONNECT\""
+      },
+      {
+        "description": "Capture TFTP traffic \u2014 often used for lateral file staging.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'udp port 69' -w tftp_capture.pcap"
+      },
+      {
+        "description": "Hunt for data in HTTPS certificate fields \u2014 exfil via TLS handshake.",
+        "method": "Wireshark Display Filter",
+        "command": "ssl.handshake.certificate && x509sat.uTF8String"
+      }
+    ],
+    "mitre": "T1048.003",
+    "tuning": "Baseline normal data transfer volumes before alerting on exfiltration. Alert on transfers to new destinations. Tune DNS exfil detection on query entropy and subdomain count."
+  },
+  "Hunt - Active Directory Traffic Analysis": {
+    "description": "Proactively hunt for AD reconnaissance and attack patterns at the network protocol level.",
+    "commands": [
+      {
+        "description": "Capture all DC-bound traffic from a suspect workstation.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'host <suspect_ip> and (host <dc_ip>) and (tcp port 389 or tcp port 636 or tcp port 88 or tcp port 445)' -w dc_traffic.pcap"
+      },
+      {
+        "description": "Hunt for LDAP search with filter matching BloodHound queries.",
+        "method": "Wireshark Display Filter",
+        "command": "ldap.filter contains \"msDS-AllowedToDelegateTo\" || ldap.filter contains \"(objectCategory=computer)\" && ldap.filter contains \"(userAccountControl:1.2.840.113556.1.4.803:=524288)\""
+      },
+      {
+        "description": "Detect DRSR (DCSync) protocol usage from non-DC host.",
+        "method": "Wireshark Display Filter",
+        "command": "dcerpc.cn_call_id && dcerpc.opnum == 3 && !(ip.src == <dc_ip>)"
+      },
+      {
+        "description": "Hunt for SAMRConnect or NetrServerAuthenticate \u2014 pass-the-hash recon.",
+        "method": "Wireshark Display Filter",
+        "command": "samr || dcerpc.cn_bind_context_id contains \"12345778-1234-abcd-ef00-0123456789ac\""
+      },
+      {
+        "description": "Monitor for excessive Kerberos error responses from DC.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp port 88 or udp port 88' -w kerb_errors.pcap && tshark -r kerb_errors.pcap -Y 'kerberos.error_code' -T fields -e ip.src -e ip.dst -e kerberos.error_code | sort | uniq -c | sort -rn | head -30"
+      }
+    ],
+    "mitre": "T1482",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - Protocol Anomalies & Malformed Packets": {
+    "description": "Proactively hunt for exploitation attempts using malformed or non-RFC-compliant packets.",
+    "commands": [
+      {
+        "description": "Hunt for TCP packets with invalid flag combinations (stealth scans).",
+        "method": "Wireshark Display Filter",
+        "command": "tcp.flags == 0x29 || tcp.flags == 0x41 || tcp.flags == 0x00"
+      },
+      {
+        "description": "Detect abnormally large TCP window size \u2014 evasion technique.",
+        "method": "Wireshark Display Filter",
+        "command": "tcp.window_size > 65535 && !(tcp.options.wscale)"
+      },
+      {
+        "description": "Hunt for IP fragmentation used to evade IDS/IPS.",
+        "method": "Wireshark Display Filter",
+        "command": "ip.flags.mf == 1 || ip.frag_offset > 0"
+      },
+      {
+        "description": "Detect overlapping IP fragments \u2014 evasion or exploitation.",
+        "method": "Wireshark Display Filter",
+        "command": "ip.fragments && ip.fragment.overlap"
+      },
+      {
+        "description": "Hunt for packets with source IP set to broadcast or loopback \u2014 spoofing.",
+        "method": "Wireshark Display Filter",
+        "command": "ip.src == 255.255.255.255 || ip.src == 127.0.0.1 || ip.src == 0.0.0.0"
+      }
+    ],
+    "mitre": "T1040",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - Web Application Attack Traffic": {
+    "description": "Proactively hunt for SQL injection, SSRF, LFI, and web shell traffic at packet level.",
+    "commands": [
+      {
+        "description": "Capture and inspect all HTTP requests to a target web server.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n -A 'tcp port 80 and dst host <webserver_ip>' | grep -E '(GET|POST|PUT|DELETE|PATCH|HEAD)'"
+      },
+      {
+        "description": "Hunt for SQL injection patterns in HTTP request URI or body.",
+        "method": "Wireshark Display Filter",
+        "command": "http.request.uri contains \"'\" || http.request.uri contains \"UNION\" || http.request.uri contains \"SELECT\" || http.request.uri contains \"--\""
+      },
+      {
+        "description": "Detect SSRF payloads in HTTP parameters.",
+        "method": "Wireshark Display Filter",
+        "command": "http.request.uri contains \"169.254.169.254\" || http.request.uri contains \"localhost\" || http.request.uri contains \"127.0.0.1\""
+      },
+      {
+        "description": "Hunt for LFI traversal sequences in request.",
+        "method": "Wireshark Display Filter",
+        "command": "http.request.uri contains \"../\" || http.request.uri contains \"..%2F\" || http.request.uri contains \"%2e%2e\""
+      },
+      {
+        "description": "Detect path traversal and webshell upload attempts.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n -A 'tcp port 80 or tcp port 443' | grep -iE '(\\.\\./|cmd=|exec=|system\\(|passthru|eval\\()'"
+      }
+    ],
+    "mitre": "T1190",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - Multicast & Broadcast Abuse": {
+    "description": "Proactively hunt for mDNS, SSDP, and broadcast protocol abuse for reconnaissance and MITM.",
+    "commands": [
+      {
+        "description": "Capture mDNS traffic \u2014 used by Bonjour, Avahi, and recon tools.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'udp port 5353 and dst 224.0.0.251' -w mdns_capture.pcap"
+      },
+      {
+        "description": "Hunt for SSDP M-SEARCH flood \u2014 UPnP device discovery recon.",
+        "method": "Wireshark Display Filter",
+        "command": "ssdp.method == \"M-SEARCH\""
+      },
+      {
+        "description": "Detect unauthorized mDNS responses \u2014 name poisoning.",
+        "method": "Wireshark Display Filter",
+        "command": "mdns && dns.flags.response == 1 && !(ip.src == <authorized_mdns_host>)"
+      },
+      {
+        "description": "Hunt for WS-Discovery flood \u2014 Windows device enumeration recon.",
+        "method": "Wireshark Display Filter",
+        "command": "xml && udp.dstport == 3702"
+      }
+    ],
+    "mitre": "T1557.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - Lateral Movement Protocol Analysis": {
+    "description": "Proactively hunt for lateral movement using WMI, DCOM, and WinRM at protocol level.",
+    "commands": [
+      {
+        "description": "Capture DCOM/RPC traffic for lateral movement analysis.",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -n 'tcp port 135 or tcp portrange 49152-65535' -w dcom_rpc.pcap"
+      },
+      {
+        "description": "Hunt for WinRM traffic on port 5985/5986 from unexpected hosts.",
+        "method": "Wireshark Display Filter",
+        "command": "(tcp.dstport == 5985 || tcp.dstport == 5986) && !(ip.src == <authorized_mgmt_ip>)"
+      },
+      {
+        "description": "Detect DCOM activation requests \u2014 remote object instantiation.",
+        "method": "Wireshark Display Filter",
+        "command": "dcerpc.cn_bind_context_id contains \"99fcfec4-5260-101b-bbcb-00aa0021347a\""
+      },
+      {
+        "description": "Hunt for SMB named pipe creation \u2014 tool execution over SMB.",
+        "method": "Wireshark Display Filter",
+        "command": "smb2.cmd == 5 && smb2.filename contains \"\\\\pipe\\\\\""
+      }
+    ],
+    "mitre": "T1021",
+    "tuning": "Baseline normal admin movement patterns in your environment before enabling alerting. Exclude DC replication traffic. Alert on first-seen lateral paths between host pairs."
+  },
+  "Hunt - Discord & Telegram C2 Detection": {
+    "description": "Hunt for Discord and Telegram being used as C2 channels \u2014 TLS SNI patterns, WebSocket connections to Discord gateway, and Telegram bot API polling from unexpected hosts.",
+    "commands": [
+      {
+        "description": "Hunt for TLS connections with Discord/Telegram SNI (C2 over encrypted channel)",
+        "method": "tshark/Wireshark",
+        "command": "tshark -r capture.pcap -Y 'tls.handshake.extensions_server_name contains \"discord\" or tls.handshake.extensions_server_name contains \"telegram\"' -T fields -e ip.src -e ip.dst -e tls.handshake.extensions_server_name -e frame.time | sort"
+      },
+      {
+        "description": "Hunt for persistent WebSocket connections to gateway.discord.gg (C2 heartbeat pattern)",
+        "method": "tshark",
+        "command": "tshark -r capture.pcap -Y 'tls.handshake.extensions_server_name == \"gateway.discord.gg\"' -T fields -e ip.src -e ip.dst -e tcp.stream -e frame.time\n# Persistent connection from non-browser process = C2 indicator"
+      },
+      {
+        "description": "Hunt for high-frequency polling to api.telegram.org (getUpdates \u2014 C2 command poll)",
+        "method": "tshark",
+        "command": "tshark -r capture.pcap -Y 'tls.handshake.extensions_server_name == \"api.telegram.org\"' -T fields -e ip.src -e frame.time | awk '{print $1}' | sort | uniq -c | awk '$1>30{print}'\n# >30 connections from same IP = bot polling"
+      },
+      {
+        "description": "Hunt for Discord webhook POST exfiltration (data sent to attacker-controlled webhook)",
+        "method": "Wireshark filter",
+        "command": "# Discord webhooks: POST to discord.com/api/webhooks/<snowflake>/<token>\ntcp.payload contains \"POST\" and (tcp.payload contains \"/api/webhooks/\" or tls.app_data)\nand tls.handshake.extensions_server_name contains \"discord\""
+      },
+      {
+        "description": "Live capture and alert on Discord/Telegram C2 traffic",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -nn -s0 -w - 'host discord.com or host discordapp.com or host api.telegram.org or host gateway.discord.gg' | tshark -r - -T fields -e ip.src -e ip.dst -e tls.handshake.extensions_server_name -e frame.time"
+      }
+    ],
+    "mitre": "T1102.002",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Wireshark/tcpdump data sources for context."
+  },
+  "Hunt - AI API Data Exfiltration Traffic": {
+    "description": "Hunt for unusual outbound traffic to AI/LLM service endpoints that may indicate data exfiltration, credential abuse, or automated AI-assisted attacks.",
+    "commands": [
+      {
+        "description": "Hunt for large POST bodies to AI API endpoints (data exfiltration via LLM context)",
+        "method": "tshark/Wireshark",
+        "command": "tshark -r capture.pcap -Y '(tls.handshake.extensions_server_name contains \"openai\" or tls.handshake.extensions_server_name contains \"anthropic\") and frame.len > 10000' -T fields -e ip.src -e ip.dst -e frame.len -e tls.handshake.extensions_server_name | sort -k3 -rn"
+      },
+      {
+        "description": "Hunt for high-frequency AI API requests from single internal IP (automated exfil)",
+        "method": "tshark",
+        "command": "tshark -r capture.pcap -Y 'tls.handshake.extensions_server_name matches \"openai|anthropic|generativelanguage\\.googleapis\"' -T fields -e ip.src -e tls.handshake.extensions_server_name | sort | uniq -c | sort -rn"
+      },
+      {
+        "description": "Hunt for traffic to Azure OpenAI custom subdomains (*.openai.azure.com)",
+        "method": "Wireshark filter",
+        "command": "tls.handshake.extensions_server_name matches \"\\.openai\\.azure\\.com$\"\n# Each enterprise deployment has: <resource>.openai.azure.com"
+      },
+      {
+        "description": "Hunt for AI API traffic from non-browser, non-standard processes (unusual source port patterns)",
+        "method": "tshark",
+        "command": "tshark -r capture.pcap -Y 'tls.handshake.extensions_server_name contains \"openai\" or tls.handshake.extensions_server_name contains \"anthropic\"' -T fields -e ip.src -e tcp.srcport -e tls.handshake.extensions_server_name -e frame.time"
+      },
+      {
+        "description": "tcpdump capture for AI API traffic for offline investigation",
+        "method": "tcpdump",
+        "command": "tcpdump -i eth0 -nn -s0 -w ai_exfil_hunt.pcap 'host api.openai.com or host api.anthropic.com or host generativelanguage.googleapis.com'\n# Then analyze with: tshark -r ai_exfil_hunt.pcap -Y 'frame.len > 50000'"
+      }
+    ],
+    "mitre": "T1048.002",
+    "tuning": "Baseline normal data transfer volumes before alerting on exfiltration. Alert on transfers to new destinations. Tune DNS exfil detection on query entropy and subdomain count."
+  }
+}
