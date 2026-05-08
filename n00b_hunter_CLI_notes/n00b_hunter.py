@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 n00b_hunter.py  —  Red & Blue Team Field Notes
-v3.5 — opsec/prerequisites/detection_ref/tuning fields,
+v3.6 — opsec/prerequisites/detection_ref/tuning fields,
         --list and --export-json CLI flags, inline metadata display
 """
 import json
