@@ -104,7 +104,7 @@ def banner():
         if ENGAGEMENT["name"]
         else f"{GR}[ No Engagement Loaded ]{RS}"
     )
-    print(f"  {GR}[ Red & Blue Team Field Notes v3.5 ]{RS}  {eng}\n")
+    print(f"  {GR}[ Red & Blue Team Field Notes v3.6 ]{RS}  {eng}\n")
 
 
 def load_json_dir(path):
