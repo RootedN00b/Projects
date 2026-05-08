@@ -1,0 +1,2458 @@
+{
+  "Reconnaissance": {
+    "description": "Detection of discovery and reconnaissance activity inside the environment.",
+    "commands": [
+      {
+        "description": "Net User Domain Enumeration",
+        "method": "SPL - MITTREATT&CK T1087.002",
+        "command": "index=windows EventCode=4688 CommandLine=\"*net user* /domain*\""
+      },
+      {
+        "description": "Net Group Enumeration",
+        "method": "SPL - MITTREATT&CK T1069.002",
+        "command": "index=windows EventCode=4688 CommandLine=\"*net group* /domain*\""
+      },
+      {
+        "description": "Whoami Privilege Discovery",
+        "method": "SPL - MITTREATT&CK T1033",
+        "command": "index=windows EventCode=4688 CommandLine=\"*whoami /priv*\""
+      },
+      {
+        "description": "Systeminfo Discovery",
+        "method": "SPL - MITTREATT&CK T1082",
+        "command": "index=windows EventCode=4688 CommandLine=\"*systeminfo*\""
+      },
+      {
+        "description": "IPConfig Discovery",
+        "method": "SPL - MITTREATT&CK T1016",
+        "command": "index=windows EventCode=4688 CommandLine=\"*ipconfig*\""
+      },
+      {
+        "description": "Route Print Discovery",
+        "method": "SPL - MITTREATT&CK T1016",
+        "command": "index=windows EventCode=4688 CommandLine=\"*route print*\""
+      },
+      {
+        "description": "Netstat Discovery",
+        "method": "SPL - MITTREATT&CK T1049",
+        "command": "index=windows EventCode=4688 CommandLine=\"*netstat*\""
+      },
+      {
+        "description": "Tasklist Discovery",
+        "method": "SPL - MITTREATT&CK T1057",
+        "command": "index=windows EventCode=4688 CommandLine=\"*tasklist*\""
+      },
+      {
+        "description": "ARP Discovery",
+        "method": "SPL - MITTREATT&CK T1046",
+        "command": "index=windows EventCode=4688 CommandLine=\"*arp -a*\""
+      },
+      {
+        "description": "DNS Zone Transfer Attempt",
+        "method": "SPL - MITTREATT&CK T1590.002",
+        "command": "index=dns query_type=AXFR"
+      },
+      {
+        "description": "LDAP Enumeration via PowerShell",
+        "method": "SPL - MITTREATT&CK T1087",
+        "command": "index=windows EventCode=4104 ScriptBlockText=\"*Get-ADUser*\""
+      },
+      {
+        "description": "SharpHound Execution",
+        "method": "SPL - MITTREATT&CK T1087",
+        "command": "index=windows EventCode=4688 CommandLine=\"*SharpHound*\""
+      },
+      {
+        "description": "Kerberos Service Ticket Enumeration",
+        "method": "SPL - MITTREATT&CK T1558.003",
+        "command": "index=windows EventCode=4769"
+      },
+      {
+        "description": "SMB Share Enumeration",
+        "method": "SPL - MITTREATT&CK T1135",
+        "command": "index=windows EventCode=5140"
+      },
+      {
+        "description": "WMIC OS Discovery",
+        "method": "SPL - MITTREATT&CK T1082",
+        "command": "index=windows EventCode=4688 CommandLine=\"*wmic os*\""
+      },
+      {
+        "description": "WMIC Useraccount Enumeration",
+        "method": "SPL - MITTREATT&CK T1087",
+        "command": "index=windows EventCode=4688 CommandLine=\"*wmic useraccount*\""
+      },
+      {
+        "description": "DSQuery Enumeration",
+        "method": "SPL - MITTREATT&CK T1087",
+        "command": "index=windows EventCode=4688 CommandLine=\"*dsquery*\""
+      },
+      {
+        "description": "Ping Sweep Activity",
+        "method": "SPL - MITTREATT&CK T1046",
+        "command": "index=windows EventCode=4688 CommandLine=\"*ping * -n 1*\""
+      },
+      {
+        "description": "Nmap User Agent Detection",
+        "method": "SPL - MITTREATT&CK T1046",
+        "command": "index=network user_agent=\"*nmap*\""
+      },
+      {
+        "description": "RPC Enumeration",
+        "method": "SPL - MITTREATT&CK T1046",
+        "command": "index=network dest_port=135"
+      },
+      {
+        "description": "SNMP Scanning",
+        "method": "SPL - MITTREATT&CK T1046",
+        "command": "index=network dest_port=161"
+      },
+      {
+        "description": "DNS Brute Force Pattern",
+        "method": "SPL - MITTREATT&CK T1590",
+        "command": "index=dns | stats count by src_ip | where count>200"
+      },
+      {
+        "description": "PowerView Enumeration",
+        "method": "SPL - MITTREATT&CK T1087",
+        "command": "index=windows EventCode=4104 ScriptBlockText=\"*Get-Domain*\""
+      },
+      {
+        "description": "AD Trust Enumeration",
+        "method": "SPL - MITTREATT&CK T1482",
+        "command": "index=windows EventCode=4688 CommandLine=\"*Get-ADTrust*\""
+      },
+      {
+        "description": "Local Admin Enumeration",
+        "method": "SPL - MITTREATT&CK T1069.001",
+        "command": "index=windows EventCode=4688 CommandLine=\"*net localgroup administrators*\""
+      },
+      {
+        "description": "Directory Listing via CMD",
+        "method": "SPL - MITTREATT&CK T1083",
+        "command": "index=windows EventCode=4688 CommandLine=\"*dir *\""
+      },
+      {
+        "description": "PowerShell File Discovery",
+        "method": "SPL - MITTREATT&CK T1083",
+        "command": "index=windows EventCode=4104 ScriptBlockText=\"*Get-ChildItem*\""
+      },
+      {
+        "description": "Registry Query Enumeration",
+        "method": "SPL - MITTREATT&CK T1012",
+        "command": "index=windows EventCode=4688 CommandLine=\"*reg query*\""
+      },
+      {
+        "description": "Environment Variable Discovery",
+        "method": "SPL - MITTREATT&CK T1082",
+        "command": "index=windows EventCode=4688 CommandLine=\"*set *\""
+      },
+      {
+        "description": "Installed Software Discovery",
+        "method": "SPL - MITTREATT&CK T1518.001",
+        "command": "index=windows EventCode=4688 CommandLine=\"*wmic product*\""
+      },
+      {
+        "description": "Net View Share Discovery",
+        "method": "SPL - MITTREATT&CK T1135",
+        "command": "index=windows EventCode=4688 CommandLine=\"*net view*\""
+      },
+      {
+        "description": "Domain Controller Discovery",
+        "method": "SPL - MITTREATT&CK T1482",
+        "command": "index=windows EventCode=4688 CommandLine=\"*nltest /dclist*\""
+      },
+      {
+        "description": "Time Sync Discovery",
+        "method": "SPL - MITTREATT&CK T1124",
+        "command": "index=windows EventCode=4688 CommandLine=\"*w32tm /query*\""
+      },
+      {
+        "description": "Network Interface Enumeration",
+        "method": "SPL - MITTREATT&CK T1016",
+        "command": "index=windows EventCode=4688 CommandLine=\"*Get-NetIPAddress*\""
+      },
+      {
+        "description": "Remote Share Access Enumeration",
+        "method": "SPL - MITTREATT&CK T1135",
+        "command": "index=windows EventCode=5145"
+      },
+      {
+        "description": "Process Discovery via PowerShell",
+        "method": "SPL - MITTREATT&CK T1057",
+        "command": "index=windows EventCode=4104 ScriptBlockText=\"*Get-Process*\""
+      },
+      {
+        "description": "Services Discovery",
+        "method": "SPL - MITTREATT&CK T1007",
+        "command": "index=windows EventCode=4688 CommandLine=\"*sc query*\""
+      },
+      {
+        "description": "Scheduled Tasks Discovery",
+        "method": "SPL - MITTREATT&CK T1053.005",
+        "command": "index=windows EventCode=4688 CommandLine=\"*schtasks /query*\""
+      },
+      {
+        "description": "User Account Control Discovery",
+        "method": "SPL - MITTREATT&CK T1548.002",
+        "command": "index=windows EventCode=4688 CommandLine=\"*reg query*EnableLUA*\""
+      },
+      {
+        "description": "Credential Manager Enumeration",
+        "method": "SPL - MITTREATT&CK T1555",
+        "command": "index=windows EventCode=4688 CommandLine=\"*cmdkey /list*\""
+      },
+      {
+        "description": "Firewall Rule Enumeration",
+        "method": "SPL - MITTREATT&CK T1016",
+        "command": "index=windows EventCode=4688 CommandLine=\"*netsh advfirewall show*\""
+      },
+      {
+        "description": "PowerShell Domain Group Enumeration",
+        "method": "SPL - MITTREATT&CK T1069.002",
+        "command": "index=windows EventCode=4104 ScriptBlockText=\"*Get-ADGroup*\""
+      },
+      {
+        "description": "DNS Query Volume Spike",
+        "method": "SPL - MITTREATT&CK T1590",
+        "command": "index=dns | stats count by src_ip | where count>500"
+      },
+      {
+        "description": "WMI Query Enumeration",
+        "method": "SPL - MITTREATT&CK T1047",
+        "command": "index=windows EventCode=4688 CommandLine=\"*wmic*\""
+      },
+      {
+        "description": "Printer Enumeration",
+        "method": "SPL - MITTREATT&CK T1120",
+        "command": "index=windows EventCode=4688 CommandLine=\"*Get-Printer*\""
+      },
+      {
+        "description": "Domain SID Discovery",
+        "method": "SPL - MITTREATT&CK T1087",
+        "command": "index=windows EventCode=4688 CommandLine=\"*whoami /all*\""
+      },
+      {
+        "description": "Active Directory Sites Enumeration",
+        "method": "SPL - MITTREATT&CK T1482",
+        "command": "index=windows EventCode=4104 ScriptBlockText=\"*Get-ADReplicationSite*\""
+      },
+      {
+        "description": "LDAP Anonymous Bind Attempt",
+        "method": "SPL - MITTREATT&CK T1087",
+        "command": "index=network dest_port=389 action=bind result=success user=anonymous"
+      },
+      {
+        "description": "Domain Password Policy Enumeration",
+        "method": "SPL - MITTREATT&CK T1201",
+        "command": "index=windows EventCode=4104 ScriptBlockText=\"*Get-ADDefaultDomainPasswordPolicy*\""
+      }
+    ],
+    "mitre": "TA0043",
+    "tuning": "Tune scan detection thresholds based on environment size. Correlate recon activity with subsequent exploitation attempts for higher-confidence alerts."
+  },
+  "Intrusion": {
+    "description": "Detection of initial access, credential abuse, and account compromise techniques.",
+    "commands": [
+      {
+        "description": "Multiple Failed Logons",
+        "method": "SPL - MITTREATT&CK T1110",
+        "command": "index=windows EventCode=4625 | stats count by user, src_ip | where count>10"
+      },
+      {
+        "description": "Successful Login After Failures",
+        "method": "SPL - MITTREATT&CK T1110",
+        "command": "index=windows (EventCode=4624 OR EventCode=4625) | transaction user maxspan=5m | search EventCode=4625 EventCode=4624"
+      },
+      {
+        "description": "External RDP Login",
+        "method": "SPL - MITTREATT&CK T1021.001",
+        "command": "index=windows EventCode=4624 LogonType=10 src_ip!=10.*"
+      },
+      {
+        "description": "NTLM Network Logon",
+        "method": "SPL - MITTREATT&CK T1550.002",
+        "command": "index=windows EventCode=4624 AuthenticationPackageName=NTLM LogonType=3"
+      },
+      {
+        "description": "Kerberos Golden Ticket Indicator",
+        "method": "SPL - MITTREATT&CK T1558.001",
+        "command": "index=windows EventCode=4769 Ticket_Encryption_Type=0x17"
+      },
+      {
+        "description": "Kerberoasting Activity Spike",
+        "method": "SPL - MITTREATT&CK T1558.003",
+        "command": "index=windows EventCode=4769 | stats count by user | where count>20"
+      },
+      {
+        "description": "AS-REP Roasting Enumeration",
+        "method": "SPL - MITTREATT&CK T1558.004",
+        "command": "index=windows EventCode=4768 PreAuthType=0"
+      },
+      {
+        "description": "Encoded PowerShell Execution",
+        "method": "SPL - MITTREATT&CK T1059.001",
+        "command": "index=windows EventCode=4688 CommandLine=\"*-enc*\""
+      },
+      {
+        "description": "Base64 in PowerShell ScriptBlock",
+        "method": "SPL - MITTREATT&CK T1059.001",
+        "command": "index=windows EventCode=4104 ScriptBlockText=\"*FromBase64String*\""
+      },
+      {
+        "description": "Office Macro Spawning CMD",
+        "method": "SPL - MITTREATT&CK T1566.001",
+        "command": "index=windows EventCode=4688 Parent_Process_Name=*winword.exe CommandLine=\"*cmd.exe*\""
+      },
+      {
+        "description": "Office Spawning PowerShell",
+        "method": "SPL - MITTREATT&CK T1566.001",
+        "command": "index=windows EventCode=4688 Parent_Process_Name=*excel.exe CommandLine=\"*powershell*\""
+      },
+      {
+        "description": "Suspicious WMI Remote Login",
+        "method": "SPL - MITTREATT&CK T1047",
+        "command": "index=windows EventCode=4624 LogonType=3 AuthenticationPackageName=Negotiate"
+      },
+      {
+        "description": "VPN Login Outside Business Hours",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "index=vpn | where date_hour<6 OR date_hour>22"
+      },
+      {
+        "description": "Impossible Travel Detection",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "index=auth | transaction user maxspan=1h | where distance>5000"
+      },
+      {
+        "description": "Suspicious OAuth Token Creation",
+        "method": "SPL - MITTREATT&CK T1550.001",
+        "command": "index=cloud operation=\"Add OAuth2PermissionGrant\""
+      },
+      {
+        "description": "New Account Created",
+        "method": "SPL - MITTREATT&CK T1136",
+        "command": "index=windows EventCode=4720"
+      },
+      {
+        "description": "Password Reset Activity",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "index=windows EventCode=4724"
+      },
+      {
+        "description": "Account Lockout Spike",
+        "method": "SPL - MITTREATT&CK T1110",
+        "command": "index=windows EventCode=4740 | stats count by user | where count>5"
+      },
+      {
+        "description": "New Service Installation",
+        "method": "SPL - MITTREATT&CK T1543.003",
+        "command": "index=windows EventCode=7045"
+      },
+      {
+        "description": "Web Shell File Creation",
+        "method": "SPL - MITTREATT&CK T1505.003",
+        "command": "index=web uri_path=\"*.aspx\" method=POST"
+      },
+      {
+        "description": "Suspicious Scheduled Task Creation",
+        "method": "SPL - MITTREATT&CK T1053.005",
+        "command": "index=windows EventCode=4698"
+      },
+      {
+        "description": "SMB Login from External IP",
+        "method": "SPL - MITTREATT&CK T1021.002",
+        "command": "index=windows EventCode=4624 LogonType=3 src_ip!=10.*"
+      },
+      {
+        "description": "Remote Desktop Gateway Login",
+        "method": "SPL - MITTREATT&CK T1133",
+        "command": "index=windows EventCode=1149"
+      },
+      {
+        "description": "WinRM Login",
+        "method": "SPL - MITTREATT&CK T1021.006",
+        "command": "index=windows EventCode=4624 LogonProcessName=WinRM"
+      },
+      {
+        "description": "SSH Login Attempt",
+        "method": "SPL - MITTREATT&CK T1021.004",
+        "command": "index=linux sourcetype=auth failed password"
+      },
+      {
+        "description": "Multiple SSH Failures",
+        "method": "SPL - MITTREATT&CK T1110",
+        "command": "index=linux sourcetype=auth failed password | stats count by src_ip | where count>20"
+      },
+      {
+        "description": "Suspicious Admin Login",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "index=windows EventCode=4624 user=Administrator"
+      },
+      {
+        "description": "Credential Dump Tool Execution",
+        "method": "SPL - MITTREATT&CK T1003",
+        "command": "index=windows EventCode=4688 CommandLine=\"*mimikatz*\""
+      },
+      {
+        "description": "LSASS Access Attempt",
+        "method": "SPL - MITTREATT&CK T1003.001",
+        "command": "index=sysmon EventCode=10 TargetImage=*lsass.exe*"
+      },
+      {
+        "description": "Suspicious NTDS.dit Access",
+        "method": "SPL - MITTREATT&CK T1003.003",
+        "command": "index=windows file_path=\"*ntds.dit*\""
+      },
+      {
+        "description": "Admin Share Access",
+        "method": "SPL - MITTREATT&CK T1021.002",
+        "command": "index=windows EventCode=5140 ShareName=\"\\\\*\\ADMIN$\""
+      },
+      {
+        "description": "Credential Manager Usage",
+        "method": "SPL - MITTREATT&CK T1555",
+        "command": "index=windows EventCode=4688 CommandLine=\"*cmdkey /list*\""
+      },
+      {
+        "description": "Suspicious Web Login",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "index=web status=200 uri_path=\"*/admin*\""
+      },
+      {
+        "description": "SMB Null Session Attempt",
+        "method": "SPL - MITTREATT&CK T1021.002",
+        "command": "index=windows EventCode=4624 user=\"ANONYMOUS LOGON\""
+      },
+      {
+        "description": "New API Key Creation",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "index=cloud operation=\"CreateAccessKey\""
+      },
+      {
+        "description": "New Azure AD App Registration",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "index=azure operation=\"Add service principal\""
+      },
+      {
+        "description": "Remote Service Execution",
+        "method": "SPL - MITTREATT&CK T1569.002",
+        "command": "index=windows EventCode=7045 ServiceName=PSEXESVC"
+      },
+      {
+        "description": "RDP Brute Force Pattern",
+        "method": "SPL - MITTREATT&CK T1110",
+        "command": "index=windows EventCode=4625 LogonType=10 | stats count by src_ip | where count>20"
+      },
+      {
+        "description": "VPN Login from New Country",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "index=vpn | stats dc(country) by user | where dc(country)>1"
+      },
+      {
+        "description": "Admin Privilege Assigned",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "index=windows EventCode=4728 OR EventCode=4732"
+      },
+      {
+        "description": "Service Account Logon",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "index=windows EventCode=4624 user=*svc*"
+      },
+      {
+        "description": "Authentication Using Expired Account",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "index=windows EventCode=4625 FailureReason=\"Account expired\""
+      },
+      {
+        "description": "Kerberos TGT Spike",
+        "method": "SPL - MITTREATT&CK T1558",
+        "command": "index=windows EventCode=4768 | stats count by src_ip | where count>100"
+      },
+      {
+        "description": "Suspicious Remote Scheduled Task Execution",
+        "method": "SPL - MITTREATT&CK T1053.005",
+        "command": "index=windows EventCode=4698"
+      },
+      {
+        "description": "Cloud Console Login Without MFA",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "index=cloud mfa_used=false"
+      },
+      {
+        "description": "New Global Admin Role Assignment",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "index=azure operation=\"Add member to role\" role=\"Global Administrator\""
+      },
+      {
+        "description": "OAuth Consent Granted",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "index=azure operation=\"Consent to application\""
+      },
+      {
+        "description": "Abnormal Authentication Method Change",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "index=azure operation=\"Update authentication method\""
+      },
+      {
+        "description": "New Trusted Domain Added",
+        "method": "SPL - MITTREATT&CK T1482",
+        "command": "index=windows EventCode=4716"
+      },
+      {
+        "description": "Local Account Login Over Network",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "index=windows EventCode=4624 LogonType=3 user!=*\\*"
+      }
+    ],
+    "mitre": "TA0001",
+    "tuning": "Alert on first-time-seen lateral movement paths. Correlate with authentication anomalies. Tune lateral movement detection to local environment's normal admin paths."
+  },
+  "Exploitation": {
+    "description": "Detection of exploitation of vulnerabilities, remote code execution, and application-layer attacks.",
+    "commands": [
+      {
+        "description": "Suspicious Service Installation",
+        "method": "SPL - MITTREATT&CK T1543.003",
+        "command": "index=windows EventCode=7045"
+      },
+      {
+        "description": "Remote Code Execution via WMI",
+        "method": "SPL - MITTREATT&CK T1047",
+        "command": "index=windows EventCode=4688 CommandLine=\"*wmic process call create*\""
+      },
+      {
+        "description": "PowerShell Remote Execution",
+        "method": "SPL - MITTREATT&CK T1059.001",
+        "command": "index=windows EventCode=4688 CommandLine=\"*powershell* -nop* -w hidden*\""
+      },
+      {
+        "description": "SQL Injection Attempt",
+        "method": "SPL - MITTREATT&CK T1190",
+        "command": "index=web (\"UNION SELECT\" OR \"1=1\" OR \"xp_cmdshell\")"
+      },
+      {
+        "description": "Command Injection in Web Logs",
+        "method": "SPL - MITTREATT&CK T1190",
+        "command": "index=web (\";cmd=\" OR \"|cmd=\" OR \"&& whoami\")"
+      },
+      {
+        "description": "Webshell File Creation",
+        "method": "SPL - MITTREATT&CK T1505.003",
+        "command": "index=web uri_path=\"*.aspx\" OR uri_path=\"*.php\""
+      },
+      {
+        "description": "Suspicious DLL Load",
+        "method": "SPL - MITTREATT&CK T1574.002",
+        "command": "index=sysmon EventCode=7 ImageLoaded=\"*\\AppData\\*\""
+      },
+      {
+        "description": "PrintNightmare Exploit Attempt",
+        "method": "SPL - MITTREATT&CK T1068",
+        "command": "index=windows EventCode=7045 ServiceName=\"*spooler*\""
+      },
+      {
+        "description": "Zerologon Exploit Indicator",
+        "method": "SPL - MITTREATT&CK T1068",
+        "command": "index=windows EventCode=4742 | where Account_Name=\"*\\$\""
+      },
+      {
+        "description": "MS17-010 SMB Exploit Traffic",
+        "method": "SPL - MITTREATT&CK T1210",
+        "command": "index=network dest_port=445 signature=\"*EternalBlue*\""
+      },
+      {
+        "description": "Suspicious Child Process from IIS",
+        "method": "SPL - MITTREATT&CK T1505.003",
+        "command": "index=windows EventCode=4688 Parent_Process_Name=*w3wp.exe*"
+      },
+      {
+        "description": "Suspicious Child Process from Apache",
+        "method": "SPL - MITTREATT&CK T1505.003",
+        "command": "index=linux parent_process=httpd command=*bash*"
+      },
+      {
+        "description": "Reverse Shell via Netcat",
+        "method": "SPL - MITTREATT&CK T1059",
+        "command": "index=windows EventCode=4688 CommandLine=\"*nc.exe*\""
+      },
+      {
+        "description": "Encoded PowerShell Payload Execution",
+        "method": "SPL - MITTREATT&CK T1059.001",
+        "command": "index=windows EventCode=4104 ScriptBlockText=\"*IEX*\""
+      },
+      {
+        "description": "Exploit Kit User-Agent",
+        "method": "SPL - MITTREATT&CK T1203",
+        "command": "index=proxy user_agent=\"*exploit*\""
+      },
+      {
+        "description": "Deserialization Attack Pattern",
+        "method": "SPL - MITTREATT&CK T1190",
+        "command": "index=web (\"__VIEWSTATE\" AND \"base64\")"
+      },
+      {
+        "description": "Suspicious Scheduled Task Created by Web Process",
+        "method": "SPL - MITTREATT&CK T1053.005",
+        "command": "index=windows EventCode=4698 Parent_Process_Name=*w3wp.exe*"
+      },
+      {
+        "description": "Exploit Using Rundll32",
+        "method": "SPL - MITTREATT&CK T1218.011",
+        "command": "index=windows EventCode=4688 CommandLine=\"*rundll32* http*\""
+      },
+      {
+        "description": "Suspicious Mshta Execution",
+        "method": "SPL - MITTREATT&CK T1218.005",
+        "command": "index=windows EventCode=4688 CommandLine=\"*mshta*\""
+      },
+      {
+        "description": "Regsvr32 Remote Script Execution",
+        "method": "SPL - MITTREATT&CK T1218.010",
+        "command": "index=windows EventCode=4688 CommandLine=\"*regsvr32* http*\""
+      },
+      {
+        "description": "Suspicious Powershell Web Download",
+        "method": "SPL - MITTREATT&CK T1105",
+        "command": "index=windows EventCode=4104 ScriptBlockText=\"*Invoke-WebRequest*\""
+      },
+      {
+        "description": "Certutil Download Abuse",
+        "method": "SPL - MITTREATT&CK T1105",
+        "command": "index=windows EventCode=4688 CommandLine=\"*certutil -urlcache*\""
+      },
+      {
+        "description": "BITSAdmin Download Abuse",
+        "method": "SPL - MITTREATT&CK T1105",
+        "command": "index=windows EventCode=4688 CommandLine=\"*bitsadmin* /transfer*\""
+      },
+      {
+        "description": "Suspicious Java Child Process",
+        "method": "SPL - MITTREATT&CK T1059.005",
+        "command": "index=windows EventCode=4688 Parent_Process_Name=*java.exe*"
+      },
+      {
+        "description": "Suspicious Python Execution",
+        "method": "SPL - MITTREATT&CK T1059.006",
+        "command": "index=windows EventCode=4688 CommandLine=\"*python* -c*\""
+      },
+      {
+        "description": "SMB Pipe Exploit Activity",
+        "method": "SPL - MITTREATT&CK T1210",
+        "command": "index=network dest_port=445 pipe_name=*svcctl*"
+      },
+      {
+        "description": "Exploit Using WMIC /node",
+        "method": "SPL - MITTREATT&CK T1047",
+        "command": "index=windows EventCode=4688 CommandLine=\"*wmic /node*\""
+      },
+      {
+        "description": "Abnormal DCOM Execution",
+        "method": "SPL - MITTREATT&CK T1021.003",
+        "command": "index=windows EventCode=4688 CommandLine=\"*MMC20.Application*\""
+      },
+      {
+        "description": "Suspicious LSASS Memory Dump Attempt",
+        "method": "SPL - MITTREATT&CK T1003.001",
+        "command": "index=sysmon EventCode=10 TargetImage=*lsass.exe*"
+      },
+      {
+        "description": "Exploit via Control Panel Item",
+        "method": "SPL - MITTREATT&CK T1218.002",
+        "command": "index=windows EventCode=4688 CommandLine=\"*control.exe*\""
+      },
+      {
+        "description": "Suspicious MSI Execution",
+        "method": "SPL - MITTREATT&CK T1218.007",
+        "command": "index=windows EventCode=4688 CommandLine=\"*msiexec* /i http*\""
+      },
+      {
+        "description": "Web RCE via JNDI Injection",
+        "method": "SPL - MITTREATT&CK T1190",
+        "command": "index=web \"${jndi:*\""
+      },
+      {
+        "description": "Abnormal Winlogon Modification",
+        "method": "SPL - MITTREATT&CK T1547.004",
+        "command": "index=windows registry_path=\"*Winlogon*\""
+      },
+      {
+        "description": "Suspicious Service Binary Path Change",
+        "method": "SPL - MITTREATT&CK T1574.011",
+        "command": "index=windows EventCode=7040"
+      },
+      {
+        "description": "CVE Exploit Signature Detected",
+        "method": "SPL - MITTREATT&CK T1203",
+        "command": "index=network signature=\"*CVE-*\""
+      },
+      {
+        "description": "Unusual COM Object Execution",
+        "method": "SPL - MITTREATT&CK T1218",
+        "command": "index=windows EventCode=4688 CommandLine=\"*comsvcs.dll*\""
+      },
+      {
+        "description": "Suspicious Registry Run Key Creation",
+        "method": "SPL - MITTREATT&CK T1547.001",
+        "command": "index=windows registry_path=\"*\\Run*\""
+      },
+      {
+        "description": "Exploit Using PsExec",
+        "method": "SPL - MITTREATT&CK T1569.002",
+        "command": "index=windows EventCode=7045 ServiceName=PSEXESVC"
+      },
+      {
+        "description": "Suspicious Script from Temp Directory",
+        "method": "SPL - MITTREATT&CK T1059",
+        "command": "index=windows EventCode=4688 CommandLine=\"*\\Temp\\*\""
+      },
+      {
+        "description": "Suspicious Remote Thread Injection",
+        "method": "SPL - MITTREATT&CK T1055",
+        "command": "index=sysmon EventCode=8"
+      },
+      {
+        "description": "Exploit via Task Scheduler COM",
+        "method": "SPL - MITTREATT&CK T1053.005",
+        "command": "index=windows EventCode=4698"
+      },
+      {
+        "description": "Abnormal SMB Named Pipe Usage",
+        "method": "SPL - MITTREATT&CK T1047",
+        "command": "index=network pipe_name=*\\PIPE\\*"
+      },
+      {
+        "description": "Suspicious Admin$ Write",
+        "method": "SPL - MITTREATT&CK T1021.002",
+        "command": "index=windows EventCode=5145 ShareName=\"\\\\*\\ADMIN$\""
+      },
+      {
+        "description": "Exploit via HTA File",
+        "method": "SPL - MITTREATT&CK T1218.005",
+        "command": "index=windows EventCode=4688 CommandLine=\"*.hta*\""
+      },
+      {
+        "description": "Suspicious Wscript Execution",
+        "method": "SPL - MITTREATT&CK T1059.005",
+        "command": "index=windows EventCode=4688 CommandLine=\"*wscript*\""
+      },
+      {
+        "description": "Exploit via Cscript",
+        "method": "SPL - MITTREATT&CK T1059.005",
+        "command": "index=windows EventCode=4688 CommandLine=\"*cscript*\""
+      },
+      {
+        "description": "Suspicious WinRM Execution",
+        "method": "SPL - MITTREATT&CK T1021.006",
+        "command": "index=windows EventCode=4688 CommandLine=\"*winrm*\""
+      },
+      {
+        "description": "Remote Desktop Service Exploit",
+        "method": "SPL - MITTREATT&CK T1210",
+        "command": "index=network dest_port=3389 signature=\"*RDP exploit*\""
+      },
+      {
+        "description": "Suspicious Child Process of Explorer",
+        "method": "SPL - MITTREATT&CK T1059",
+        "command": "index=windows EventCode=4688 Parent_Process_Name=*explorer.exe*"
+      },
+      {
+        "description": "Abnormal Kernel Driver Load",
+        "method": "SPL - MITTREATT&CK T1547.006",
+        "command": "index=sysmon EventCode=6"
+      }
+    ],
+    "mitre": "TA0002",
+    "tuning": "Correlate exploit attempts with successful post-exploitation activity. Low FP: alert on parent-child process anomalies (Word\u2192cmd, Adobe\u2192powershell)."
+  },
+  "Privilege_Escalation": {
+    "description": "Detection of privilege escalation techniques including token abuse, service misconfigurations, UAC bypass, credential theft, and role abuse.",
+    "commands": [
+      {
+        "description": "New Local Account Created",
+        "method": "SPL - MITTREATT&CK T1136.001",
+        "command": "index=windows EventCode=4720"
+      },
+      {
+        "description": "User Added to Local Administrators Group",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "index=windows EventCode=4732"
+      },
+      {
+        "description": "User Added to Domain Admins",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "index=windows EventCode=4728 Group_Name=\"Domain Admins\""
+      },
+      {
+        "description": "Privilege Assigned to Account",
+        "method": "SPL - MITTREATT&CK T1548",
+        "command": "index=windows EventCode=4672"
+      },
+      {
+        "description": "SeDebugPrivilege Usage",
+        "method": "SPL - MITTREATT&CK T1548.002",
+        "command": "index=windows EventCode=4673 PrivilegeList=\"*SeDebugPrivilege*\""
+      },
+      {
+        "description": "UAC Bypass via Registry Modification",
+        "method": "SPL - MITTREATT&CK T1548.002",
+        "command": "index=windows registry_path=\"*\\mscfile\\shell\\open\\command\""
+      },
+      {
+        "description": "AlwaysInstallElevated Enabled",
+        "method": "SPL - MITTREATT&CK T1548.002",
+        "command": "index=windows registry_path=\"*AlwaysInstallElevated\""
+      },
+      {
+        "description": "Service Binary Path Modified",
+        "method": "SPL - MITTREATT&CK T1574.011",
+        "command": "index=windows EventCode=7040"
+      },
+      {
+        "description": "New Service Installed",
+        "method": "SPL - MITTREATT&CK T1543.003",
+        "command": "index=windows EventCode=7045"
+      },
+      {
+        "description": "Scheduled Task Created with SYSTEM Privilege",
+        "method": "SPL - MITTREATT&CK T1053.005",
+        "command": "index=windows EventCode=4698 RunLevel=\"HighestAvailable\""
+      },
+      {
+        "description": "Token Impersonation Detected",
+        "method": "SPL - MITTREATT&CK T1134",
+        "command": "index=sysmon EventCode=10 TargetImage=*lsass.exe*"
+      },
+      {
+        "description": "Process Created as SYSTEM",
+        "method": "SPL - MITTREATT&CK T1548",
+        "command": "index=windows EventCode=4688 User=\"NT AUTHORITY\\SYSTEM\""
+      },
+      {
+        "description": "DLL Search Order Hijacking",
+        "method": "SPL - MITTREATT&CK T1574.001",
+        "command": "index=sysmon EventCode=7 ImageLoaded=\"*\\Temp\\*\""
+      },
+      {
+        "description": "Unquoted Service Path Exploitation",
+        "method": "SPL - MITTREATT&CK T1574.009",
+        "command": "index=windows EventCode=4688 CommandLine=\"*Program Files*\""
+      },
+      {
+        "description": "LSASS Dump Attempt",
+        "method": "SPL - MITTREATT&CK T1003.001",
+        "command": "index=sysmon EventCode=10 TargetImage=*lsass.exe*"
+      },
+      {
+        "description": "Credential Dump Tool Execution",
+        "method": "SPL - MITTREATT&CK T1003",
+        "command": "index=windows EventCode=4688 CommandLine=\"*mimikatz*\""
+      },
+      {
+        "description": "Abnormal SAM Access",
+        "method": "SPL - MITTREATT&CK T1003.002",
+        "command": "index=windows file_path=\"*\\SAM\""
+      },
+      {
+        "description": "NTDS.dit Access Attempt",
+        "method": "SPL - MITTREATT&CK T1003.003",
+        "command": "index=windows file_path=\"*ntds.dit*\""
+      },
+      {
+        "description": "Registry Run Key Modification",
+        "method": "SPL - MITTREATT&CK T1547.001",
+        "command": "index=windows registry_path=\"*\\Run*\""
+      },
+      {
+        "description": "WMI Permanent Event Subscription",
+        "method": "SPL - MITTREATT&CK T1546.003",
+        "command": "index=windows EventCode=5861"
+      },
+      {
+        "description": "Startup Folder Modification",
+        "method": "SPL - MITTREATT&CK T1547.001",
+        "command": "index=windows file_path=\"*\\Startup\\*\""
+      },
+      {
+        "description": "Service Permissions Modified",
+        "method": "SPL - MITTREATT&CK T1574.011",
+        "command": "index=windows EventCode=4670"
+      },
+      {
+        "description": "Local Security Policy Modified",
+        "method": "SPL - MITTREATT&CK T1562",
+        "command": "index=windows EventCode=4719"
+      },
+      {
+        "description": "Group Policy Modified",
+        "method": "SPL - MITTREATT&CK T1484.001",
+        "command": "index=windows EventCode=5136"
+      },
+      {
+        "description": "SeImpersonatePrivilege Abuse",
+        "method": "SPL - MITTREATT&CK T1134",
+        "command": "index=windows EventCode=4673 PrivilegeList=\"*SeImpersonatePrivilege*\""
+      },
+      {
+        "description": "Abnormal COM Elevation",
+        "method": "SPL - MITTREATT&CK T1546.015",
+        "command": "index=windows EventCode=4688 CommandLine=\"*MMC20.Application*\""
+      },
+      {
+        "description": "Task Scheduler Abuse for Escalation",
+        "method": "SPL - MITTREATT&CK T1053.005",
+        "command": "index=windows EventCode=4702"
+      },
+      {
+        "description": "New Admin Role in Azure AD",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "index=azure operation=\"Add member to role\""
+      },
+      {
+        "description": "Shadow Copy Creation",
+        "method": "SPL - MITTREATT&CK T1003.003",
+        "command": "index=windows EventCode=4688 CommandLine=\"*vssadmin create shadow*\""
+      },
+      {
+        "description": "Abnormal Privilege Use in Security Log",
+        "method": "SPL - MITTREATT&CK T1548",
+        "command": "index=windows EventCode=4674"
+      },
+      {
+        "description": "Suspicious Driver Load",
+        "method": "SPL - MITTREATT&CK T1547.006",
+        "command": "index=sysmon EventCode=6"
+      },
+      {
+        "description": "UAC Disabled via Registry",
+        "method": "SPL - MITTREATT&CK T1548.002",
+        "command": "index=windows registry_path=\"*EnableLUA\""
+      },
+      {
+        "description": "Winlogon Registry Modification",
+        "method": "SPL - MITTREATT&CK T1547.004",
+        "command": "index=windows registry_path=\"*Winlogon*\""
+      },
+      {
+        "description": "SeBackupPrivilege Abuse",
+        "method": "SPL - MITTREATT&CK T1548",
+        "command": "index=windows EventCode=4673 PrivilegeList=\"*SeBackupPrivilege*\""
+      },
+      {
+        "description": "RunAs Execution",
+        "method": "SPL - MITTREATT&CK T1548.002",
+        "command": "index=windows EventCode=4688 CommandLine=\"*runas*\""
+      },
+      {
+        "description": "Credential Guard Disabled",
+        "method": "SPL - MITTREATT&CK T1562",
+        "command": "index=windows registry_path=\"*LsaCfgFlags\""
+      },
+      {
+        "description": "Abnormal Password Policy Change",
+        "method": "SPL - MITTREATT&CK T1484.001",
+        "command": "index=windows EventCode=4739"
+      },
+      {
+        "description": "AdminSDHolder Modification",
+        "method": "SPL - MITTREATT&CK T1484.001",
+        "command": "index=windows EventCode=5136 ObjectDN=\"*AdminSDHolder*\""
+      },
+      {
+        "description": "Abnormal Logon as Service",
+        "method": "SPL - MITTREATT&CK T1543.003",
+        "command": "index=windows EventCode=4624 LogonType=5"
+      },
+      {
+        "description": "SeTakeOwnershipPrivilege Usage",
+        "method": "SPL - MITTREATT&CK T1548",
+        "command": "index=windows EventCode=4673 PrivilegeList=\"*SeTakeOwnershipPrivilege*\""
+      },
+      {
+        "description": "Delegation Enabled for Account",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "index=windows EventCode=4738"
+      },
+      {
+        "description": "DCSync Attempt",
+        "method": "SPL - MITTREATT&CK T1003.006",
+        "command": "index=windows EventCode=4662 ObjectType=\"*replication*\""
+      },
+      {
+        "description": "Shadow Credentials Added",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "index=windows EventCode=5136 AttributeLDAPDisplayName=msDS-KeyCredentialLink"
+      },
+      {
+        "description": "SID History Injection",
+        "method": "SPL - MITTREATT&CK T1134",
+        "command": "index=windows EventCode=4765 OR EventCode=4766"
+      },
+      {
+        "description": "Abnormal Security Descriptor Change",
+        "method": "SPL - MITTREATT&CK T1484.001",
+        "command": "index=windows EventCode=4670"
+      },
+      {
+        "description": "Admin Privilege Granted to Service Account",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "index=windows EventCode=4732 user=*svc*"
+      },
+      {
+        "description": "New Local Policy Assigned",
+        "method": "SPL - MITTREATT&CK T1562",
+        "command": "index=windows EventCode=4717"
+      },
+      {
+        "description": "Domain Admin Logon to Workstation",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "index=windows EventCode=4624 user=\"*Domain Admin*\""
+      },
+      {
+        "description": "Abnormal Token Elevation",
+        "method": "SPL - MITTREATT&CK T1134",
+        "command": "index=sysmon EventCode=1 IntegrityLevel=System"
+      },
+      {
+        "description": "Abnormal Parent-Child Privilege Escalation Chain",
+        "method": "SPL - MITTREATT&CK T1055",
+        "command": "index=sysmon EventCode=1 ParentImage=\"*winword.exe*\" Image=\"*cmd.exe*\""
+      }
+    ],
+    "mitre": "T1068",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Splunk data sources for context."
+  },
+  "Lateral_Movement": {
+    "description": "Detection of lateral movement techniques including remote services, credential reuse, remote execution, and pivoting activity.",
+    "commands": [
+      {
+        "description": "RDP Interactive Logon",
+        "method": "SPL - MITTREATT&CK T1021.001",
+        "command": "index=windows EventCode=4624 LogonType=10"
+      },
+      {
+        "description": "Multiple RDP Failures",
+        "method": "SPL - MITTREATT&CK T1110",
+        "command": "index=windows EventCode=4625 LogonType=10 | stats count by src_ip | where count>20"
+      },
+      {
+        "description": "SMB Admin Share Access",
+        "method": "SPL - MITTREATT&CK T1021.002",
+        "command": "index=windows EventCode=5140 ShareName=\"\\\\*\\ADMIN$\""
+      },
+      {
+        "description": "SMB File Write to C$",
+        "method": "SPL - MITTREATT&CK T1021.002",
+        "command": "index=windows EventCode=5145 ShareName=\"\\\\*\\C$\""
+      },
+      {
+        "description": "PsExec Service Creation",
+        "method": "SPL - MITTREATT&CK T1569.002",
+        "command": "index=windows EventCode=7045 ServiceName=PSEXESVC"
+      },
+      {
+        "description": "WMI Remote Execution",
+        "method": "SPL - MITTREATT&CK T1047",
+        "command": "index=windows EventCode=4688 CommandLine=\"*wmic /node*\""
+      },
+      {
+        "description": "WinRM Remote Execution",
+        "method": "SPL - MITTREATT&CK T1021.006",
+        "command": "index=windows EventCode=4624 LogonProcessName=WinRM"
+      },
+      {
+        "description": "Remote Scheduled Task Creation",
+        "method": "SPL - MITTREATT&CK T1053.005",
+        "command": "index=windows EventCode=4698"
+      },
+      {
+        "description": "Remote Service Creation",
+        "method": "SPL - MITTREATT&CK T1569.002",
+        "command": "index=windows EventCode=7045"
+      },
+      {
+        "description": "DCOM Lateral Movement",
+        "method": "SPL - MITTREATT&CK T1021.003",
+        "command": "index=windows EventCode=4688 CommandLine=\"*MMC20.Application*\""
+      },
+      {
+        "description": "Pass-the-Hash SMB Logon",
+        "method": "SPL - MITTREATT&CK T1550.002",
+        "command": "index=windows EventCode=4624 AuthenticationPackageName=NTLM LogonType=3"
+      },
+      {
+        "description": "Pass-the-Ticket Activity",
+        "method": "SPL - MITTREATT&CK T1550.003",
+        "command": "index=windows EventCode=4769 TicketOptions=0x40810000"
+      },
+      {
+        "description": "Kerberos Service Ticket Request Spike",
+        "method": "SPL - MITTREATT&CK T1558",
+        "command": "index=windows EventCode=4769 | stats count by user | where count>50"
+      },
+      {
+        "description": "Remote Registry Access",
+        "method": "SPL - MITTREATT&CK T1021.002",
+        "command": "index=windows EventCode=4657"
+      },
+      {
+        "description": "PowerShell Remoting Session",
+        "method": "SPL - MITTREATT&CK T1021.006",
+        "command": "index=windows EventCode=4104 ScriptBlockText=\"*Enter-PSSession*\""
+      },
+      {
+        "description": "Remote File Copy via SMB",
+        "method": "SPL - MITTREATT&CK T1105",
+        "command": "index=windows EventCode=5145 AccessMask=0x2"
+      },
+      {
+        "description": "Abnormal Logon Type 3 from Workstation",
+        "method": "SPL - MITTREATT&CK T1021.002",
+        "command": "index=windows EventCode=4624 LogonType=3"
+      },
+      {
+        "description": "Admin Account Logon to Multiple Hosts",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "index=windows EventCode=4624 user=*admin* | stats dc(host) by user | where dc(host)>5"
+      },
+      {
+        "description": "Remote Execution via SCHTASKS",
+        "method": "SPL - MITTREATT&CK T1053.005",
+        "command": "index=windows EventCode=4688 CommandLine=\"*schtasks /create*\""
+      },
+      {
+        "description": "Abnormal RPC Traffic",
+        "method": "SPL - MITTREATT&CK T1021",
+        "command": "index=network dest_port=135 | stats count by src_ip | where count>100"
+      },
+      {
+        "description": "SSH Lateral Movement",
+        "method": "SPL - MITTREATT&CK T1021.004",
+        "command": "index=linux sourcetype=auth Accepted password"
+      },
+      {
+        "description": "Multiple SSH Logins Across Hosts",
+        "method": "SPL - MITTREATT&CK T1021.004",
+        "command": "index=linux sourcetype=auth Accepted password | stats dc(host) by user | where dc(host)>5"
+      },
+      {
+        "description": "SMB Null Session",
+        "method": "SPL - MITTREATT&CK T1021.002",
+        "command": "index=windows EventCode=4624 user=\"ANONYMOUS LOGON\""
+      },
+      {
+        "description": "RDP Session Reconnect",
+        "method": "SPL - MITTREATT&CK T1021.001",
+        "command": "index=windows EventCode=4778"
+      },
+      {
+        "description": "Abnormal WinRM Session Creation",
+        "method": "SPL - MITTREATT&CK T1021.006",
+        "command": "index=windows EventCode=4688 CommandLine=\"*winrm*\""
+      },
+      {
+        "description": "Admin Share Enumeration",
+        "method": "SPL - MITTREATT&CK T1135",
+        "command": "index=windows EventCode=5140 ShareName=\"\\\\*\\ADMIN$\""
+      },
+      {
+        "description": "Remote Command via AT Command",
+        "method": "SPL - MITTREATT&CK T1053.005",
+        "command": "index=windows EventCode=4688 CommandLine=\"*at *\""
+      },
+      {
+        "description": "Remote Service Stop/Start",
+        "method": "SPL - MITTREATT&CK T1569.002",
+        "command": "index=windows EventCode=7036"
+      },
+      {
+        "description": "Abnormal Logon Type 9 (NewCredentials)",
+        "method": "SPL - MITTREATT&CK T1550",
+        "command": "index=windows EventCode=4624 LogonType=9"
+      },
+      {
+        "description": "SMB Lateral Movement via Named Pipe",
+        "method": "SPL - MITTREATT&CK T1047",
+        "command": "index=network pipe_name=*\\PIPE\\*"
+      },
+      {
+        "description": "Remote PowerShell Script Execution",
+        "method": "SPL - MITTREATT&CK T1021.006",
+        "command": "index=windows EventCode=4104 ScriptBlockText=\"*Invoke-Command*\""
+      },
+      {
+        "description": "PsExec from Non-Admin Workstation",
+        "method": "SPL - MITTREATT&CK T1569.002",
+        "command": "index=windows EventCode=7045 ServiceName=PSEXESVC"
+      },
+      {
+        "description": "Abnormal Admin Logon to Server",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "index=windows EventCode=4624 user=*admin* host=*server*"
+      },
+      {
+        "description": "Remote Desktop Gateway Usage",
+        "method": "SPL - MITTREATT&CK T1133",
+        "command": "index=windows EventCode=1149"
+      },
+      {
+        "description": "WinRS Remote Execution",
+        "method": "SPL - MITTREATT&CK T1021.006",
+        "command": "index=windows EventCode=4688 CommandLine=\"*winrs*\""
+      },
+      {
+        "description": "Abnormal Kerberos Delegation",
+        "method": "SPL - MITTREATT&CK T1558",
+        "command": "index=windows EventCode=4769 TicketOptions=0x40810010"
+      },
+      {
+        "description": "SMB Brute Force Pattern",
+        "method": "SPL - MITTREATT&CK T1110",
+        "command": "index=windows EventCode=4625 LogonType=3 | stats count by src_ip | where count>50"
+      },
+      {
+        "description": "Remote Execution via Rundll32",
+        "method": "SPL - MITTREATT&CK T1218.011",
+        "command": "index=windows EventCode=4688 CommandLine=\"*rundll32* \\\\*\""
+      },
+      {
+        "description": "Abnormal NTLM Authentication Across Hosts",
+        "method": "SPL - MITTREATT&CK T1550.002",
+        "command": "index=windows EventCode=4624 AuthenticationPackageName=NTLM | stats dc(host) by user | where dc(host)>5"
+      },
+      {
+        "description": "Service Account Used Across Multiple Hosts",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "index=windows EventCode=4624 user=*svc* | stats dc(host) by user | where dc(host)>5"
+      },
+      {
+        "description": "File Transfer via SMB Write Access",
+        "method": "SPL - MITTREATT&CK T1105",
+        "command": "index=windows EventCode=5145 AccessMask=0x2"
+      },
+      {
+        "description": "Abnormal RDP Logon to Domain Controller",
+        "method": "SPL - MITTREATT&CK T1021.001",
+        "command": "index=windows EventCode=4624 LogonType=10 host=*DC*"
+      },
+      {
+        "description": "Remote Admin Tool Execution",
+        "method": "SPL - MITTREATT&CK T1021",
+        "command": "index=windows EventCode=4688 CommandLine=\"*TeamViewer*\" OR CommandLine=\"*AnyDesk*\""
+      },
+      {
+        "description": "Multiple Network Logons from Single Host",
+        "method": "SPL - MITTREATT&CK T1021.002",
+        "command": "index=windows EventCode=4624 LogonType=3 | stats count by src_ip | where count>100"
+      },
+      {
+        "description": "Admin$ Write Followed by Service Install",
+        "method": "SPL - MITTREATT&CK T1569.002",
+        "command": "index=windows (EventCode=5145 OR EventCode=7045)"
+      },
+      {
+        "description": "Kerberos Ticket Forwarding Abuse",
+        "method": "SPL - MITTREATT&CK T1558",
+        "command": "index=windows EventCode=4769 TicketOptions=0x40810000"
+      },
+      {
+        "description": "Abnormal WinRM Session Burst",
+        "method": "SPL - MITTREATT&CK T1021.006",
+        "command": "index=windows EventCode=4624 LogonProcessName=WinRM | stats count by src_ip | where count>20"
+      },
+      {
+        "description": "RDP Login from Non-Standard Subnet",
+        "method": "SPL - MITTREATT&CK T1021.001",
+        "command": "index=windows EventCode=4624 LogonType=10 src_ip!=192.168.*"
+      },
+      {
+        "description": "SMB Pipe Execution via svcctl",
+        "method": "SPL - MITTREATT&CK T1047",
+        "command": "index=network pipe_name=*svcctl*"
+      },
+      {
+        "description": "Abnormal Admin Logon Pattern Across Domain",
+        "method": "SPL - MITTREATT&CK T1078",
+        "command": "index=windows EventCode=4624 user=*admin* | stats dc(host) by user | where dc(host)>10"
+      }
+    ],
+    "mitre": "T1021",
+    "tuning": "Baseline normal admin movement patterns in your environment before enabling alerting. Exclude DC replication traffic. Alert on first-seen lateral paths between host pairs."
+  },
+  "Data_Exfiltration_Advanced": {
+    "description": "Detection of advanced data exfiltration techniques including covert channels, cloud abuse, compression, staging, and encrypted transfers.",
+    "commands": [
+      {
+        "description": "Large Outbound Data Transfer Spike",
+        "method": "SPL - MITTREATT&CK T1041",
+        "command": "index=network bytes_out>100000000 | stats sum(bytes_out) by src_ip"
+      },
+      {
+        "description": "DNS Tunneling High Query Volume",
+        "method": "SPL - MITTREATT&CK T1048.003",
+        "command": "index=dns | stats count by src_ip | where count>1000"
+      },
+      {
+        "description": "Long DNS Query Length",
+        "method": "SPL - MITTREATT&CK T1048.003",
+        "command": "index=dns query_length>100"
+      },
+      {
+        "description": "Base64 Encoded DNS Subdomain",
+        "method": "SPL - MITTREATT&CK T1048.003",
+        "command": "index=dns query=\"*[A-Za-z0-9+/=]{20,}*\""
+      },
+      {
+        "description": "Suspicious HTTP POST Large Payload",
+        "method": "SPL - MITTREATT&CK T1041",
+        "command": "index=proxy method=POST bytes_out>5000000"
+      },
+      {
+        "description": "Cloud Storage Upload Spike",
+        "method": "SPL - MITTREATT&CK T1567.002",
+        "command": "index=proxy url=\"*dropbox.com*\" OR url=\"*drive.google.com*\""
+      },
+      {
+        "description": "FTP Upload Activity",
+        "method": "SPL - MITTREATT&CK T1048",
+        "command": "index=network dest_port=21"
+      },
+      {
+        "description": "SCP Outbound Transfer",
+        "method": "SPL - MITTREATT&CK T1048",
+        "command": "index=linux sourcetype=auth \"scp\""
+      },
+      {
+        "description": "RAR/ZIP File Creation Before Network Transfer",
+        "method": "SPL - MITTREATT&CK T1560.001",
+        "command": "index=windows EventCode=4688 CommandLine=\"*rar*\" OR CommandLine=\"*zip*\""
+      },
+      {
+        "description": "7zip Archive Creation",
+        "method": "SPL - MITTREATT&CK T1560.001",
+        "command": "index=windows EventCode=4688 CommandLine=\"*7z*\""
+      },
+      {
+        "description": "Encoded PowerShell Data Upload",
+        "method": "SPL - MITTREATT&CK T1041",
+        "command": "index=windows EventCode=4104 ScriptBlockText=\"*Invoke-WebRequest*\""
+      },
+      {
+        "description": "Curl Upload Activity",
+        "method": "SPL - MITTREATT&CK T1041",
+        "command": "index=linux \"curl -X POST\""
+      },
+      {
+        "description": "BITSAdmin Data Transfer",
+        "method": "SPL - MITTREATT&CK T1197",
+        "command": "index=windows EventCode=4688 CommandLine=\"*bitsadmin*\""
+      },
+      {
+        "description": "SMB External IP Transfer",
+        "method": "SPL - MITTREATT&CK T1048",
+        "command": "index=network dest_port=445 NOT dest_ip=10.* NOT dest_ip=192.168.*"
+      },
+      {
+        "description": "Tor Network Connection",
+        "method": "SPL - MITTREATT&CK T1041",
+        "command": "index=network dest_port=9001 OR dest_port=9050"
+      },
+      {
+        "description": "ICMP Tunneling Activity",
+        "method": "SPL - MITTREATT&CK T1048",
+        "command": "index=network protocol=icmp | stats count by src_ip | where count>500"
+      },
+      {
+        "description": "Unusual Outbound Port Usage",
+        "method": "SPL - MITTREATT&CK T1048",
+        "command": "index=network dest_port>1024 NOT dest_port IN (80,443,53)"
+      },
+      {
+        "description": "WebDAV Upload Activity",
+        "method": "SPL - MITTREATT&CK T1041",
+        "command": "index=windows EventCode=4688 CommandLine=\"*WebClient*\""
+      },
+      {
+        "description": "High Entropy File Creation",
+        "method": "SPL - MITTREATT&CK T1560",
+        "command": "index=edr entropy_score>7.5"
+      },
+      {
+        "description": "Email Exfil via Outlook Rule Abuse",
+        "method": "SPL - MITTREATT&CK T1114.003",
+        "command": "index=windows EventCode=4104 ScriptBlockText=\"*New-InboxRule*\""
+      },
+      {
+        "description": "S3 Upload Activity from Endpoint",
+        "method": "SPL - MITTREATT&CK T1567.002",
+        "command": "index=proxy url=\"*amazonaws.com*\""
+      },
+      {
+        "description": "Mega.nz Upload Activity",
+        "method": "SPL - MITTREATT&CK T1567.002",
+        "command": "index=proxy url=\"*mega.nz*\""
+      },
+      {
+        "description": "Large Encrypted HTTPS Upload",
+        "method": "SPL - MITTREATT&CK T1041",
+        "command": "index=proxy method=POST bytes_out>10000000"
+      },
+      {
+        "description": "Unusual Database Dump Activity",
+        "method": "SPL - MITTREATT&CK T1048",
+        "command": "index=windows EventCode=4688 CommandLine=\"*mysqldump*\""
+      },
+      {
+        "description": "Clipboard Data Theft Tool Execution",
+        "method": "SPL - MITTREATT&CK T1115",
+        "command": "index=windows EventCode=4688 CommandLine=\"*clipboard*\""
+      }
+    ],
+    "mitre": "T1048",
+    "tuning": "Baseline normal data transfer volumes before alerting on exfiltration. Alert on transfers to new destinations. Tune DNS exfil detection on query entropy and subdomain count."
+  },
+  "Persistence_Advanced": {
+    "description": "Detection of advanced persistence mechanisms including scheduled tasks, services, registry modifications, WMI, and cloud persistence.",
+    "commands": [
+      {
+        "description": "Scheduled Task Creation",
+        "method": "SPL - MITTREATT&CK T1053.005",
+        "command": "index=windows EventCode=4698"
+      },
+      {
+        "description": "Service Installation",
+        "method": "SPL - MITTREATT&CK T1543.003",
+        "command": "index=windows EventCode=7045"
+      },
+      {
+        "description": "Registry Run Key Modification",
+        "method": "SPL - MITTREATT&CK T1547.001",
+        "command": "index=windows EventCode=4657 RegistryPath=\"*\\Run*\""
+      },
+      {
+        "description": "Startup Folder Modification",
+        "method": "SPL - MITTREATT&CK T1547.001",
+        "command": "index=windows TargetFilename=\"*Startup*\""
+      },
+      {
+        "description": "WMI Event Subscription Creation",
+        "method": "SPL - MITTREATT&CK T1546.003",
+        "command": "index=windows EventCode=5861"
+      },
+      {
+        "description": "New Local Admin Account",
+        "method": "SPL - MITTREATT&CK T1136.001",
+        "command": "index=windows EventCode=4720"
+      },
+      {
+        "description": "Group Membership Modification",
+        "method": "SPL - MITTREATT&CK T1098",
+        "command": "index=windows EventCode=4728 OR EventCode=4732"
+      },
+      {
+        "description": "Logon Script Modification",
+        "method": "SPL - MITTREATT&CK T1037",
+        "command": "index=windows EventCode=5136 AttributeLDAPDisplayName=scriptPath"
+      },
+      {
+        "description": "DLL Search Order Hijack File Drop",
+        "method": "SPL - MITTREATT&CK T1574.001",
+        "command": "index=windows TargetFilename=\"*.dll\""
+      },
+      {
+        "description": "IFEO Registry Debugger Persistence",
+        "method": "SPL - MITTREATT&CK T1546.012",
+        "command": "index=windows RegistryPath=\"*Image File Execution Options*\""
+      },
+      {
+        "description": "COM Object Hijack",
+        "method": "SPL - MITTREATT&CK T1546.015",
+        "command": "index=windows RegistryPath=\"*CLSID*\""
+      },
+      {
+        "description": "PowerShell Profile Modification",
+        "method": "SPL - MITTREATT&CK T1546",
+        "command": "index=windows TargetFilename=\"*Microsoft.PowerShell_profile.ps1\""
+      },
+      {
+        "description": "New GPO Creation",
+        "method": "SPL - MITTREATT&CK T1484.001",
+        "command": "index=windows EventCode=5137"
+      },
+      {
+        "description": "Shadow Copy Creation",
+        "method": "SPL - MITTREATT&CK T1490",
+        "command": "index=windows EventCode=4688 CommandLine=\"*vssadmin create*"
+      },
+      {
+        "description": "Winlogon Helper DLL",
+        "method": "SPL - MITTREATT&CK T1547.004",
+        "command": "index=windows RegistryPath=\"*Winlogon*\""
+      },
+      {
+        "description": "Remote Desktop Persistence Enabled",
+        "method": "SPL - MITTREATT&CK T1133",
+        "command": "index=windows RegistryPath=\"*Terminal Server*\""
+      },
+      {
+        "description": "Azure AD Backdoor App Registration",
+        "method": "SPL - MITTREATT&CK T1098.003",
+        "command": "index=azure operationName=\"Add service principal\""
+      },
+      {
+        "description": "Office Add-in Persistence",
+        "method": "SPL - MITTREATT&CK T1137",
+        "command": "index=windows RegistryPath=\"*Office*Addins*\""
+      },
+      {
+        "description": "New Scheduled Task Hidden",
+        "method": "SPL - MITTREATT&CK T1053.005",
+        "command": "index=windows EventCode=4698 TaskName=\"*\\Microsoft\\*"
+      },
+      {
+        "description": "Startup Service Modification",
+        "method": "SPL - MITTREATT&CK T1543.003",
+        "command": "index=windows EventCode=7040"
+      },
+      {
+        "description": "LSA Authentication Package Modification",
+        "method": "SPL - MITTREATT&CK T1547.002",
+        "command": "index=windows RegistryPath=\"*Authentication Packages*\""
+      },
+      {
+        "description": "Netsh Portproxy Persistence",
+        "method": "SPL - MITTREATT&CK T1090",
+        "command": "index=windows EventCode=4688 CommandLine=\"*netsh interface portproxy*"
+      },
+      {
+        "description": "Boot Configuration Modification",
+        "method": "SPL - MITTREATT&CK T1542",
+        "command": "index=windows EventCode=4688 CommandLine=\"*bcdedit*"
+      },
+      {
+        "description": "MSI Installer Persistence",
+        "method": "SPL - MITTREATT&CK T1546",
+        "command": "index=windows EventCode=11707"
+      },
+      {
+        "description": "Hidden User Account Creation",
+        "method": "SPL - MITTREATT&CK T1136",
+        "command": "index=windows EventCode=4720 user=\"*$\""
+      }
+    ],
+    "mitre": "T1547",
+    "tuning": "Alert on persistence outside business hours or from unusual accounts. Whitelist software deployment mechanisms. Cross-reference with Splunk change management records."
+  },
+  "Defense_Evasion_Advanced": {
+    "description": "Detection of advanced defense evasion including tampering, log clearing, obfuscation, AMSI bypass, and security control impairment.",
+    "commands": [
+      {
+        "description": "Event Log Cleared",
+        "method": "SPL - MITTREATT&CK T1070.001",
+        "command": "index=windows EventCode=1102"
+      },
+      {
+        "description": "PowerShell Obfuscation",
+        "method": "SPL - MITTREATT&CK T1027",
+        "command": "index=windows EventCode=4104 ScriptBlockText=\"*-enc*\""
+      },
+      {
+        "description": "Defender Disabled",
+        "method": "SPL - MITTREATT&CK T1562.001",
+        "command": "index=windows EventCode=5001"
+      },
+      {
+        "description": "Firewall Disabled",
+        "method": "SPL - MITTREATT&CK T1562.004",
+        "command": "index=windows EventCode=2004"
+      },
+      {
+        "description": "AMSI Bypass Attempt",
+        "method": "SPL - MITTREATT&CK T1562.001",
+        "command": "index=windows ScriptBlockText=\"*amsi*\""
+      },
+      {
+        "description": "Process Hollowing Indicators",
+        "method": "SPL - MITTREATT&CK T1055",
+        "command": "index=edr technique=\"process hollowing\""
+      },
+      {
+        "description": "Unsigned Driver Load",
+        "method": "SPL - MITTREATT&CK T1068",
+        "command": "index=windows EventCode=7045"
+      },
+      {
+        "description": "Rename LOLBin Execution",
+        "method": "SPL - MITTREATT&CK T1036",
+        "command": "index=windows EventCode=4688 OriginalFileName!=Image"
+      },
+      {
+        "description": "Hidden Scheduled Task",
+        "method": "SPL - MITTREATT&CK T1053",
+        "command": "index=windows TaskName=\"*\\Microsoft\\Windows\\*"
+      },
+      {
+        "description": "Credential Guard Disabled",
+        "method": "SPL - MITTREATT&CK T1562",
+        "command": "index=windows RegistryPath=\"*CredentialGuard*\""
+      },
+      {
+        "description": "WMI Log Disabled",
+        "method": "SPL - MITTREATT&CK T1562",
+        "command": "index=windows EventCode=5860"
+      },
+      {
+        "description": "Audit Policy Modified",
+        "method": "SPL - MITTREATT&CK T1562.002",
+        "command": "index=windows EventCode=4719"
+      },
+      {
+        "description": "Security Service Terminated",
+        "method": "SPL - MITTREATT&CK T1562.001",
+        "command": "index=windows EventCode=7036"
+      },
+      {
+        "description": "Hosts File Modification",
+        "method": "SPL - MITTREATT&CK T1565.001",
+        "command": "index=windows TargetFilename=\"*\\etc\\hosts\""
+      },
+      {
+        "description": "Registry Tampering Defender Settings",
+        "method": "SPL - MITTREATT&CK T1112",
+        "command": "index=windows RegistryPath=\"*Windows Defender*\""
+      },
+      {
+        "description": "Encoded Command Execution",
+        "method": "SPL - MITTREATT&CK T1027",
+        "command": "index=windows EventCode=4688 CommandLine=\"*-enc*\""
+      },
+      {
+        "description": "Clear Windows Logs via Wevtutil",
+        "method": "SPL - MITTREATT&CK T1070.001",
+        "command": "index=windows CommandLine=\"*wevtutil cl*\""
+      },
+      {
+        "description": "System Restore Disabled",
+        "method": "SPL - MITTREATT&CK T1562",
+        "command": "index=windows CommandLine=\"*Disable-ComputerRestore*\""
+      },
+      {
+        "description": "Shadow Copies Deleted",
+        "method": "SPL - MITTREATT&CK T1490",
+        "command": "index=windows CommandLine=\"*vssadmin delete*"
+      },
+      {
+        "description": "Tamper Protection Disabled",
+        "method": "SPL - MITTREATT&CK T1562.001",
+        "command": "index=windows EventCode=5007"
+      },
+      {
+        "description": "LOLBins Abused for Evasion",
+        "method": "SPL - MITTREATT&CK T1218",
+        "command": "index=windows EventCode=4688 CommandLine=\"*rundll32*\" OR CommandLine=\"*regsvr32*\""
+      },
+      {
+        "description": "AppLocker Policy Modified",
+        "method": "SPL - MITTREATT&CK T1562",
+        "command": "index=windows EventCode=8004"
+      },
+      {
+        "description": "Binary Padding Detected",
+        "method": "SPL - MITTREATT&CK T1027.001",
+        "command": "index=edr anomaly_type=\"binary padding\""
+      },
+      {
+        "description": "Time Stomping Detected",
+        "method": "SPL - MITTREATT&CK T1070.006",
+        "command": "index=edr technique=\"timestomp\""
+      },
+      {
+        "description": "Process Masquerading",
+        "method": "SPL - MITTREATT&CK T1036",
+        "command": "index=windows EventCode=4688 Image=\"*svchost.exe\" ParentImage!=\"*services.exe\""
+      }
+    ],
+    "mitre": "T1562",
+    "tuning": "Alert on defense tool modification from non-privileged sources. Whitelist scheduled maintenance windows. Correlate with subsequent suspicious activity for context."
+  },
+  "Hunt - Beaconing via Fixed Interval Connections": {
+    "description": "Proactively hunt for C2 beaconing by detecting outbound connections with suspiciously consistent timing intervals.",
+    "commands": [
+      {
+        "description": "Calculate standard deviation of connection timing per dest IP \u2014 low jitter = beaconing.",
+        "method": "Splunk SPL",
+        "command": "index=network sourcetype=firewall action=allowed\n| where NOT match(dest_ip,\"^(10\\\\.|172\\\\.(1[6-9]|2[0-9]|3[0-1])\\\\.|192\\\\.168\\\\.)\")\n| bin _time span=1m\n| stats count, range(_time) as time_range, stdev(_time) as jitter by src_ip, dest_ip\n| where count > 15 AND jitter < 60\n| sort jitter"
+      },
+      {
+        "description": "Hunt for processes with repetitive outbound connection bursts at fixed intervals.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=sysmon EventCode=3\n| where NOT match(DestinationIp,\"^(10\\\\.|172\\\\.|192\\\\.168\\\\.)\")\n| stats count, dc(DestinationPort) as ports, stdev(_time) as jitter by Image, DestinationIp\n| where count > 20 AND jitter < 120 AND ports < 3\n| sort jitter"
+      }
+    ],
+    "mitre": "T1071",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Splunk data sources for context."
+  },
+  "Hunt - DNS Tunneling": {
+    "description": "Proactively hunt for DNS-based C2 and exfiltration using query volume, entropy, and type analysis.",
+    "commands": [
+      {
+        "description": "High number of unique subdomains per registered domain \u2014 tunneling indicator.",
+        "method": "Splunk SPL",
+        "command": "index=dns sourcetype=stream:dns\n| rex field=query \"(?P<subdomain>.+)\\.(?P<domain>[^\\.]+\\.[^\\.]+)$\"\n| stats dc(subdomain) as unique_subs, count by src_ip, domain\n| where unique_subs > 100\n| sort -unique_subs"
+      },
+      {
+        "description": "Abnormally long DNS query names (base64 encoded payload in label).",
+        "method": "Splunk SPL",
+        "command": "index=dns sourcetype=stream:dns\n| eval query_len=len(query)\n| where query_len > 50\n| stats count by src_ip, query\n| sort -count"
+      },
+      {
+        "description": "High volume of TXT record queries per source IP \u2014 iodine, dnscat2.",
+        "method": "Splunk SPL",
+        "command": "index=dns sourcetype=stream:dns record_type=TXT\n| stats count by src_ip, query\n| where count > 20\n| sort -count"
+      },
+      {
+        "description": "DNS NXDOMAIN flood \u2014 DGA domain generation activity.",
+        "method": "Splunk SPL",
+        "command": "index=dns sourcetype=stream:dns reply_code=NXDOMAIN\n| stats count, dc(query) as unique_domains by src_ip, span(_time,5m)\n| where count > 50\n| sort -count"
+      }
+    ],
+    "mitre": "T1071.004",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Splunk data sources for context."
+  },
+  "Hunt - LSASS Credential Dumping": {
+    "description": "Proactively hunt for LSASS process memory access and credential extraction tools.",
+    "commands": [
+      {
+        "description": "LSASS handle open by unexpected process (Sysmon 10 \u2014 ProcessAccess).",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=10 TargetImage=\"*lsass.exe\"\n| where NOT match(SourceImage,\"(?i)(MsMpEng|csrss|werfault|lsm|taskhost|System)\")\n| table _time, host, SourceImage, TargetImage, GrantedAccess, CallTrace"
+      },
+      {
+        "description": "comsvcs.dll MiniDump via rundll32 \u2014 fileless LSASS dump.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where match(CommandLine,\"(?i)comsvcs.*MiniDump\") AND match(Image,\"(?i)rundll32\")\n| table _time, host, Image, CommandLine, ParentImage"
+      },
+      {
+        "description": "procdump or tasklist targeting lsass process.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where match(CommandLine,\"(?i)(procdump|tasklist).*lsass\")\n| table _time, host, Image, CommandLine, User"
+      },
+      {
+        "description": "LSASS dump file written to disk \u2014 large .dmp file creation.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=11 TargetFilename=\"*.dmp\"\n| where NOT match(Image,\"(?i)(werfault|drwatson|svchost)\")\n| table _time, host, Image, TargetFilename, User"
+      }
+    ],
+    "mitre": "T1003.001",
+    "tuning": "Alert on LSASS/SAM access from non-system processes. Whitelist backup agents and EDR sensors. Correlate credential access with subsequent unusual auth activity in Splunk."
+  },
+  "Hunt - Scheduled Task Persistence": {
+    "description": "Proactively hunt for malicious scheduled task creation for persistence.",
+    "commands": [
+      {
+        "description": "Scheduled task created with PowerShell or cmd payload (Event 4698).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4698\n| where match(TaskContent,\"(?i)(powershell|cmd\\\\.exe|wscript|mshta|certutil)\")\n| where NOT match(SubjectUserName,\"(?i)(system|\\\\$$)\")\n| table _time, host, SubjectUserName, TaskName, TaskContent"
+      },
+      {
+        "description": "schtasks.exe creating task running as SYSTEM.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1 Image=\"*schtasks.exe\"\n| where match(CommandLine,\"(?i)/create\") AND match(CommandLine,\"(?i)SYSTEM\")\n| table _time, host, User, CommandLine"
+      },
+      {
+        "description": "Task XML file written directly to Windows Tasks directory.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=11\n| where match(TargetFilename,\"(?i)C:\\\\\\\\Windows\\\\\\\\System32\\\\\\\\Tasks\\\\\\\\\")\n| where NOT match(Image,\"(?i)(svchost|taskhost|mmc|taskschd)\")\n| table _time, host, Image, TargetFilename, User"
+      }
+    ],
+    "mitre": "T1053.005",
+    "tuning": "Alert on persistence outside business hours or from unusual accounts. Whitelist software deployment mechanisms. Cross-reference with Splunk change management records."
+  },
+  "Hunt - Suspicious PowerShell Activity": {
+    "description": "Proactively hunt for malicious PowerShell \u2014 encoded commands, download cradles, and AMSI bypass.",
+    "commands": [
+      {
+        "description": "Base64-encoded PowerShell in script block log (Event 4104).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4104\n| where match(ScriptBlockText,\"(?i)(FromBase64String|-EncodedCommand|-enc )\")\n| table _time, host, Path, ScriptBlockText"
+      },
+      {
+        "description": "PowerShell download cradle patterns.",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4104\n| where match(ScriptBlockText,\"(?i)(Net\\\\.WebClient|DownloadString|DownloadFile|IEX|Invoke-Expression)\")\n  AND match(ScriptBlockText,\"(?i)(http|ftp)\")\n| table _time, host, ScriptBlockText"
+      },
+      {
+        "description": "AMSI bypass keywords in PowerShell script block.",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4104\n| where match(ScriptBlockText,\"(?i)(amsiInitFailed|AmsiUtils|amsiContext|EtwEventWrite|PSEtwLogProvider)\")\n| table _time, host, ScriptBlockText"
+      },
+      {
+        "description": "PowerShell executing with hidden window from suspicious parent.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1 Image=\"*powershell.exe\"\n| where match(CommandLine,\"(?i)(-WindowStyle Hidden|-W H|-NonInteractive)\")\n  AND match(ParentImage,\"(?i)(mshta|wscript|cscript|winword|excel|outlook)\")\n| table _time, host, ParentImage, CommandLine"
+      },
+      {
+        "description": "Reflective assembly loading in PowerShell.",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4104\n| where match(ScriptBlockText,\"(?i)(Reflection\\\\.Assembly|Assembly\\\\.Load|UnsafeLoadFrom|LoadWithPartialName)\")\n| table _time, host, ScriptBlockText"
+      }
+    ],
+    "mitre": "T1059.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Splunk data sources for context."
+  },
+  "Hunt - WMI Persistence & Lateral Movement": {
+    "description": "Proactively hunt for WMI event subscriptions and remote WMI execution.",
+    "commands": [
+      {
+        "description": "WMI event subscription created (Events 5857-5861).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode IN (5857,5858,5859,5860,5861)\n| where isnotnull(ConsumerName) AND NOT match(ConsumerName,\"(?i)NTEventLogEventConsumer\")\n| table _time, host, EventCode, ConsumerName, PossibleCause"
+      },
+      {
+        "description": "WmiPrvSE spawning shell or script interpreter.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where match(ParentImage,\"(?i)WmiPrvSE\") AND match(Image,\"(?i)(cmd|powershell|cscript|mshta|regsvr32)\")\n| table _time, host, User, ParentImage, Image, CommandLine"
+      },
+      {
+        "description": "wmic.exe used for remote process creation.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1 Image=\"*wmic.exe\"\n| where match(CommandLine,\"(?i)node:.*process call create\")\n| table _time, host, User, CommandLine"
+      }
+    ],
+    "mitre": "T1546.003",
+    "tuning": "Baseline normal admin movement patterns in your environment before enabling alerting. Exclude DC replication traffic. Alert on first-seen lateral paths between host pairs."
+  },
+  "Hunt - Pass-the-Hash & Lateral Movement": {
+    "description": "Proactively hunt for NTLM-based lateral movement and credential reuse attacks.",
+    "commands": [
+      {
+        "description": "NTLM network logon from host that normally uses Kerberos (Event 4624 Type 3).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4624 LogonType=3 AuthenticationPackageName=NTLM\n| where NOT match(TargetUserName,\"(?i)(\\\\$$|ANONYMOUS LOGON|-$)\")\n| stats count by src_ip, TargetUserName, host\n| where count < 3\n| sort count"
+      },
+      {
+        "description": "PtH tool artifacts \u2014 impacket, wmiexec, smbexec process execution.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where match(CommandLine,\"(?i)(-hashes|-H [a-f0-9]{32}|wmiexec|smbexec|atexec)\")\n| table _time, host, User, Image, CommandLine"
+      },
+      {
+        "description": "Overpass-the-Hash \u2014 NTLM authentication followed by Kerberos TGT request from same host.",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog (EventCode=4624 LogonType=9) OR (EventCode=4768)\n| transaction host maxspan=30s startswith=(EventCode=4624) endswith=(EventCode=4768)\n| where eventcount >= 2\n| table _time, host, TargetUserName, src_ip"
+      }
+    ],
+    "mitre": "T1550.002",
+    "tuning": "Baseline normal admin movement patterns in your environment before enabling alerting. Exclude DC replication traffic. Alert on first-seen lateral paths between host pairs."
+  },
+  "Hunt - Kerberos Attacks": {
+    "description": "Proactively hunt for Kerberoasting, AS-REP roasting, Golden Ticket, and DCSync.",
+    "commands": [
+      {
+        "description": "Kerberoasting \u2014 RC4 TGS request for non-machine account (Event 4769).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4769 TicketEncryptionType=0x17\n| where NOT match(ServiceName,\"\\\\$$\")\n| stats count by src_ip, TargetUserName, ServiceName\n| sort -count"
+      },
+      {
+        "description": "AS-REP Roasting \u2014 PreAuth type 0 (Event 4768).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4768 PreAuthType=0 Status=0x0\n| table _time, host, TargetUserName, src_ip"
+      },
+      {
+        "description": "DCSync \u2014 DS-Replication-Get-Changes from non-DC account (Event 4662).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4662\n| where match(Properties,\"(1131f6aa|1131f6ad|89e95b76)\")\n  AND NOT match(SubjectUserName,\"\\\\$$\")\n| table _time, host, SubjectUserName, ObjectName, Properties"
+      },
+      {
+        "description": "Golden Ticket \u2014 TGS without preceding TGT in session.",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4769\n| transaction TargetUserName maxspan=1h startswith=(EventCode=4768) endswith=(EventCode=4769)\n| where eventcount == 1 AND match(EventCode,\"4769\")\n| table _time, host, TargetUserName, ServiceName, src_ip"
+      }
+    ],
+    "mitre": "T1558",
+    "tuning": "Whitelist legitimate Kerberos service accounts and scheduled tasks. Alert on RC4/DES downgrade requests for high-privilege SPNs. Cross-reference with Splunk identity logs."
+  },
+  "Hunt - Network Scanning & Reconnaissance": {
+    "description": "Proactively hunt for internal network scanning and enumeration.",
+    "commands": [
+      {
+        "description": "Single host connecting to >20 unique internal hosts on port 445 (SMB scan).",
+        "method": "Splunk SPL",
+        "command": "index=network sourcetype=firewall dest_port=445\n| where match(dest_ip,\"^(10\\\\.|172\\\\.|192\\\\.168\\\\.)\")\n| stats dc(dest_ip) as targets by src_ip, span(_time,10m)\n| where targets > 20\n| sort -targets"
+      },
+      {
+        "description": "ICMP sweep \u2014 one IP pinging >50 unique hosts per minute.",
+        "method": "Splunk SPL",
+        "command": "index=network sourcetype=stream:icmp icmp_type=8\n| stats dc(dest_ip) as hosts by src_ip, span(_time,1m)\n| where hosts > 50\n| sort -hosts"
+      },
+      {
+        "description": "Port sweep \u2014 single source connecting to >10 unique ports on same host.",
+        "method": "Splunk SPL",
+        "command": "index=network sourcetype=firewall\n| stats dc(dest_port) as ports by src_ip, dest_ip, span(_time,5m)\n| where ports > 10\n| sort -ports"
+      },
+      {
+        "description": "nmap, masscan, or rustscan process execution detected.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where match(Image,\"(?i)(nmap|masscan|rustscan|zmap)\") OR match(CommandLine,\"(?i)(--scan-delay|-sS|-sV|masscan|rustscan)\")\n| table _time, host, User, Image, CommandLine"
+      }
+    ],
+    "mitre": "T1046",
+    "tuning": "Tune on internal traffic anomalies. Whitelist known scanners, monitoring agents, and backup systems. Alert on internal scanning from endpoints (not servers) as high priority."
+  },
+  "Hunt - Data Exfiltration": {
+    "description": "Proactively hunt for large outbound data transfers and staging.",
+    "commands": [
+      {
+        "description": "Large outbound HTTPS transfers exceeding 10MB to new destinations.",
+        "method": "Splunk SPL",
+        "command": "index=network sourcetype=firewall action=allowed dest_port=443\n| where NOT match(dest_ip,\"^(10\\\\.|172\\\\.|192\\\\.168\\\\.)\")\n| stats sum(bytes_out) as total_bytes by src_ip, dest_ip\n| where total_bytes > 10485760\n| sort -total_bytes"
+      },
+      {
+        "description": "Archive tool (7z/rar/zip) compressing files from sensitive directories.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where match(Image,\"(?i)(7z\\\\.exe|WinRAR|rar\\\\.exe|zip\\\\.exe|tar)\")\n  AND match(CommandLine,\"(?i)(Documents|Desktop|finance|confidential|secret|password)\")\n| table _time, host, User, Image, CommandLine"
+      },
+      {
+        "description": "7zip creating password-protected archive \u2014 encrypted staging.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where match(Image,\"(?i)(7z\\\\.exe|rar\\\\.exe)\")\n  AND match(CommandLine,\"(?i)(-p|-hp|passwd)\")\n| table _time, host, User, CommandLine"
+      }
+    ],
+    "mitre": "T1048",
+    "tuning": "Baseline normal data transfer volumes before alerting on exfiltration. Alert on transfers to new destinations. Tune DNS exfil detection on query entropy and subdomain count."
+  },
+  "Hunt - Ransomware Pre-Staging": {
+    "description": "Proactively hunt for ransomware precursor activity.",
+    "commands": [
+      {
+        "description": "Volume shadow copy deletion \u2014 critical ransomware precursor.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where (match(Image,\"(?i)vssadmin\") AND match(CommandLine,\"(?i)delete shadows\"))\n  OR (match(Image,\"(?i)wmic\") AND match(CommandLine,\"(?i)shadowcopy delete\"))\n| table _time, host, User, Image, CommandLine"
+      },
+      {
+        "description": "bcdedit disabling boot recovery options.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1 Image=\"*bcdedit.exe\"\n| where match(CommandLine,\"(?i)(recoveryenabled No|bootstatuspolicy ignoreallfailures)\")\n| table _time, host, User, CommandLine"
+      },
+      {
+        "description": "Mass file rename in short time window \u2014 encryption in progress.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=2\n| stats count by host, Image, span(_time,1m)\n| where count > 100\n| sort -count"
+      },
+      {
+        "description": "AV or backup service stopped by attacker process.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where match(Image,\"(?i)(taskkill|net\\\\.exe|sc\\\\.exe)\")\n  AND match(CommandLine,\"(?i)(sophos|defender|mssql|backup|vss|avp|mbam|kaspersky)\")\n| table _time, host, User, CommandLine"
+      }
+    ],
+    "mitre": "T1486",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Splunk data sources for context."
+  },
+  "Hunt - LOLBin Execution": {
+    "description": "Proactively hunt for living-off-the-land binary abuse.",
+    "commands": [
+      {
+        "description": "certutil download or decode.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1 Image=\"*certutil.exe\"\n| where match(CommandLine,\"(?i)(-urlcache|-decode|-encode|http)\")\n| table _time, host, User, CommandLine"
+      },
+      {
+        "description": "mshta executing remote content.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1 Image=\"*mshta.exe\"\n| where match(CommandLine,\"(?i)(http|javascript|vbscript|about:)\")\n| table _time, host, User, CommandLine, ParentImage"
+      },
+      {
+        "description": "regsvr32 squiblydoo \u2014 scrobj.dll or remote URL.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1 Image=\"*regsvr32.exe\"\n| where match(CommandLine,\"(?i)(scrobj|http|/i:|/s)\")\n| table _time, host, User, CommandLine"
+      },
+      {
+        "description": "bitsadmin used as download tool.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1 Image=\"*bitsadmin.exe\"\n| where match(CommandLine,\"(?i)(/transfer|/download|http)\")\n| table _time, host, User, CommandLine"
+      }
+    ],
+    "mitre": "T1218",
+    "tuning": "Alert on parent-child process anomalies (Office\u2192shell, AcroRd32\u2192cmd). Whitelist known deployment tools (SCCM, Intune). Tune Splunk alerts to reduce FPs from legitimate automation."
+  },
+  "Hunt - Privilege Escalation": {
+    "description": "Proactively hunt for privilege escalation techniques on Windows endpoints.",
+    "commands": [
+      {
+        "description": "SeDebugPrivilege enabled by non-SYSTEM process (Event 4703).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4703 EnabledPrivilegeList=*SeDebugPrivilege*\n| where NOT match(SubjectUserName,\"(?i)(SYSTEM|\\\\$$)\")\n| table _time, host, SubjectUserName, ProcessName, EnabledPrivilegeList"
+      },
+      {
+        "description": "Token impersonation logon type 9 (CreateProcessWithToken).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4624 LogonType=9 LogonProcessName=Advapi\n| where NOT match(TargetUserName,\"(?i)(SYSTEM|\\\\$$)\")\n| table _time, host, TargetUserName, src_ip, ProcessName"
+      },
+      {
+        "description": "Juicy Potato, PrintSpoofer, or Rogue Potato execution.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where match(CommandLine,\"(?i)(JuicyPotato|PrintSpoofer|RoguePotato|SweetPotato|GodPotato)\")\n| table _time, host, User, Image, CommandLine"
+      }
+    ],
+    "mitre": "T1068",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Splunk data sources for context."
+  },
+  "Hunt - Webshell & Web Server Compromise": {
+    "description": "Proactively hunt for web server compromise and webshell activity.",
+    "commands": [
+      {
+        "description": "Web server process (w3wp, httpd) spawning command shell.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where match(ParentImage,\"(?i)(w3wp|httpd|nginx|tomcat|java)\")\n  AND match(Image,\"(?i)(cmd\\\\.exe|powershell|bash|sh|python|perl|whoami|ipconfig)\")\n| table _time, host, User, ParentImage, Image, CommandLine"
+      },
+      {
+        "description": "Script file written to web root by server process.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=11\n| where match(TargetFilename,\"(?i)(inetpub|wwwroot|htdocs|www)\")\n  AND match(TargetFilename,\"(?i)\\\\.(php|asp|aspx|jsp|cfm|ashx)$\")\n  AND match(Image,\"(?i)(w3wp|httpd|nginx|apache)\")\n| table _time, host, Image, TargetFilename, User"
+      }
+    ],
+    "mitre": "T1505.003",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Splunk data sources for context."
+  },
+  "Hunt - Cloud & AWS Threats": {
+    "description": "Proactively hunt for AWS CloudTrail anomalies, IAM abuse, and resource compromise.",
+    "commands": [
+      {
+        "description": "CloudTrail logging stopped or deleted.",
+        "method": "Splunk SPL",
+        "command": "index=aws sourcetype=aws:cloudtrail eventName IN (StopLogging, DeleteTrail, UpdateTrail)\n| table _time, userIdentity.arn, eventName, sourceIPAddress, awsRegion"
+      },
+      {
+        "description": "IAM AdministratorAccess policy attached to user or role.",
+        "method": "Splunk SPL",
+        "command": "index=aws sourcetype=aws:cloudtrail eventName IN (AttachUserPolicy, AttachRolePolicy)\n| where match(requestParameters,\"AdministratorAccess\")\n| table _time, userIdentity.arn, eventName, requestParameters, sourceIPAddress"
+      },
+      {
+        "description": "Root account activity \u2014 any API call.",
+        "method": "Splunk SPL",
+        "command": "index=aws sourcetype=aws:cloudtrail userIdentity.type=Root\n| where eventName != \"ConsoleLogin\"\n| table _time, eventName, sourceIPAddress, userAgent, awsRegion"
+      },
+      {
+        "description": "Large S3 data download \u2014 potential exfiltration.",
+        "method": "Splunk SPL",
+        "command": "index=aws sourcetype=aws:s3access operation=REST.GET.OBJECT\n| stats sum(bytes_sent) as total_bytes by requester, bucket\n| where total_bytes > 104857600\n| sort -total_bytes"
+      },
+      {
+        "description": "EC2 security group opened to 0.0.0.0/0 on admin port.",
+        "method": "Splunk SPL",
+        "command": "index=aws sourcetype=aws:cloudtrail eventName=AuthorizeSecurityGroupIngress\n| where match(requestParameters,\"0\\\\.0\\\\.0\\\\.0/0\")\n  AND match(requestParameters,\"(22|3389|5985|445)\")\n| table _time, userIdentity.arn, requestParameters, sourceIPAddress"
+      }
+    ],
+    "mitre": "T1078.004",
+    "tuning": "Correlate Splunk API calls with identity and network context. Alert on API calls from unexpected geographic regions or source IPs. Whitelist legitimate automation and CI/CD pipelines."
+  },
+  "Hunt - Linux Persistence & Backdoors": {
+    "description": "Proactively hunt for Linux-specific persistence mechanisms on monitored endpoints.",
+    "commands": [
+      {
+        "description": "Cron job created or modified by unexpected user.",
+        "method": "Splunk SPL",
+        "command": "index=linux sourcetype=syslog\n| where match(_raw,\"(?i)(crontab|cron\\.d|cron\\.daily|cron\\.hourly)\")\n  AND match(_raw,\"(?i)(REPLACE|ADD|EDIT|write)\")\n| where NOT match(user,\"(?i)(root|cron|puppet|ansible)\")\n| table _time, host, user, _raw"
+      },
+      {
+        "description": "SSH authorized_keys file modified.",
+        "method": "Splunk SPL",
+        "command": "index=linux sourcetype=auditd\n| where match(key,\"ssh_authorized_keys\") OR match(name,\"authorized_keys\")\n| where type=SYSCALL AND match(syscall,\"(write|open)\")\n| table _time, host, auid, uid, exe, name"
+      },
+      {
+        "description": "LD_PRELOAD environment variable set \u2014 rootkit loader.",
+        "method": "Splunk SPL",
+        "command": "index=linux sourcetype=auditd\n| where match(_raw,\"LD_PRELOAD\") OR match(exe,\"/etc/ld\\\\.so\\\\.preload\")\n| table _time, host, auid, uid, exe, _raw"
+      },
+      {
+        "description": "Setuid binary created outside standard system directories.",
+        "method": "Splunk SPL",
+        "command": "index=linux sourcetype=auditd type=SYSCALL syscall=chmod\n| where match(mode,\"4[0-9]{3}\")\n  AND NOT match(name,\"(?i)(/bin/|/sbin/|/usr/|/lib/)\")\n| table _time, host, uid, name, mode"
+      }
+    ],
+    "mitre": "T1547",
+    "tuning": "Alert on persistence outside business hours or from unusual accounts. Whitelist software deployment mechanisms. Cross-reference with Splunk change management records."
+  },
+  "Hunt - Living-off-the-Land: Linux Binaries": {
+    "description": "Proactively hunt for GTFOBin abuse and reverse shell via trusted Linux utilities.",
+    "commands": [
+      {
+        "description": "curl or wget output piped directly to shell interpreter.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where match(CommandLine,\"(?i)(curl|wget).*\\\\| (bash|sh|python|perl|ruby)\")\n| table _time, host, User, CommandLine"
+      },
+      {
+        "description": "netcat listener spawned \u2014 reverse shell indicator.",
+        "method": "Splunk SPL",
+        "command": "index=linux sourcetype=syslog\n| where match(_raw,\"(?i)(nc |ncat |netcat ).*-l\") OR match(_raw,\"(?i)nc.*-e /bin/(bash|sh)\")\n| table _time, host, _raw"
+      },
+      {
+        "description": "Python or perl one-liner socket reverse shell.",
+        "method": "Splunk SPL",
+        "command": "index=linux sourcetype=auditd\n| where match(exe,\"(?i)(python|perl|ruby)\") AND match(proctitle,\"(?i)(socket|subprocess|exec|system)\")\n| table _time, host, uid, exe, proctitle"
+      }
+    ],
+    "mitre": "T1218",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Splunk data sources for context."
+  },
+  "Hunt - Active Directory Certificate Services (ADCS)": {
+    "description": "Proactively hunt for ADCS privilege escalation and certificate-based attack techniques.",
+    "commands": [
+      {
+        "description": "Certificate requested with SAN for different user (ESC1).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4886\n| where match(Attributes,\"(?i)san:upn\") OR match(Attributes,\"(?i)SubjectAltName\")\n| table _time, host, Requester, TemplateName, Attributes"
+      },
+      {
+        "description": "Certipy or Certify tool execution.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where match(CommandLine,\"(?i)(certipy|Certify\\.exe|find /vulnerable|request /ca|shadow /path)\")\n| table _time, host, User, CommandLine"
+      },
+      {
+        "description": "CA web enrollment accessed via NTLM \u2014 potential ESC8 relay.",
+        "method": "Splunk SPL",
+        "command": "index=web sourcetype=iis\n| where match(cs_uri_stem,\"(?i)(certsrv|certenroll)\") AND match(cs_auth,\"(?i)NTLM\")\n| table _time, c_ip, cs_uri_stem, cs_auth, cs_username"
+      }
+    ],
+    "mitre": "T1649",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Splunk data sources for context."
+  },
+  "Hunt - macOS & Endpoint Specific": {
+    "description": "Proactively hunt for macOS-specific persistence and lateral movement techniques.",
+    "commands": [
+      {
+        "description": "LaunchAgent or LaunchDaemon plist created by non-system process.",
+        "method": "Splunk SPL",
+        "command": "index=mac sourcetype=osquery\n| where match(action,\"ADDED\") AND match(path,\"(LaunchDaemons|LaunchAgents)\")\n  AND match(path,\"\\.plist$\")\n  AND NOT match(username,\"(?i)(root|_softwareupdate|_install)\")\n| table _time, host, username, path"
+      },
+      {
+        "description": "osascript executing shell commands \u2014 AppleScript abuse.",
+        "method": "Splunk SPL",
+        "command": "index=mac sourcetype=osquery\n| where name=\"osascript\" AND match(cmdline,\"(?i)(do shell script|bash|curl|python)\")\n| table _time, host, pid, cmdline"
+      }
+    ],
+    "mitre": "T1059.004",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Splunk data sources for context."
+  },
+  "Hunt - Memory-Only & Fileless Execution": {
+    "description": "Proactively hunt for in-memory execution and process hollowing on Windows endpoints.",
+    "commands": [
+      {
+        "description": "Process with no on-disk binary (hollowed process indicator).",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where isnull(Hashes) OR Hashes=\"\"\n| where NOT match(Image,\"(?i)(\\\\\\\\Device\\\\\\\\Mup|\\\\\\\\\\\\\\\\)\")\n| table _time, host, User, Image, ParentImage, CommandLine"
+      },
+      {
+        "description": "Sysmon CreateRemoteThread from unexpected source to common process.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=8\n| where match(TargetImage,\"(?i)(explorer|lsass|svchost|notepad|calc)\")\n  AND NOT match(SourceImage,\"(?i)(Windows\\\\System32|Program Files|MsMpEng)\")\n| table _time, host, SourceImage, TargetImage, StartAddress"
+      },
+      {
+        "description": "Process executing from a named pipe \u2014 hollow/doppelganging technique.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where match(Image,\"(?i)\\\\\\\\\\\\.\\\\\\\\pipe\\\\\\\\\")\n| table _time, host, User, Image, CommandLine, ParentImage"
+      }
+    ],
+    "mitre": "T1620",
+    "tuning": "Alert on parent-child process anomalies (Office\u2192shell, AcroRd32\u2192cmd). Whitelist known deployment tools (SCCM, Intune). Tune Splunk alerts to reduce FPs from legitimate automation."
+  },
+  "Hunt - Browser Credential Theft": {
+    "description": "Proactively hunt for browser credential and cookie harvesting.",
+    "commands": [
+      {
+        "description": "Non-browser process accessing Chrome Login Data file.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=11\n| where match(TargetFilename,\"(?i)(Chrome|Edge|Brave|Firefox).*Login Data\")\n  AND NOT match(Image,\"(?i)(chrome|msedge|firefox|brave|opera)\")\n| table _time, host, User, Image, TargetFilename"
+      },
+      {
+        "description": "LaZagne or SharpChrome credential stealer execution.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where match(CommandLine,\"(?i)(lazagne|SharpChrome|BrowserStealer|Get-BrowserData|CookieMonster)\")\n| table _time, host, User, Image, CommandLine"
+      },
+      {
+        "description": "DPAPI master key decrypted by non-browser process.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where match(CommandLine,\"(?i)(dpapi::chrome|dpapi::cred|CryptUnprotectData)\") AND NOT match(Image,\"(?i)(chrome|msedge|firefox)\")\n| table _time, host, User, Image, CommandLine"
+      }
+    ],
+    "mitre": "T1555.003",
+    "tuning": "Alert on LSASS/SAM access from non-system processes. Whitelist backup agents and EDR sensors. Correlate credential access with subsequent unusual auth activity in Splunk."
+  },
+  "Hunt - Threat Intelligence IOC Matching": {
+    "description": "Proactively hunt by correlating Splunk data against known bad IPs, domains, and file hashes.",
+    "commands": [
+      {
+        "description": "Network connection to known C2 IP from threat intel lookup.",
+        "method": "Splunk SPL",
+        "command": "index=network sourcetype=firewall action=allowed\n| lookup threat_intel_ips ip as dest_ip OUTPUT category, confidence\n| where isnotnull(category)\n| table _time, src_ip, dest_ip, dest_port, category, confidence"
+      },
+      {
+        "description": "DNS query resolving to known malicious domain.",
+        "method": "Splunk SPL",
+        "command": "index=dns sourcetype=stream:dns\n| lookup threat_intel_domains domain as query OUTPUT threat_type, confidence\n| where isnotnull(threat_type)\n| table _time, src_ip, query, threat_type, confidence"
+      },
+      {
+        "description": "File hash matching known malware from threat intel list.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| lookup threat_intel_hashes hash as Hashes OUTPUT malware_name, threat_type\n| where isnotnull(malware_name)\n| table _time, host, User, Image, CommandLine, malware_name"
+      }
+    ],
+    "mitre": "T1078",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Splunk data sources for context."
+  },
+  "Hunt - Insider Threat & User Behaviour": {
+    "description": "Proactively hunt for anomalous user behaviour patterns indicating insider threat or account takeover.",
+    "commands": [
+      {
+        "description": "User accessing systems outside their normal hours baseline.",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4624 LogonType=2\n| eval hour=strftime(_time,\"%H\")\n| stats count by user, hour, host\n| where (hour < \"07\" OR hour > \"21\") AND count > 3\n| sort -count"
+      },
+      {
+        "description": "Sudden spike in file access for specific user \u2014 data staging.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=4663\n| stats count by SubjectUserName, span(_time,1h)\n| eventstats avg(count) as avg_count, stdev(count) as sd by SubjectUserName\n| where count > avg_count + (3 * sd)\n| sort -count"
+      },
+      {
+        "description": "User printing large volume of documents \u2014 physical exfiltration.",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=307 sourcetype=printservice\n| stats count, sum(PrintJobSizeInBytes) as total_bytes by User, host\n| where total_bytes > 52428800\n| sort -total_bytes"
+      }
+    ],
+    "mitre": "T1074",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Splunk data sources for context."
+  },
+  "Hunt - Email & Phishing Indicators": {
+    "description": "Proactively hunt for phishing delivery, BEC indicators, and email-based malware staging.",
+    "commands": [
+      {
+        "description": "Email with executable attachment received and opened by endpoint.",
+        "method": "Splunk SPL",
+        "command": "index=email sourcetype=proofpoint OR sourcetype=mimecast\n| where match(attachment_name,\"(?i)\\\\.(exe|js|vbs|hta|iso|img|lnk|docm|xlsm)$\")\n| join type=inner user [search index=endpoint sourcetype=xmlwineventlog EventCode=1\n  | rename User as user]\n| table _time, user, attachment_name, subject, sender"
+      },
+      {
+        "description": "Email forwarding rule to external domain created via Exchange.",
+        "method": "Splunk SPL",
+        "command": "index=exchange sourcetype=msexchange:messagetracking\n| where match(_raw,\"(?i)(ForwardingSmtpAddress|RedirectTo)\")\n  AND NOT match(_raw,\"@yourdomain\\\\.com\")\n| table _time, user, _raw"
+      }
+    ],
+    "mitre": "T1566",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Splunk data sources for context."
+  },
+  "Hunt - Account Lifecycle & Task Scheduler Anomalies": {
+    "description": "Hunt for account deletions, delegation changes, service installation via Security log, and Task Scheduler abuse \u2014 Event IDs 4697, 4700, 4702, 4726, 4738, 106, 141, 200.",
+    "commands": [
+      {
+        "description": "User accounts deleted \u2014 adversary removing backdoor accounts post-exploitation (Event 4726).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4726 | stats count by Account_Name Target_Account_Name host | sort -count | table _time host Account_Name Target_Account_Name"
+      },
+      {
+        "description": "User account changed \u2014 delegation or pre-auth flags modified (Event 4738).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4738 (Changed_Attributes=\"*DONT_REQ_PREAUTH*\" OR Changed_Attributes=\"*TRUSTED_FOR_DELEGATION*\" OR Changed_Attributes=\"*TRUSTED_TO_AUTH_FOR_DELEGATION*\" OR Changed_Attributes=\"*PASSWORD_NOT_REQUIRED*\") | table _time host Account_Name Target_Account_Name Changed_Attributes"
+      },
+      {
+        "description": "Service installation via Security log \u2014 actor attribution for new malicious services (Event 4697).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4697 NOT Service_File_Name IN (\"*System32*\",\"*SysWOW64*\",\"*Program Files*\",\"*MsMpEng*\",\"*WinDefend*\") | table _time host Account_Name Service_Name Service_File_Name Service_Start_Type"
+      },
+      {
+        "description": "Scheduled task enabled (from disabled state) \u2014 dormant persistence activated (Event 4700).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4700 NOT Account_Name IN (\"SYSTEM\",\"LOCAL SERVICE\",\"NETWORK SERVICE\") | table _time host Account_Name Task_Name"
+      },
+      {
+        "description": "Task Scheduler operational \u2014 task registered, deleted, launched (Events 106 / 141 / 200).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-TaskScheduler/Operational\" EventCode IN (106,141,200,201) NOT User IN (\"SYSTEM\",\"LOCAL SERVICE\",\"NETWORK SERVICE\") | stats count by EventCode TaskName User host | sort -count"
+      },
+      {
+        "description": "WFP inbound connection allowed to non-standard process \u2014 bind shell or C2 listener (Event 5156).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=5156 Direction=\"%%14593\" NOT Application_Name IN (\"*svchost*\",\"*lsass*\",\"*System*\",\"*MsMpEng*\",\"*dns*\",\"*SearchIndexer*\") | stats count by Application_Name dest_port host | sort -count"
+      },
+      {
+        "description": "System reboots \u2014 cross-correlate with persistence events to verify survival (Event 6005).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode IN (6005,6006) | table _time host EventCode Message | sort -_time"
+      },
+      {
+        "description": "Service startup type changed \u2014 attacker disabling security service auto-start (Event 7040).",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=7040 | where match(ServiceName,\"(?i)(WinDefend|CrowdStrike|SentinelOne|MsMpSvc|wscsvc|EventLog|mpssvc)\") | table _time host ServiceName param1 param2 Message"
+      }
+    ],
+    "mitre": "T1087",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Splunk data sources for context."
+  },
+  "Hunt - EDR & Security Tool Evasion": {
+    "description": "Proactively hunt for techniques used to disable, bypass, or evade security tooling.",
+    "commands": [
+      {
+        "description": "Windows Defender exclusion added via PowerShell or registry.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=1\n| where match(CommandLine,\"(?i)(Add-MpPreference|Set-MpPreference).*(-ExclusionPath|-ExclusionProcess|-DisableRealtimeMonitoring)\")\n| table _time, host, User, CommandLine"
+      },
+      {
+        "description": "Security service stopped or disabled.",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode IN (7036,7040)\n| where match(ServiceName,\"(?i)(WinDefend|CrowdStrike|SentinelOne|CarbonBlack|cylance|avp|Sophos)\")\n  AND match(ServiceState,\"(?i)(stopped|disabled)\")\n| table _time, host, ServiceName, ServiceState"
+      },
+      {
+        "description": "ETW provider disabled \u2014 blind spot creation.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=4104\n| where match(ScriptBlockText,\"(?i)(EtwEventWrite|ETWProvider|PSEtwLogProvider|NtTraceControl)\")\n| table _time, host, ScriptBlockText"
+      },
+      {
+        "description": "Process patching ntdll.dll in memory \u2014 userland unhooking.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=7\n| where match(ImageLoaded,\"(?i)ntdll\\\\.dll\")\n  AND NOT match(Image,\"(?i)(System32|SysWOW64|lsass|csrss|smss)\")\n| table _time, host, Image, ImageLoaded, Signed"
+      }
+    ],
+    "mitre": "T1562.001",
+    "tuning": "Alert on defense tool modification from non-privileged sources. Whitelist scheduled maintenance windows. Correlate with subsequent suspicious activity for context."
+  },
+  "Hunt - Sysmon Full Coverage (Events 6,8,10,11,13,15,17,18,19,20,21,22,25)": {
+    "description": "Comprehensive Sysmon-based hunt queries for BYOVD driver loads, process injection, LSASS access, file drops, registry persistence, ADS, named pipe C2, WMI subscription persistence, DNS tunneling, and process tampering. Sysmon Events 1/3/7 covered in other sections.",
+    "commands": [
+      {
+        "description": "Sysmon 6 \u2014 Driver loaded from user-writable path \u2014 BYOVD attack (T1014, T1543.003).",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=6\n| where match(ImageLoaded,\"(?i)(\\\\\\\\Users\\\\\\\\|\\\\\\\\Temp\\\\\\\\|\\\\\\\\ProgramData\\\\\\\\|\\\\\\\\AppData\\\\\\\\)\")\n   OR match(ImageLoaded,\"(?i)(gdrv\\\\.sys|dbutil_2_3\\\\.sys|rtcore64\\\\.sys|mhyprot2\\\\.sys|iqvw64e\\\\.sys|procexp152\\\\.sys|AsrDrv104\\\\.sys)\")\n| table _time, host, Image, ImageLoaded, Signed, Signature"
+      },
+      {
+        "description": "Sysmon 8 \u2014 CreateRemoteThread into security process \u2014 code injection (T1055).",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=8\n| where match(TargetImage,\"(?i)(lsass\\\\.exe|svchost\\\\.exe|csrss\\\\.exe|winlogon\\\\.exe|MsMpEng\\\\.exe|SentinelAgent\\\\.exe)\")\n| table _time, host, SourceImage, TargetImage, StartFunction, StartAddress"
+      },
+      {
+        "description": "Sysmon 10 \u2014 ProcessAccess to LSASS by unexpected process \u2014 credential dumping (T1003.001).",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=10\n| where match(TargetImage,\"(?i)lsass\\\\.exe\")\n  AND NOT match(SourceImage,\"(?i)(svchost|csrss|werfault|wmiprvse|taskmgr|procexp|MsMpEng)\")\n| table _time, host, SourceImage, TargetImage, GrantedAccess, CallTrace"
+      },
+      {
+        "description": "Sysmon 11 \u2014 Executable or script dropped to staging path (T1105 ingress tool transfer).",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=11\n| where match(TargetFilename,\"(?i)(\\\\\\\\Temp\\\\\\\\|\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\|\\\\\\\\ProgramData\\\\\\\\|\\\\\\\\Users\\\\\\\\Public\\\\\\\\)\")\n  AND match(TargetFilename,\"(?i)\\\\.(exe|dll|bat|ps1|vbs|hta|js|scr)$\")\n| table _time, host, Image, TargetFilename"
+      },
+      {
+        "description": "Sysmon 13 \u2014 Registry persistence written (Run/RunOnce, IFEO, AppInit_DLLs, Security Packages, T1547/T1546).",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=13\n| where match(TargetObject,\"(?i)(\\\\\\\\Run\\\\\\\\|\\\\\\\\RunOnce\\\\\\\\|Image File Execution Options|AppInit_DLLs|Security Packages|Winlogon\\\\\\\\Shell|Winlogon\\\\\\\\Userinit)\")\n  AND NOT match(Image,\"(?i)(msiexec|TrustedInstaller|setup|install)\")\n| table _time, host, Image, TargetObject, Details"
+      },
+      {
+        "description": "Sysmon 15 \u2014 Alternate Data Stream write \u2014 payload hidden in NTFS stream (T1564.004).",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=15\n| where match(TargetFilename,\":\")\n  AND NOT match(TargetFilename,\"(?i)(:Zone\\\\.Identifier|:AFP_|:\\\\{)\")\n| table _time, host, Image, TargetFilename, Hash"
+      },
+      {
+        "description": "Sysmon 17 \u2014 Named pipe created matching Cobalt Strike default names (T1071, T1573).",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=17\n| where match(PipeName,\"(?i)(postex_|msagent_|MSSE-|mojo\\\\.|status_|IEFrame|scerpc_priv|wkssvc_priv)\")\n| table _time, host, Image, PipeName"
+      },
+      {
+        "description": "Sysmon 18 \u2014 Named pipe connected from unexpected process \u2014 C2 IPC channel.",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=18\n| where NOT match(Image,\"(?i)(svchost|lsass|chrome|firefox|msedge|explorer|spoolsv|msiexec)\")\n  AND NOT match(PipeName,\"(?i)(wkssvc|srvsvc|netlogon|lsarpc|samr|winreg|epmapper)\")\n| table _time, host, Image, PipeName"
+      },
+      {
+        "description": "Sysmon 19/20/21 \u2014 WMI subscription persistence triplet (filter, consumer, binding \u2014 T1546.003).",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode IN (19,20,21)\n| eval EventType=case(EventCode==\"19\",\"WMI Filter\",EventCode==\"20\",\"WMI Consumer\",EventCode==\"21\",\"WMI Binding\")\n| stats count by EventCode, EventType, Name, User, host\n| sort EventCode"
+      },
+      {
+        "description": "Sysmon 22 \u2014 Scripting process resolving non-standard domain \u2014 C2 or DGA (T1071.004).",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=22\n| where match(Image,\"(?i)(powershell|cmd\\\\.exe|wscript|cscript|mshta|certutil|rundll32|bitsadmin)\")\n  AND NOT match(QueryName,\"(?i)(microsoft\\\\.com|windows\\\\.com|office\\\\.com|live\\\\.com|windowsupdate\\\\.com|azure\\\\.com|symantec\\\\.com)\")\n| table _time, host, Image, QueryName, QueryResults"
+      },
+      {
+        "description": "Sysmon 25 \u2014 Process tampering / hollowing \u2014 image section replaced in memory (T1055.012).",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=xmlwineventlog EventCode=25\n| where NOT match(Image,\"(?i)(MpCopyAccelerator|MsMpEng|msiexec)\")\n| table _time, host, Image, Type"
+      }
+    ],
+    "mitre": "T1055",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Splunk data sources for context."
+  },
+  "Hunt - RBCD & Kerberos Delegation Chains": {
+    "description": "Hunt for RBCD attack chains \u2014 machine account creation, msDS-AllowedToActOnBehalfOfOtherIdentity attribute write, and subsequent S4U2Proxy ticket requests.",
+    "commands": [
+      {
+        "description": "Hunt for RBCD attribute write \u2014 Event 5136 targeting msDS-AllowedToActOnBehalfOfOtherIdentity",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=5136 AttributeLDAPDisplayName=\"msDS-AllowedToActOnBehalfOfOtherIdentity\"\n| table _time, SubjectUserName, ObjectDN, AttributeValue, OperationType\n| sort -_time"
+      },
+      {
+        "description": "Hunt for machine account + RBCD write chain within 30 minutes",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode IN (4741, 5136)\n| eval stage=if(EventCode=4741, \"MachineCreated\", \"RBCDWrite\")\n| sort _time\n| streamstats window=2 values(stage) as stages by SubjectUserName\n| where mvcount(stages)=2\n| table _time, SubjectUserName, stage, ObjectDN"
+      },
+      {
+        "description": "Hunt for S4U2Proxy Kerberos TGS with forwardable ticket options (0x20000)",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode=4769 TicketOptions=0x20000\n| where NOT match(ServiceName, \".*\\$\") AND ServiceName!=\"krbtgt\"\n| stats count by AccountName, ServiceName, IpAddress\n| where count>3\n| sort -count"
+      },
+      {
+        "description": "Hunt for full RBCD kill chain: MAQ abuse \u2192 attribute write \u2192 impersonation logon",
+        "method": "Splunk SPL",
+        "command": "index=wineventlog EventCode IN (4741, 5136, 4624)\n| eval stage=case(EventCode=4741,\"1-MAQ\",EventCode=5136,\"2-RBCD\",EventCode=4624,\"3-Logon\")\n| stats values(stage) as stages by SubjectUserName\n| where mvcount(stages)>=2\n| table SubjectUserName, stages"
+      }
+    ],
+    "mitre": "T1134.001",
+    "tuning": "Whitelist legitimate Kerberos service accounts and scheduled tasks. Alert on RC4/DES downgrade requests for high-privilege SPNs. Cross-reference with Splunk identity logs."
+  },
+  "Hunt - PwnKit & Linux Privilege Escalation": {
+    "description": "Hunt for CVE-2021-4034 (PwnKit), polkit/D-Bus abuse, and general Linux privilege escalation from SUID/SGID binaries on endpoints reporting to Splunk.",
+    "commands": [
+      {
+        "description": "Hunt for pkexec executed without standard authentication arguments (PwnKit indicator)",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=syslog process_name=pkexec\n| where NOT match(process_args, \"--user|--help|--version|--list\")\n| table _time, host, user, process_name, process_args, parent_process\n| sort -_time"
+      },
+      {
+        "description": "Hunt for pkexec spawning root shell (successful PwnKit exploitation)",
+        "method": "Splunk SPL",
+        "command": "index=endpoint\n| search parent_process_name=pkexec process_name IN (\"bash\",\"sh\",\"dash\",\"python3\",\"perl\")\n| table _time, host, user, effective_uid, process_name, process_args, parent_process_name\n| where effective_uid=0"
+      },
+      {
+        "description": "Hunt for SUID binary execution by non-owner user (general Linux privesc)",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=auditd syscall=59\n| where suid=1 AND uid!=0\n| table _time, host, uid, auid, exe, cmdline\n| sort -_time"
+      },
+      {
+        "description": "Hunt for /etc/passwd or /etc/shadow read by unexpected process (credential access)",
+        "method": "Splunk SPL",
+        "command": "index=endpoint sourcetype=auditd (name=\"/etc/shadow\" OR name=\"/etc/passwd\")\n| where syscall IN (2,257) AND uid!=0\n| table _time, host, uid, comm, exe, name\n| sort -_time"
+      }
+    ],
+    "mitre": "T1068",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary Splunk data sources for context."
+  },
+  "Hunt - AWS GuardDuty Evasion & Lambda Abuse": {
+    "description": "Hunt for GuardDuty suppression rule creation, trusted IP list manipulation, Lambda Function URL setup for unauthenticated access, and IAM privilege escalation paths.",
+    "commands": [
+      {
+        "description": "Hunt for GuardDuty suppression rule creation (CreateFilter with ARCHIVE action)",
+        "method": "Splunk SPL",
+        "command": "index=aws sourcetype=aws:cloudtrail eventName=CreateFilter eventSource=guardduty.amazonaws.com\n| spath path=requestParameters.action output=action\n| where action=\"ARCHIVE\"\n| table _time, userIdentity.arn, awsRegion, requestParameters\n| sort -_time"
+      },
+      {
+        "description": "Hunt for GuardDuty trusted IP set creation (CreateIPSet \u2014 attacker whitelisting their IP)",
+        "method": "Splunk SPL",
+        "command": "index=aws sourcetype=aws:cloudtrail eventName=CreateIPSet eventSource=guardduty.amazonaws.com\n| table _time, userIdentity.arn, awsRegion, requestParameters.location\n| sort -_time"
+      },
+      {
+        "description": "Hunt for Lambda Function URL configured with no authentication (NONE authType)",
+        "method": "Splunk SPL",
+        "command": "index=aws sourcetype=aws:cloudtrail eventName=CreateFunctionUrlConfig\n| spath path=requestParameters.authType output=auth_type\n| where auth_type=\"NONE\"\n| table _time, userIdentity.arn, awsRegion, requestParameters.functionName\n| sort -_time"
+      },
+      {
+        "description": "Hunt for IAM CreatePolicyVersion with wildcard action (admin privilege escalation)",
+        "method": "Splunk SPL",
+        "command": "index=aws sourcetype=aws:cloudtrail eventName=CreatePolicyVersion\n| spath path=requestParameters.policyDocument output=policy_doc\n| where match(policy_doc, \"\\\"Action\\\":\\\"\\*\\\"\") AND match(policy_doc, \"\\\"Effect\\\":\\\"Allow\\\"\")\n| table _time, userIdentity.arn, requestParameters.policyArn, policy_doc\n| sort -_time"
+      }
+    ],
+    "mitre": "T1648",
+    "tuning": "Alert on defense tool modification from non-privileged sources. Whitelist scheduled maintenance windows. Correlate with subsequent suspicious activity for context."
+  }
+}

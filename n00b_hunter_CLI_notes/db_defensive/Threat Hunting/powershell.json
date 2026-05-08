@@ -1,0 +1,1054 @@
+{
+  "PS - WMI Persistence & Backdoors": {
+    "description": "Detect PowerShell creating, querying, or abusing WMI event subscriptions for fileless persistence.",
+    "commands": [
+      {
+        "description": "Enumerate all active WMI EventFilter subscriptions.",
+        "method": "PowerShell Forensics",
+        "command": "Get-WMIObject -Namespace root\\subscription -Class __EventFilter | Select-Object Name, QueryLanguage, Query | Format-List"
+      },
+      {
+        "description": "Enumerate all WMI EventConsumer objects (ActiveScript and CommandLine).",
+        "method": "PowerShell Forensics",
+        "command": "Get-WMIObject -Namespace root\\subscription -Class __EventConsumer | Select-Object Name, ScriptingEngine, ScriptText, CommandLineTemplate | Format-List"
+      },
+      {
+        "description": "Enumerate all FilterToConsumerBinding objects linking filters to consumers.",
+        "method": "PowerShell Forensics",
+        "command": "Get-WMIObject -Namespace root\\subscription -Class __FilterToConsumerBinding | Select-Object Filter, Consumer | Format-List"
+      },
+      {
+        "description": "Detect script blocks creating WMI subscriptions via Set-WmiInstance.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Set-WmiInstance|New-CimInstance).{0,300}(EventFilter|EventConsumer|FilterToConsumerBinding)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Hunt for WMI subscription creation by non-admin accounts.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-WMI-Activity/Operational' | Where-Object { $_.Id -eq 5861 } | Select-Object TimeCreated, @{N='Detail';E={$_.Message.Substring(0, [Math]::Min(500,$_.Message.Length))}}"
+      }
+    ],
+    "mitre": "T1546.003",
+    "tuning": "Alert on persistence outside business hours or from unusual accounts. Whitelist software deployment mechanisms. Cross-reference with PowerShell change management records."
+  },
+  "PS - Registry Hive Manipulation": {
+    "description": "Detect PowerShell loading offline registry hives, creating hidden keys, and abusing registry for persistence.",
+    "commands": [
+      {
+        "description": "Detect reg.exe load or unload of offline hive via PowerShell.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(reg load|reg unload|RegLoadKey|RegUnLoadKey)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect creation of hidden registry keys (null byte prefix trick).",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(NtCreateKey|ZwCreateKey|RegCreateKeyEx).{0,200}(\\\\0|\\\\x00)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect PowerShell reading LSA secrets from registry.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)HKLM.{0,50}(Security\\\\Policy\\\\Secrets|SAM\\\\SAM\\\\Domains|SYSTEM\\\\CurrentControlSet\\\\Control\\\\Lsa)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect modification of Winlogon Userinit or Shell keys.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Winlogon).{0,100}(Userinit|Shell|TaskMan|AppSetup)' } | Select-Object TimeCreated, Message"
+      }
+    ],
+    "mitre": "T1547.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - LSASS Access & Memory Dumping": {
+    "description": "Detect PowerShell techniques targeting LSASS for credential extraction.",
+    "commands": [
+      {
+        "description": "Detect OpenProcess on LSASS PID with PROCESS_ALL_ACCESS.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(OpenProcess.*PROCESS_ALL_ACCESS|0x1F0FFF).{0,300}(lsass|GetProcessesByName.*lsass)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect Out-Minidump or custom dump function targeting LSASS.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Out-Minidump|MiniDumpWriteDump|CreateDump|minidump)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect comsvcs.dll MiniDump invoked via rundll32 from PS.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(rundll32|Start-Process.*rundll32).{0,200}(comsvcs|MiniDump)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Check for LSASS dump files written to disk recently.",
+        "method": "PowerShell Forensics",
+        "command": "Get-ChildItem -Path C:\\ -Include '*.dmp','*.mdmp' -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Length -gt 10MB -and $_.LastWriteTime -gt (Get-Date).AddDays(-3) } | Select-Object FullName, Length, LastWriteTime, CreationTime"
+      }
+    ],
+    "mitre": "T1003.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Token Theft & Impersonation": {
+    "description": "Detect PowerShell abusing Windows token APIs for identity impersonation.",
+    "commands": [
+      {
+        "description": "Detect LogonUser API call for credential-based token creation.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(LogonUser|LogonUserA|LogonUserW).{0,200}(LOGON32_LOGON|LOGON32_PROVIDER)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect ImpersonateLoggedOnUser or SetThreadToken for privilege impersonation.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(ImpersonateLoggedOnUser|SetThreadToken|RevertToSelf|DuplicateTokenEx)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect Invoke-TokenManipulation from PowerSploit.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Invoke-TokenManipulation|Get-ProcessTokenGroup|Enable-Privilege)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "List all tokens held by processes \u2014 identify impersonation.",
+        "method": "PowerShell Forensics",
+        "command": "Get-WmiObject Win32_Process | ForEach-Object {\n  $owner = $_.GetOwner()\n  [PSCustomObject]@{\n    PID     = $_.ProcessId\n    Name    = $_.Name\n    Domain  = $owner.Domain\n    User    = $owner.User\n    CmdLine = $_.CommandLine\n  }\n} | Where-Object { $_.User } | Format-Table -AutoSize"
+      }
+    ],
+    "mitre": "T1134",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Active Directory Enumeration (Advanced)": {
+    "description": "Detect advanced AD enumeration targeting delegation, ACLs, and privileged attributes.",
+    "commands": [
+      {
+        "description": "Detect enumeration of unconstrained delegation computers.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(TrustedForDelegation|TRUSTED_FOR_DELEGATION|userAccountControl.*524288)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect enumeration of msDS-AllowedToDelegateTo for constrained delegation.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(msDS-AllowedToDelegateTo|msDS-AllowedToActOnBehalfOfOtherIdentity|TRUSTED_TO_AUTH_FOR_DELEGATION)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect ACL enumeration on AD objects (Get-ObjectAcl).",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Get-ObjectAcl|Get-DomainObjectAcl|Get-Acl.*AD:|Invoke-ACLScanner)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect LAPS password retrieval via PS.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(ms-Mcs-AdmPwd|Get-LapsADPassword|AdmPwdEntry|LAPS)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect AdminCount=1 user enumeration (protected privileged accounts).",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(AdminCount.*1|adminCount.*-eq.*1|Get-ADUser.*AdminCount)' } | Select-Object TimeCreated, Message"
+      }
+    ],
+    "mitre": "T1482",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - GPO & Group Policy Abuse": {
+    "description": "Detect PowerShell modifying Group Policy Objects for lateral movement or persistence.",
+    "commands": [
+      {
+        "description": "Detect GPO creation or modification via PS.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(New-GPO|Set-GPRegistryValue|Set-GPPermission|Invoke-GPUpdate|Copy-GPO)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect GPO link modification to high-value OUs.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(New-GPLink|Remove-GPLink|Set-GPLink).{0,200}(Domain Controllers|Tier0|Admin)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect Immediate Scheduled Task added via GPO (common backdoor technique).",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Set-GPRegistryValue|Get-GPO).{0,200}(Scheduled Tasks|ScheduledTasks)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Enumerate all GPOs with their linked OUs for suspicious linkage.",
+        "method": "PowerShell Forensics",
+        "command": "Get-GPO -All | ForEach-Object {\n  $gpo = $_\n  [PSCustomObject]@{\n    Name         = $gpo.DisplayName\n    Id           = $gpo.Id\n    DomainName   = $gpo.DomainName\n    CreationTime = $gpo.CreationTime\n    ModifiedTime = $gpo.ModificationTime\n    GpoStatus    = $gpo.GpoStatus\n  }\n} | Sort-Object ModifiedTime -Descending | Format-Table -AutoSize"
+      }
+    ],
+    "mitre": "T1484.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Kerberos Delegation Attacks": {
+    "description": "Detect PowerShell-based Kerberos delegation abuse including unconstrained, constrained, and RBCD.",
+    "commands": [
+      {
+        "description": "Detect Rubeus tgtdeleg or asktgt via PS wrapper.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Rubeus|tgtdeleg|asktgt|s4u|kerberoast|asreproast|dump.*tickets)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect S4U2Self / S4U2Proxy abuse for constrained delegation.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(S4U2Self|S4U2Proxy|getST|Get-TGSTicket|Invoke-S4U)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect RBCD attack \u2014 write msDS-AllowedToActOnBehalfOfOtherIdentity.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Set-ADComputer.*msDS-AllowedToAct|PrincipalsAllowedToDelegateToAccount)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Enumerate computers with unconstrained delegation enabled.",
+        "method": "PowerShell Forensics",
+        "command": "Get-ADComputer -Filter { TrustedForDelegation -eq $true } -Properties TrustedForDelegation, OperatingSystem, Description | Where-Object { $_.Name -notlike '*DC*' } | Select-Object Name, OperatingSystem, Description, TrustedForDelegation | Format-Table -AutoSize"
+      }
+    ],
+    "mitre": "T1134.001",
+    "tuning": "Whitelist legitimate Kerberos service accounts and scheduled tasks. Alert on RC4/DES downgrade requests for high-privilege SPNs. Cross-reference with PowerShell identity logs."
+  },
+  "PS - PrintNightmare & Spooler Exploitation": {
+    "description": "Detect PowerShell exploiting Print Spooler vulnerabilities (CVE-2021-34527 and variants).",
+    "commands": [
+      {
+        "description": "Detect Invoke-Nightmare or PrintNightmare PS exploit modules.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Invoke-Nightmare|CVE-2021-34527|PrintNightmare|Add-PrinterDriver.*\\\\\\\\)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect remote printer driver installation via PS.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Add-PrinterDriver|Add-Printer|Install-PrinterDriver).{0,200}(\\\\\\\\|UNC|http)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect SpoolFool or printer service abuse pattern.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(SpoolFool|Spooler.*SeImpersonate|spoolss\\.dll)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Check spooler service status and recent driver installations.",
+        "method": "PowerShell Forensics",
+        "command": "Get-Service Spooler | Select-Object Name, Status, StartType\nGet-PrinterDriver | Select-Object Name, DriverVersion, InfPath | Where-Object { $_.InfPath -notmatch 'Windows|Microsoft' }"
+      }
+    ],
+    "mitre": "T1068",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Browser Credential & Cookie Theft": {
+    "description": "Detect PowerShell harvesting browser saved credentials, cookies, and session tokens.",
+    "commands": [
+      {
+        "description": "Detect access to Chrome Login Data SQLite database.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-Sysmon/Operational' | Where-Object { $_.Id -eq 11 -and $_.Message -match '(?i)(Chrome|Edge|Brave|Opera).{0,100}Login Data' -and $_.Message -notmatch 'Image.*(chrome|msedge|brave|opera)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect PS copying browser profile directory.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Copy-Item|robocopy|xcopy).{0,200}(Chrome|Edge|Firefox|Brave).{0,200}User Data' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect SharpChrome, HackBrowserData, or cookie stealer tool execution.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(SharpChrome|HackBrowserData|BrowserStealer|CookieMonster|Invoke-BrowserPasswordDump)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect DPAPI master key decryption for Chrome cookie decryption.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(CryptUnprotectData|ProtectedData\\.Unprotect).{0,200}(Local State|encrypted_key|chrome|cookies)' } | Select-Object TimeCreated, Message"
+      }
+    ],
+    "mitre": "T1555.003",
+    "tuning": "Alert on LSASS/SAM access from non-system processes. Whitelist backup agents and EDR sensors. Correlate credential access with subsequent unusual auth activity in PowerShell."
+  },
+  "PS - Exchange & Email Attack": {
+    "description": "Detect PowerShell targeting Exchange Server, EWS, and Microsoft 365 mailboxes.",
+    "commands": [
+      {
+        "description": "Detect Exchange impersonation \u2014 access to other users mailboxes.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Set-Impersonation|ExchangeImpersonation|ApplicationImpersonation|ImpersonatedUserId)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect MailSniper or EWS-based credential brute force.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Invoke-PasswordSprayEWS|Invoke-SelfSearch|Get-GlobalAddressList|Invoke-MailSniper|Get-ADUsernameFromEWS)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect mail forwarding rule created via PS for BEC persistence.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(New-InboxRule|Set-InboxRule).{0,200}(ForwardTo|RedirectTo|ForwardAsAttachmentTo)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Enumerate all inbox rules across all mailboxes for suspicious forwarding.",
+        "method": "PowerShell Forensics",
+        "command": "Get-Mailbox -ResultSize Unlimited | ForEach-Object {\n  Get-InboxRule -Mailbox $_.PrimarySmtpAddress -EA SilentlyContinue | Where-Object { $_.ForwardTo -or $_.RedirectTo -or $_.ForwardAsAttachmentTo } | Select-Object @{N='Mailbox';E={$_.PrimarySmtpAddress}}, Name, ForwardTo, RedirectTo\n} | Where-Object { $_ } | Format-Table -AutoSize"
+      }
+    ],
+    "mitre": "T1534",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - SharePoint & OneDrive Recon": {
+    "description": "Detect PowerShell accessing SharePoint Online and OneDrive to enumerate and exfiltrate data.",
+    "commands": [
+      {
+        "description": "Detect PnP PowerShell or SharePoint CSOM used for site enumeration.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Connect-PnPOnline|Get-PnPWeb|Get-PnPList|Get-PnPFile|Get-PnPSite)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect bulk file download from SharePoint via PowerShell.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Get-PnPFile.*-AsFile|Get-SPOFile|Invoke-WebRequest.*sharepoint\\.com)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect SPO admin cmdlets used to grant access to all sites.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Set-SPOUser.*SiteCollectionAdmin|Add-SPOSiteCollectionAdmin|Grant-PnPSiteDesignRights)' } | Select-Object TimeCreated, Message"
+      }
+    ],
+    "mitre": "T1530",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Defense Bypass via COM Objects": {
+    "description": "Detect PowerShell using COM objects to execute code, bypass defenses, or manipulate applications.",
+    "commands": [
+      {
+        "description": "Detect New-Object -ComObject used to create COM instances.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)New-Object\\s+-ComObject\\s+(Shell\\.Application|WScript\\.Shell|Scripting\\.FileSystemObject|InternetExplorer\\.Application|Word\\.Application|Excel\\.Application)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect ShellExecute called via COM for stealthy process launch.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(ShellExecute|Shell\\.Application.*ShellExecute|Invoke\\.Item)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect COM-based UAC bypass using ICMLuaUtil.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(ICMLuaUtil|CMSTPLUA|ColorDataProxy|IFileOperation|3E5FC7F9)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect creation of Excel or Word COM object for macro execution.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Excel\\.Application|Word\\.Application|Outlook\\.Application).{0,300}(Run|Macros|ExecuteExcel4Macro|WordBasic)' } | Select-Object TimeCreated, Message"
+      }
+    ],
+    "mitre": "T1546.015",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Alternate Data Streams & NTFS Tricks": {
+    "description": "Detect PowerShell hiding payloads in NTFS alternate data streams and extended attributes.",
+    "commands": [
+      {
+        "description": "Detect writing payload to NTFS alternate data stream.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Set-Content|Add-Content|Out-File).{0,200}:[a-zA-Z0-9]+$' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect reading payload from NTFS alternate data stream.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Get-Content|gc|cat|type).{0,200}:[a-zA-Z0-9]+' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect executing payload hidden in ADS via wscript or IEX.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(IEX|Invoke-Expression).{0,200}(Get-Content.*:[a-zA-Z]+|gc.*:[a-zA-Z]+)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Enumerate all alternate data streams in suspicious directories.",
+        "method": "PowerShell Forensics",
+        "command": "@($env:TEMP, $env:APPDATA, \"$env:USERPROFILE\\Downloads\") | ForEach-Object {\n  Get-ChildItem $_ -Recurse -ErrorAction SilentlyContinue | ForEach-Object {\n    $streams = Get-Item $_.FullName -Stream * -ErrorAction SilentlyContinue | Where-Object { $_.Stream -ne ':$DATA' }\n    if ($streams) { [PSCustomObject]@{ File=$_.FullName; Streams=$streams.Stream -join ', ' } }\n  }\n}"
+      }
+    ],
+    "mitre": "T1564.004",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Network Discovery & Pivoting": {
+    "description": "Detect PowerShell-based internal network scanning, share enumeration, and host discovery.",
+    "commands": [
+      {
+        "description": "Detect SMB share enumeration via Net.Share or Get-SmbShare.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Get-SmbShare|Get-WmiObject.*Win32_Share|net view|Invoke-ShareFinder|Find-DomainShare)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect ARP table reading for passive host discovery.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Get-NetNeighbor|arp -a|GetARP|NetARP)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect subnet sweep using ping or Test-Connection in a loop.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(1\\.\\.\\.254|0\\.\\.\\.255).{0,300}(Test-Connection|ping|ICMP)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect PowerShell creating SSH session or running ssh.exe.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Start-Process.*ssh|New-SSHSession|Invoke-SSHCommand|plink\\.exe)' } | Select-Object TimeCreated, Message"
+      }
+    ],
+    "mitre": "T1046",
+    "tuning": "Tune on internal traffic anomalies. Whitelist known scanners, monitoring agents, and backup systems. Alert on internal scanning from endpoints (not servers) as high priority."
+  },
+  "PS - Scheduled Task Advanced Hunting": {
+    "description": "Detect sophisticated scheduled task abuse \u2014 COM handler tasks, hidden tasks, and Telemetry hijack.",
+    "commands": [
+      {
+        "description": "Detect task with COM class action (ComHandler) \u2014 stealthy fileless task.",
+        "method": "PowerShell Hunt",
+        "command": "Get-ScheduledTask | Where-Object { $_.Actions | Where-Object { $_.CimClass.CimClassName -eq 'MSFT_TaskComHandlerAction' } } | Select-Object TaskName, TaskPath, @{N='ClassId';E={$_.Actions.ClassId}}"
+      },
+      {
+        "description": "List all tasks modified in last 24 hours \u2014 detect new persistence.",
+        "method": "PowerShell Forensics",
+        "command": "Get-ScheduledTask | Where-Object { $_.Date -gt (Get-Date).AddHours(-24) } | Select-Object TaskName, TaskPath, Date, @{N='Action';E={$_.Actions.Execute + ' ' + $_.Actions.Arguments}} | Format-Table -AutoSize"
+      },
+      {
+        "description": "Detect tasks running from temp or user writable paths.",
+        "method": "PowerShell Forensics",
+        "command": "Get-ScheduledTask | ForEach-Object {\n  $task = $_\n  $task.Actions | Where-Object { $_.Execute -match '(?i)(Temp|AppData|Downloads|ProgramData|Users)' } | ForEach-Object {\n    [PSCustomObject]@{ Task=$task.TaskName; Execute=$_.Execute; Args=$_.Arguments }\n  }\n} | Format-Table -AutoSize"
+      },
+      {
+        "description": "Detect Windows Telemetry task hijack used for SYSTEM execution.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(CompatTelRunner|Diagtrack|Microsoft Compatibility Appraiser).{0,200}(hijack|Set-ItemProperty|reg add)' } | Select-Object TimeCreated, Message"
+      }
+    ],
+    "mitre": "T1053.005",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Service Abuse & DLL Planting": {
+    "description": "Detect PowerShell exploiting unquoted service paths, weak permissions, and DLL planting.",
+    "commands": [
+      {
+        "description": "Detect Get-UnquotedService \u2014 unquoted path privilege escalation recon.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Get-UnquotedService|Get-ModifiableService|Get-ModifiablePath)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect DLL planted in service binary directory.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Copy-Item|Move-Item|New-Item).{0,200}\\.dll.{0,200}(Program Files|System32|SysWOW64)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Find all services with world-writable binary path.",
+        "method": "PowerShell Forensics",
+        "command": "Get-WmiObject Win32_Service | Where-Object { $_.PathName } | ForEach-Object {\n  $path = $_.PathName -replace '\"',''\n  $path = $path.Split(' ')[0]\n  $acl  = Get-Acl $path -EA SilentlyContinue\n  $acl.Access | Where-Object { $_.IdentityReference -match 'Everyone|Users|Authenticated Users' -and $_.FileSystemRights -match 'Write|FullControl|Modify' } | ForEach-Object {\n    [PSCustomObject]@{ Service=$_.ServiceName; Path=$path; Identity=$_.IdentityReference; Rights=$_.FileSystemRights }\n  }\n} | Format-Table -AutoSize"
+      }
+    ],
+    "mitre": "T1574.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Event Log Tampering": {
+    "description": "Detect PowerShell clearing, disabling, or tampering with Windows event logs.",
+    "commands": [
+      {
+        "description": "Detect Clear-EventLog cmdlet used on security-relevant logs.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)Clear-EventLog.{0,200}(Security|System|Application|PowerShell|Sysmon)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect wevtutil used to clear or export then clear logs.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(wevtutil|Start-Process.*wevtutil).{0,200}(cl |clear-log|/cl)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect audit policy disabled via PS to stop log generation.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(auditpol|Set-SystemAuditPolicy).{0,200}(No Auditing|disable|/set.*Success:disable)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Check if security log was cleared \u2014 Event 1102 last occurrence.",
+        "method": "PowerShell Forensics",
+        "command": "Get-WinEvent -LogName Security | Where-Object { $_.Id -eq 1102 } | Select-Object TimeCreated, @{N='User';E={$_.Properties[0].Value}}, @{N='Domain';E={$_.Properties[1].Value}} | Sort-Object TimeCreated -Descending | Select-Object -First 10"
+      }
+    ],
+    "mitre": "T1070.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Living off the Land: Built-in Cmdlets": {
+    "description": "Detect abuse of trusted built-in PowerShell cmdlets as attack primitives.",
+    "commands": [
+      {
+        "description": "Detect Expand-Archive extracting zip from temp or suspicious path.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Expand-Archive|System\\.IO\\.Compression\\.ZipFile).{0,200}(Temp|AppData|Downloads|Desktop)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect Start-Job used to spawn hidden background payloads.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Start-Job|Start-ThreadJob).{0,300}(-ScriptBlock|IEX|DownloadString|WebClient)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect ConvertTo-SecureString used for credential embedding in script.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)ConvertTo-SecureString.{0,200}(-AsPlainText|-Force)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect Out-File writing to startup or auto-run location.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Out-File|Set-Content|Add-Content).{0,200}(Startup|Start Menu|SendTo|Recent)' } | Select-Object TimeCreated, Message"
+      }
+    ],
+    "mitre": "T1218",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - PSRemoting & JEA Abuse": {
+    "description": "Detect PowerShell Just Enough Administration (JEA) bypass and remoting session misuse.",
+    "commands": [
+      {
+        "description": "Detect connection to JEA endpoint with suspicious configuration name.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(New-PSSession|Enter-PSSession).{0,200}-ConfigurationName' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect PSSession with -Credential to admin accounts.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(New-PSSession|Invoke-Command).{0,300}(-Credential.*admin|Get-Credential)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect Copy-Item over PSSession for file staging.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Copy-Item|cp).{0,300}(-FromSession|-ToSession)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Enumerate active WinRM sessions from remote hosts.",
+        "method": "PowerShell Forensics",
+        "command": "Get-WSManInstance -ResourceURI Shell -Enumerate | Select-Object Name, Owner, ClientIP, ProcessId, ShellId, State | Format-Table -AutoSize"
+      }
+    ],
+    "mitre": "T1021.006",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Windows Installer & MSI Abuse": {
+    "description": "Detect PowerShell abusing MSI, AlwaysInstallElevated, and msiexec for privilege escalation.",
+    "commands": [
+      {
+        "description": "Detect AlwaysInstallElevated registry check \u2014 PE check before exploit.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(AlwaysInstallElevated|Get-ItemProperty.*SOFTWARE\\\\Policies.*Windows\\\\Installer)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect malicious MSI install via msiexec started from PS.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Start-Process.*msiexec|msiexec.*http|msiexec.*\\\\\\\\)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect PowerShell calling Windows Installer COM object.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(WindowsInstaller\\.Installer|New-Object.*ComObject.*WindowsInstaller)' } | Select-Object TimeCreated, Message"
+      }
+    ],
+    "mitre": "T1548.002",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - MSSQL Abuse via PowerShell": {
+    "description": "Detect PowerShell abusing SQL Server for lateral movement, xp_cmdshell, and data theft.",
+    "commands": [
+      {
+        "description": "Detect Invoke-SQLOSCmd or PowerUpSQL for SQL Server privilege escalation.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Invoke-SQLOSCmd|Get-SQLServerLinkCrawl|Invoke-SQLEscalatePriv|PowerUpSQL|Get-SQLQuery.*xp_cmdshell)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect SQL linked server lateral movement commands.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(OPENQUERY|EXECUTE.*AT.*\\[|sp_linkedservers|Get-SQLServerLink)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect xp_cmdshell enabled or used via PS SQL query.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(xp_cmdshell|sp_configure.*xp_cmdshell|Enable-SQLxpcmdshell)' } | Select-Object TimeCreated, Message"
+      }
+    ],
+    "mitre": "T1505.001",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Windows API Abuse via P/Invoke": {
+    "description": "Detect PowerShell using P/Invoke to call low-level Windows APIs for offensive operations.",
+    "commands": [
+      {
+        "description": "Detect DllImport attribute for P/Invoke Windows API calls.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(DllImport|GetProcAddress|GetModuleHandle|LoadLibrary)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect calls to kernel32, ntdll, or advapi32 via P/Invoke.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(kernel32\\.dll|ntdll\\.dll|advapi32\\.dll|user32\\.dll).{0,200}DllImport' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect inline C# with DllImport compiled via Add-Type.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Add-Type.*-TypeDefinition|Add-Type.*-MemberDefinition).{0,500}DllImport' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect memory allocation via kernel API for shellcode staging.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(NtAllocateVirtualMemory|ZwAllocateVirtualMemory|MEM_COMMIT|MEM_RESERVE|PAGE_EXECUTE_READWRITE)' } | Select-Object TimeCreated, Message"
+      }
+    ],
+    "mitre": "T1055",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Active Directory ACL Abuse": {
+    "description": "Detect PowerShell exploiting AD ACL weaknesses for persistence and privilege escalation.",
+    "commands": [
+      {
+        "description": "Detect GenericAll or WriteDACL ACE added to sensitive AD object.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Add-ObjectAcl|Set-DomainObjectOwner|Add-DomainObjectAcl).{0,200}(GenericAll|WriteDACL|WriteOwner)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect DCSync rights granted via ACL manipulation.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Add-ObjectAcl|Set-DomainObjectAcl).{0,200}(DS-Replication-Get-Changes|1131f6aa|1131f6ad)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect shadow credentials (msDS-KeyCredentialLink) written to user or computer.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(msDS-KeyCredentialLink|Set-ADComputer.*KeyCredential|Whisker|ShadowCredentials)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect AdminSDHolder modification for stealth persistence.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(AdminSDHolder|Set-ADObject.*AdminSDHolder|Get-ADObject.*AdminSDHolder)' } | Select-Object TimeCreated, Message"
+      }
+    ],
+    "mitre": "T1222",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Hunting via Prefetch & Amcache": {
+    "description": "PowerShell forensics leveraging prefetch and AmCache artifacts to detect PowerShell execution history.",
+    "commands": [
+      {
+        "description": "Parse Windows Prefetch to list PowerShell execution history.",
+        "method": "PowerShell Forensics",
+        "command": "$pfDir = 'C:\\Windows\\Prefetch'\nGet-ChildItem $pfDir -Filter 'POWERSHELL*' -ErrorAction SilentlyContinue | Select-Object Name, LastWriteTime, CreationTime, Length | Sort-Object LastWriteTime -Descending | Format-Table -AutoSize"
+      },
+      {
+        "description": "Read AmCache hive for PowerShell executed programs.",
+        "method": "PowerShell Forensics",
+        "command": "$amcache = 'C:\\Windows\\AppCompat\\Programs\\Amcache.hve'\nif (Test-Path $amcache) {\n  Write-Output '[*] AmCache found - use AmcacheParser.exe or similar tool for full analysis'\n  Write-Output \"[*] Location: $amcache\"\n  Write-Output \"[*] Last Modified: $((Get-Item $amcache).LastWriteTime)\"\n}"
+      },
+      {
+        "description": "List recently modified PS1 and PS-related files across user profiles.",
+        "method": "PowerShell Forensics",
+        "command": "Get-ChildItem 'C:\\Users' -Recurse -Include '*.ps1','*.psm1','*.psd1','*.ps1xml' -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt (Get-Date).AddDays(-7) } | Select-Object FullName, Length, LastWriteTime, CreationTime | Sort-Object LastWriteTime -Descending | Format-Table -AutoSize"
+      },
+      {
+        "description": "Search PowerShell history files from all user profiles.",
+        "method": "PowerShell Forensics",
+        "command": "Get-ChildItem 'C:\\Users\\*\\AppData\\Roaming\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt' -ErrorAction SilentlyContinue | ForEach-Object {\n  Write-Output \"=== $($_.FullName) ===\"\n  Get-Content $_ | Select-Object -Last 50\n}"
+      }
+    ],
+    "mitre": "T1082",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Hunting via PSReadLine History": {
+    "description": "Detect attacker commands preserved in PSReadLine console history files.",
+    "commands": [
+      {
+        "description": "Read and search PowerShell history for offensive commands.",
+        "method": "PowerShell Forensics",
+        "command": "$histPath = \"$env:APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt\"\nif (Test-Path $histPath) {\n  Get-Content $histPath | Where-Object { $_ -match '(?i)(Invoke-|IEX|mimikatz|secretsdump|nmap|nc\\s|powerview|rubeus|bloodhound|SharpHound|certutil.*http|DownloadString)' } | Select-Object @{N='Command';E={$_}}\n}"
+      },
+      {
+        "description": "Search all users PSReadLine history for lateral movement commands.",
+        "method": "PowerShell Forensics",
+        "command": "Get-ChildItem 'C:\\Users\\*\\AppData\\Roaming\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt' -EA SilentlyContinue | ForEach-Object {\n  $user = ($_.FullName -split '\\\\')[2]\n  $hits = Get-Content $_ | Where-Object { $_ -match '(?i)(-enc|IEX|WebClient|TCPClient|mimikatz|Invoke-|secretsdump|BloodHound)' }\n  if ($hits) { [PSCustomObject]@{ User=$user; Hits=$hits.Count; Commands=$hits -join ' | ' } }\n} | Format-Table -AutoSize"
+      },
+      {
+        "description": "Show full PS command history for incident timeline reconstruction.",
+        "method": "PowerShell Forensics",
+        "command": "Get-History | Select-Object Id, StartExecutionTime, EndExecutionTime, ExecutionStatus, CommandLine | Format-Table -AutoSize"
+      }
+    ],
+    "mitre": "T1552.003",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Lateral Movement via RDP": {
+    "description": "Detect PowerShell configuring, enabling, or scripting Remote Desktop for lateral movement.",
+    "commands": [
+      {
+        "description": "Detect enabling RDP via registry or PS cmdlet.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(fDenyTSConnections.*0|Enable-RDP|Set-ItemProperty.*Terminal.Server.*fDenyTSConnections)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect adding user to Remote Desktop Users group.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Add-LocalGroupMember|net localgroup).{0,100}Remote Desktop Users' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect mstsc launched with /v target for lateral movement.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(Start-Process.*mstsc|mstsc\\.exe.*/v:)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Read RDP bitmap cache for evidence of prior RDP sessions.",
+        "method": "PowerShell Forensics",
+        "command": "Get-ChildItem 'C:\\Users\\*\\AppData\\Local\\Microsoft\\Terminal Server Client\\Cache' -ErrorAction SilentlyContinue | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize"
+      }
+    ],
+    "mitre": "T1021.001",
+    "tuning": "Baseline normal admin movement patterns in your environment before enabling alerting. Exclude DC replication traffic. Alert on first-seen lateral paths between host pairs."
+  },
+  "PS - Phishing Payload & Macro Execution": {
+    "description": "Detect PowerShell executed as a result of Office macro, HTML smuggling, or phishing attachment.",
+    "commands": [
+      {
+        "description": "Detect PowerShell spawned by WINWORD, EXCEL, or POWERPNT (macro).",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-Sysmon/Operational' | Where-Object { $_.Id -eq 1 -and $_.Message -match '(?i)ParentImage.*(WINWORD|EXCEL|POWERPNT|ONENOTE|MSPUB|MSACCESS)\\.EXE' -and $_.Message -match 'Image.*powershell' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect PowerShell spawned from browser (HTML smuggling drop execution).",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-Sysmon/Operational' | Where-Object { $_.Id -eq 1 -and $_.Message -match '(?i)ParentImage.*(chrome|firefox|msedge|iexplore)\\.exe' -and $_.Message -match 'Image.*powershell' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect PS executed from Downloads directory \u2014 delivered payload.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-Sysmon/Operational' | Where-Object { $_.Id -eq 1 -and $_.Message -match 'Image.*powershell' -and $_.Message -match '(?i)(CurrentDirectory|WorkingDirectory).*(Downloads|Temp|Desktop)' } | Select-Object TimeCreated, Message"
+      },
+      {
+        "description": "Detect obfuscated VBA Shell() call launching PowerShell.",
+        "method": "PowerShell Hunt",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Id -eq 4104 -and $_.Message -match '(?i)(VBA|Shell.*cmd|Shell.*powershell)' } | Select-Object TimeCreated, Message"
+      }
+    ],
+    "mitre": "T1566",
+    "tuning": "Alert on parent-child process anomalies (Office\u2192shell, AcroRd32\u2192cmd). Whitelist known deployment tools (SCCM, Intune). Tune PowerShell alerts to reduce FPs from legitimate automation."
+  },
+  "PS - Memory Forensics & Artifacts": {
+    "description": "PowerShell forensic commands for volatile memory artifact collection during live response.",
+    "commands": [
+      {
+        "description": "Enumerate loaded modules in all running processes for anomalies.",
+        "method": "PowerShell Forensics",
+        "command": "Get-Process | ForEach-Object {\n  $p = $_\n  try {\n    $p.Modules | Where-Object { $_.FileName -notmatch '(?i)(Windows|Program Files|Microsoft)' } | Select-Object @{N='PID';E={$p.Id}}, @{N='Process';E={$p.Name}}, FileName, ModuleName, FileVersion\n  } catch {}\n} | Format-Table -AutoSize"
+      },
+      {
+        "description": "Find processes with no corresponding disk image (hollowed / fileless).",
+        "method": "PowerShell Forensics",
+        "command": "Get-Process | Where-Object { $_.Path -and !(Test-Path $_.Path) } | Select-Object Id, Name, Path, CPU, WorkingSet | Format-Table -AutoSize"
+      },
+      {
+        "description": "List processes with unusually high memory consumption (injected shellcode).",
+        "method": "PowerShell Forensics",
+        "command": "Get-Process | Sort-Object WorkingSet -Descending | Where-Object { $_.WorkingSet -gt 200MB -and $_.Name -notmatch '(?i)(chrome|firefox|java|sqlserver|mssql)' } | Select-Object Id, Name, Path, @{N='WorkingSetMB';E={[Math]::Round($_.WorkingSet/1MB,2)}} | Format-Table -AutoSize"
+      },
+      {
+        "description": "List all handles opened by a suspicious process.",
+        "method": "PowerShell Forensics",
+        "command": "$targetPid = <SUSPICIOUS_PID>\n$proc = Get-WmiObject Win32_Process -Filter \"ProcessId = $targetPid\"\nWrite-Output \"PID: $targetPid | Name: $($proc.Name) | Path: $($proc.ExecutablePath)\"\nWrite-Output \"CommandLine: $($proc.CommandLine)\"\nWrite-Output \"ParentPID: $($proc.ParentProcessId)\"\nWrite-Output '--- Check with handle.exe or SysInternals for handle list ---'"
+      }
+    ],
+    "mitre": "T1003",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Active Directory Backdoor Detection": {
+    "description": "Detect PowerShell-planted backdoors in Active Directory \u2014 accounts, trusts, and object attributes.",
+    "commands": [
+      {
+        "description": "Find recently created AD accounts that are already member of privileged groups.",
+        "method": "PowerShell Forensics",
+        "command": "Get-ADUser -Filter { Created -gt ((Get-Date).AddDays(-30)) } -Properties Created, MemberOf | Where-Object { $_.MemberOf -match '(?i)(Domain Admins|Enterprise Admins|Schema Admins|Administrators)' } | Select-Object Name, SamAccountName, Created, @{N='Groups';E={$_.MemberOf -join '; '}} | Format-Table -AutoSize"
+      },
+      {
+        "description": "Find AD accounts with ServicePrincipalName set (Kerberoastable backdoor).",
+        "method": "PowerShell Forensics",
+        "command": "Get-ADUser -Filter { ServicePrincipalName -like '*' } -Properties ServicePrincipalName, PasswordLastSet, AdminCount | Select-Object Name, SamAccountName, ServicePrincipalName, PasswordLastSet, AdminCount | Format-Table -AutoSize"
+      },
+      {
+        "description": "Detect accounts with pre-authentication disabled (AS-REP roastable).",
+        "method": "PowerShell Forensics",
+        "command": "Get-ADUser -Filter { DoesNotRequirePreAuth -eq $true } -Properties DoesNotRequirePreAuth, PasswordLastSet, LastLogonDate | Select-Object Name, SamAccountName, PasswordLastSet, LastLogonDate | Format-Table -AutoSize"
+      },
+      {
+        "description": "Enumerate all external AD trusts \u2014 detect rogue trust creation.",
+        "method": "PowerShell Forensics",
+        "command": "Get-ADTrust -Filter * | Select-Object Name, Direction, TrustType, TrustAttributes, Source, Target, Created | Format-Table -AutoSize"
+      }
+    ],
+    "mitre": "T1556",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Obfuscation Deobfuscation Helpers": {
+    "description": "PowerShell forensic helpers for deobfuscating suspicious encoded scripts for analyst review.",
+    "commands": [
+      {
+        "description": "Decode Base64 encoded PowerShell command (Unicode).",
+        "method": "PowerShell Forensics",
+        "command": "$b64 = '<PASTE_BASE64_HERE>'\n$decoded = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String($b64))\nWrite-Output '[+] Decoded command:'\nWrite-Output $decoded"
+      },
+      {
+        "description": "Decompress and decode GZip-compressed Base64 payload.",
+        "method": "PowerShell Forensics",
+        "command": "$b64 = '<PASTE_BASE64_HERE>'\n$bytes = [System.Convert]::FromBase64String($b64)\n$ms = New-Object System.IO.MemoryStream(,$bytes)\n$gz = New-Object System.IO.Compression.GZipStream($ms,[System.IO.Compression.CompressionMode]::Decompress)\n$sr = New-Object System.IO.StreamReader($gz)\n$decompressed = $sr.ReadToEnd()\nWrite-Output '[+] Decompressed payload:'\nWrite-Output $decompressed"
+      },
+      {
+        "description": "Expand char-array obfuscation to readable string.",
+        "method": "PowerShell Forensics",
+        "command": "# Example: [char]73+[char]69+[char]88 -> IEX\n$charArray = @(73,69,88)  # Replace with actual values\n$result = -join ($charArray | ForEach-Object { [char]$_ })\nWrite-Output \"[+] Decoded string: $result\""
+      },
+      {
+        "description": "Evaluate -replace chain obfuscation without executing payload.",
+        "method": "PowerShell Forensics",
+        "command": "# Safe static analysis of -replace obfuscation\n$obfuscated = '<PASTE_OBFUSCATED_STRING>'\n# Apply the replace chain statically to reveal original string\n$result = $obfuscated -replace 'X','I' -replace 'Y','E' -replace 'Z','X'  # Adjust pairs\nWrite-Output \"[+] After replace chain: $result\""
+      }
+    ],
+    "mitre": "T1027",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Supply Chain & Signed Script Abuse": {
+    "description": "Detect misuse of code-signed scripts, module hijacking, and PowerShell Gallery abuse.",
+    "commands": [
+      {
+        "description": "Verify digital signatures of all PS scripts in user directories.",
+        "method": "PowerShell Forensics",
+        "command": "Get-ChildItem 'C:\\Users' -Recurse -Include '*.ps1','*.psm1' -ErrorAction SilentlyContinue | ForEach-Object {\n  $sig = Get-AuthenticodeSignature $_.FullName\n  [PSCustomObject]@{ File=$_.FullName; Status=$sig.Status; Signer=$sig.SignerCertificate.Subject }\n} | Where-Object { $_.Status -ne 'Valid' } | Format-Table -AutoSize"
+      },
+      {
+        "description": "Detect module hijacking \u2014 PS module loaded from non-standard path.",
+        "method": "PowerShell Forensics",
+        "command": "Get-Module | Where-Object { $_.Path -notmatch '(?i)(Windows\\\\system32|Program Files\\\\WindowsPowerShell|Program Files\\\\PowerShell)' } | Select-Object Name, Version, Path, ModuleType | Format-Table -AutoSize"
+      },
+      {
+        "description": "Detect malicious module installed from PowerShell Gallery.",
+        "method": "PowerShell Hunt",
+        "command": "Get-InstalledModule | Where-Object { $_.PublishedDate -gt (Get-Date).AddDays(-30) } | Select-Object Name, Version, Author, PublishedDate, InstalledLocation | Format-Table -AutoSize"
+      },
+      {
+        "description": "Check PSModulePath for unexpected directories \u2014 module hijack path.",
+        "method": "PowerShell Forensics",
+        "command": "$env:PSModulePath -split ';' | ForEach-Object {\n  [PSCustomObject]@{\n    Path   = $_\n    Exists = Test-Path $_\n    Owner  = (Get-Acl $_ -EA SilentlyContinue).Owner\n  }\n} | Format-Table -AutoSize"
+      }
+    ],
+    "mitre": "T1195.002",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Rapid Triage Dashboard": {
+    "description": "PowerShell one-shot triage script combining multiple indicators into a rapid incident assessment.",
+    "commands": [
+      {
+        "description": "One-liner triage \u2014 check for suspicious processes, connections, run keys, and tasks.",
+        "method": "PowerShell Forensics",
+        "command": "Write-Output '=== SUSPICIOUS PROCESSES ==='\nGet-Process | Where-Object { $_.Path -and $_.Path -match '(?i)(Temp|AppData|Downloads|Public)' } | Select-Object Id, Name, Path\n\nWrite-Output '=== OUTBOUND CONNECTIONS ==='\nGet-NetTCPConnection -State Established | Where-Object { $_.RemoteAddress -notmatch '(?i)(10\\.|172\\.1[6-9]\\.|172\\.[23][0-9]\\.|192\\.168\\.|127\\.0\\.0\\.1|::1)' } | Select-Object LocalPort, RemoteAddress, RemotePort, @{N='Process';E={(Get-Process -Id $_.OwningProcess -EA 0).Name}}\n\nWrite-Output '=== RUN KEYS ==='\nGet-ItemProperty 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run' -EA 0\nGet-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run' -EA 0"
+      },
+      {
+        "description": "Check for common attacker tool artifacts on disk.",
+        "method": "PowerShell Forensics",
+        "command": "$toolNames = @('mimikatz','mimi','lazagne','rubeus','SharpHound','bloodhound','chisel','ligolo','plink','nmap','masscan','procdump','pwdump','wce','fgdump','lsassy','nanodump')\nforeach ($tool in $toolNames) {\n  $found = Get-ChildItem C:\\ -Recurse -Filter \"*$tool*\" -ErrorAction SilentlyContinue | Select-Object -First 3\n  if ($found) { Write-Warning \"[!] Found: $($found.FullName -join ', ')\" }\n}"
+      },
+      {
+        "description": "Check recently installed PowerShell modules for suspicious names.",
+        "method": "PowerShell Forensics",
+        "command": "Get-Module -ListAvailable | Where-Object { $_.ModuleBase -match '(?i)(Temp|AppData|Downloads|Desktop|Public|ProgramData)' } | Select-Object Name, Version, ModuleBase, @{N='ModifiedDate';E={(Get-Item $_.ModuleBase -EA 0).LastWriteTime}} | Format-Table -AutoSize"
+      },
+      {
+        "description": "Dump all events in the last 30 minutes from Security log for triage.",
+        "method": "PowerShell Forensics",
+        "command": "$since = (Get-Date).AddMinutes(-30)\nGet-WinEvent -LogName Security -ErrorAction SilentlyContinue | Where-Object { $_.TimeCreated -gt $since -and $_.Id -in @(4624,4625,4648,4688,4698,4728,4732,4756,4768,4769,4771) } | Select-Object TimeCreated, Id, @{N='Msg';E={$_.Message.Substring(0,[Math]::Min(200,$_.Message.Length))}} | Format-Table -AutoSize"
+      }
+    ],
+    "mitre": "T1078",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "av_edr_bypass_defensive": {
+    "description": "Defensive detection and monitoring techniques for attempts to disable, tamper with, or bypass AV and EDR products (MITRE T1562 \u2013 Impair Defenses). Designed for SOC detection engineering and incident triage.",
+    "mitre": "T1562",
+    "commands": [
+      {
+        "description": "Detect Windows Defender real-time protection being disabled.",
+        "method": "PowerShell",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-Windows Defender/Operational' | Where-Object { $_.Id -in 5001,5007 }"
+      },
+      {
+        "description": "Check current Defender protection status.",
+        "method": "PowerShell",
+        "command": "Get-MpComputerStatus | Select-Object AMServiceEnabled,AntivirusEnabled,RealTimeProtectionEnabled,IoavProtectionEnabled"
+      },
+      {
+        "description": "Monitor Defender exclusion additions.",
+        "method": "PowerShell",
+        "command": "Get-MpPreference | Select-Object -ExpandProperty ExclusionPath"
+      },
+      {
+        "description": "Detect registry modification of Defender settings.",
+        "method": "PowerShell",
+        "command": "Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows Defender\\Real-Time Protection'"
+      },
+      {
+        "description": "Detect service stop events (Event ID 7036) for AV/EDR services.",
+        "method": "PowerShell",
+        "command": "Get-WinEvent -FilterHashtable @{LogName='System'; Id=7036} | Where-Object { $_.Message -match 'Defender|EDR|Security' }"
+      },
+      {
+        "description": "Detect service installation events (possible malicious driver load).",
+        "method": "PowerShell",
+        "command": "Get-WinEvent -FilterHashtable @{LogName='System'; Id=7045}"
+      },
+      {
+        "description": "Identify unsigned kernel drivers (possible BYOVD activity).",
+        "method": "PowerShell",
+        "command": "Get-CimInstance Win32_SystemDriver | Where-Object { $_.State -eq 'Running' }"
+      },
+      {
+        "description": "Check for suspicious driver files recently written.",
+        "method": "PowerShell",
+        "command": "Get-ChildItem C:\\Windows\\System32\\drivers -Recurse | Where-Object { $_.LastWriteTime -gt (Get-Date).AddDays(-1) }"
+      },
+      {
+        "description": "Monitor firewall profile state changes.",
+        "method": "PowerShell",
+        "command": "Get-NetFirewallProfile | Select-Object Name,Enabled"
+      },
+      {
+        "description": "Detect firewall being disabled (Event ID 2004).",
+        "method": "PowerShell",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-Windows Firewall With Advanced Security/Firewall'"
+      },
+      {
+        "description": "Monitor hosts file modification timestamp.",
+        "method": "PowerShell",
+        "command": "Get-Item C:\\Windows\\System32\\drivers\\etc\\hosts | Select-Object LastWriteTime"
+      },
+      {
+        "description": "Check for unusual entries in hosts file.",
+        "method": "PowerShell",
+        "command": "Get-Content C:\\Windows\\System32\\drivers\\etc\\hosts"
+      },
+      {
+        "description": "Detect event log clearing (Event ID 1102).",
+        "method": "PowerShell",
+        "command": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=1102}"
+      },
+      {
+        "description": "Detect PowerShell execution attempting Defender modification.",
+        "method": "PowerShell",
+        "command": "Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' | Where-Object { $_.Message -match 'Set-MpPreference|Add-MpPreference' }"
+      },
+      {
+        "description": "Monitor process termination events for security agents (Event ID 4688 + 4689 correlation).",
+        "method": "PowerShell",
+        "command": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4689} | Where-Object { $_.Message -match 'Defender|EDR' }"
+      },
+      {
+        "description": "Identify tampering attempts with Windows Security Center service.",
+        "method": "PowerShell",
+        "command": "Get-Service -Name wscsvc"
+      },
+      {
+        "description": "Detect suspicious use of taskkill against security processes.",
+        "method": "PowerShell",
+        "command": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4688} | Where-Object { $_.Message -match 'taskkill' }"
+      },
+      {
+        "description": "Verify tamper protection status (Defender).",
+        "method": "PowerShell",
+        "command": "Get-MpComputerStatus | Select-Object IsTamperProtected"
+      },
+      {
+        "description": "Detect suspicious modifications to security-related scheduled tasks.",
+        "method": "PowerShell",
+        "command": "Get-ScheduledTask | Where-Object { $_.TaskName -match 'Defender|Security' }"
+      },
+      {
+        "description": "Check for EDR service startup type changes.",
+        "method": "PowerShell",
+        "command": "Get-CimInstance Win32_Service | Where-Object { $_.Name -match 'Defender|EDR' } | Select Name,StartMode"
+      }
+    ],
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "hunt_account_lifecycle_anomalies": {
+    "description": "Hunt for account deletions, privilege flag changes, delegation abuse, service installation, and Task Scheduler persistence \u2014 covering Event IDs 4697, 4700, 4726, 4738, 5156, 6005, and TaskScheduler/Operational 106/141/200.",
+    "commands": [
+      {
+        "description": "Hunt for user account deletions \u2014 post-exploitation account cleanup (Event 4726).",
+        "method": "PowerShell",
+        "command": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4726} | Select TimeCreated,@{N='Actor';E={($_.Message -split 'Subject:\\s+Account Name:\\s+')[1].Split([char]10)[0].Trim()}},@{N='DeletedAccount';E={($_.Message -split 'Target Account:\\s+Account Name:\\s+')[1].Split([char]10)[0].Trim()}} | Format-Table -AutoSize"
+      },
+      {
+        "description": "Hunt for user account changes enabling Kerberos delegation (TRUSTED_FOR_DELEGATION / DONT_REQ_PREAUTH) \u2014 Event 4738.",
+        "method": "PowerShell",
+        "command": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4738} | Where-Object { $_.Message -match '(TRUSTED_FOR_DELEGATION|DONT_REQ_PREAUTH|TRUSTED_TO_AUTH_FOR_DELEGATION|PASSWORD_NOT_REQUIRED)' } | Select TimeCreated,@{N='Actor';E={($_.Message -split 'Subject:\\s+Account Name:\\s+')[1].Split([char]10)[0].Trim()}},@{N='Target';E={($_.Message -split 'Target Account:\\s+Account Name:\\s+')[1].Split([char]10)[0].Trim()}},Message"
+      },
+      {
+        "description": "Hunt for services installed via Security log \u2014 attributes actor account unlike System Event 7045 (Event 4697).",
+        "method": "PowerShell",
+        "command": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4697} | Where-Object { $_.Message -notmatch '(System32|SysWOW64|Program Files|MsMpEng|WinDefend)' } | Select TimeCreated,@{N='Actor';E={($_.Message -split 'Account Name:\\s+')[1].Split([char]10)[0].Trim()}},@{N='ServiceName';E={($_.Message -split 'Service Name:\\s+')[1].Split([char]10)[0].Trim()}},@{N='ServiceFile';E={($_.Message -split 'Service File Name:\\s+')[1].Split([char]10)[0].Trim()}} | Format-Table -AutoSize"
+      },
+      {
+        "description": "Hunt for dormant scheduled task enabled \u2014 pre-planted task activated (Event 4700).",
+        "method": "PowerShell",
+        "command": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4700} | Where-Object { $_.Message -notmatch '(SYSTEM|LOCAL SERVICE|NETWORK SERVICE)' } | Select TimeCreated,@{N='Actor';E={($_.Message -split 'Account Name:\\s+')[1].Split([char]10)[0].Trim()}},@{N='Task';E={($_.Message -split 'Task Name:\\s+')[1].Split([char]10)[0].Trim()}}"
+      },
+      {
+        "description": "Hunt Task Scheduler operational log for task registrations, deletions, and executions (Events 106/141/200/201).",
+        "method": "PowerShell",
+        "command": "# Task registered:\n$reg = Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-TaskScheduler/Operational'; Id=106} -MaxEvents 30 | Select TimeCreated,@{N='Detail';E={$_.Message}}\n# Task deleted:\n$del = Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-TaskScheduler/Operational'; Id=141} -MaxEvents 30 | Select TimeCreated,@{N='Detail';E={$_.Message}}\n# Task action launched:\n$run = Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-TaskScheduler/Operational'; Id=200} -MaxEvents 30 | Select TimeCreated,@{N='Detail';E={$_.Message}}\n$reg; $del; $run"
+      },
+      {
+        "description": "Hunt for WFP inbound connections to non-standard processes \u2014 C2 listener or reverse shell bind (Event 5156).",
+        "method": "PowerShell",
+        "command": "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=5156} | Where-Object { $_.Message -match 'Direction:\\s+%%14593' -and $_.Message -notmatch '(svchost|lsass|System|MsMpEng|SearchIndexer|dns|svchost)' } | Group-Object {($_.Message -split 'Application Name:\\s+')[1].Split([char]10)[0].Trim()} | Sort-Object Count -Descending | Select -First 10 Name,Count"
+      },
+      {
+        "description": "Check system uptime history \u2014 identify if attacker's persistence survived reboots (Event 6005=boot, 6006=shutdown).",
+        "method": "PowerShell",
+        "command": "# Reboots:\nGet-WinEvent -FilterHashtable @{LogName='System'; Id=6005} -MaxEvents 10 | Select TimeCreated,@{N='Event';E={'System Boot'}}\nGet-WinEvent -FilterHashtable @{LogName='System'; Id=6006} -MaxEvents 10 | Select TimeCreated,@{N='Event';E={'Clean Shutdown'}}\n# Also use: (Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime | Select -ExpandProperty TotalHours"
+      }
+    ],
+    "mitre": "T1087",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - ADIDNS Wildcard Injection Hunting": {
+    "description": "Hunt for AD-Integrated DNS wildcard record injection \u2014 query all AD DNS zones for wildcard (*) A records that enable MITM credential capture across unresolved hostnames.",
+    "commands": [
+      {
+        "description": "Enumerate all ADIDNS zones and check for wildcard records",
+        "method": "PowerShell/Get-DnsServerResourceRecord",
+        "command": "# Run on DNS server or with admin rights\nGet-DnsServerZone | Where-Object {\n    -not $_.IsReverseLookupZone -and $_.ZoneType -eq 'Primary'\n} | ForEach-Object {\n    $zone = $_.ZoneName\n    Get-DnsServerResourceRecord -ZoneName $zone | Where-Object { $_.HostName -eq '*' } | ForEach-Object {\n        [PSCustomObject]@{\n            Zone       = $zone\n            RecordName = $_.HostName\n            RecordType = $_.RecordType\n            Data       = $_.RecordData.IPv4Address\n        }\n    }\n}"
+      },
+      {
+        "description": "Hunt via Event Log for DNS record creation \u2014 Event 292 (record created) from Microsoft-Windows-DNSServer",
+        "method": "PowerShell/Get-WinEvent",
+        "command": "Get-WinEvent -ComputerName $DC -FilterHashtable @{\n    LogName      = 'Microsoft-Windows-DNSServer/Audit'\n    Id           = 292\n    StartTime    = (Get-Date).AddDays(-7)\n} | Where-Object {\n    $_.Message -match '\\*'\n} | Select-Object TimeCreated,\n    @{N='Zone';E={$_.Properties[1].Value}},\n    @{N='Record';E={$_.Properties[2].Value}},\n    @{N='Owner';E={$_.Properties[6].Value}} | Format-Table -AutoSize"
+      },
+      {
+        "description": "Hunt in Security log \u2014 Event 5137 (new DNS node created in DomainDnsZones partition)",
+        "method": "PowerShell/Get-WinEvent",
+        "command": "Get-WinEvent -ComputerName $DC -FilterHashtable @{\n    LogName   = 'Security'\n    Id        = 5137\n    StartTime = (Get-Date).AddDays(-1)\n} | Where-Object {\n    $_.Message -match 'DomainDnsZones' -and $_.Message -match 'dnsNode'\n} | Select-Object TimeCreated,\n    @{N='Actor';E={$_.Properties[3].Value}},\n    @{N='Object';E={$_.Properties[8].Value}} | Format-Table -AutoSize"
+      },
+      {
+        "description": "Check which user recently modified DNS records via LDAP (5136 on dnsRecord attribute)",
+        "method": "PowerShell/Get-WinEvent",
+        "command": "Get-WinEvent -ComputerName $DC -FilterHashtable @{\n    LogName   = 'Security'\n    Id        = 5136\n    StartTime = (Get-Date).AddHours(-24)\n} | Where-Object {\n    $_.Properties[8].Value -match 'DomainDnsZones'\n} | Select-Object TimeCreated,\n    @{N='Actor';E={$_.Properties[3].Value}},\n    @{N='Object';E={$_.Properties[8].Value}},\n    @{N='Attribute';E={$_.Properties[10].Value}} | Format-Table -AutoSize"
+      }
+    ],
+    "mitre": "T1584.002",
+    "tuning": "Tune alert thresholds based on your environment's baseline. Whitelist known legitimate tools and service accounts. Correlate with complementary PowerShell data sources for context."
+  },
+  "PS - Cloud IMDS & Credential Theft Hunting": {
+    "description": "Hunt for cloud IMDS exploitation \u2014 detect unexpected processes accessing 169.254.169.254, stolen credential usage, and token forwarding from compromised VMs.",
+    "commands": [
+      {
+        "description": "Hunt for outbound connections to IMDS endpoint from unexpected Windows processes",
+        "method": "PowerShell/Get-WinEvent (Sysmon Event 3)",
+        "command": "Get-WinEvent -FilterHashtable @{\n    LogName   = 'Microsoft-Windows-Sysmon/Operational'\n    Id        = 3\n    StartTime = (Get-Date).AddHours(-24)\n} | Where-Object {\n    $_.Message -match '169\\.254\\.169\\.254'\n} | Select-Object TimeCreated,\n    @{N='Process';  E={$_.Properties[5].Value}},\n    @{N='User';     E={$_.Properties[12].Value}},\n    @{N='DestPort'; E={$_.Properties[22].Value}},\n    @{N='DestIP';   E={$_.Properties[14].Value}} | Format-Table -AutoSize"
+      },
+      {
+        "description": "Hunt for PowerShell commands accessing IMDS endpoint directly",
+        "method": "PowerShell/Get-WinEvent (Event 4104)",
+        "command": "Get-WinEvent -FilterHashtable @{\n    LogName   = 'Microsoft-Windows-PowerShell/Operational'\n    Id        = 4104\n    StartTime = (Get-Date).AddHours(-24)\n} | Where-Object {\n    $_.Message -match '169\\.254\\.169\\.254' -or\n    $_.Message -match 'metadata/identity' -or\n    $_.Message -match 'iam/security-credentials'\n} | Select-Object TimeCreated,\n    @{N='Script';E={$_.Properties[2].Value}} | Format-Table -AutoSize"
+      },
+      {
+        "description": "Hunt for AWS CLI credential usage from unexpected hosts (via CloudTrail ingestion)",
+        "method": "PowerShell/AWS CLI",
+        "command": "# Hunt for temporary IMDS credentials used from non-cloud IP\naws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=AssumeRole --max-items 100 | ConvertFrom-Json | Select-Object -ExpandProperty Events | Where-Object {\n    $_.CloudTrailEvent | ConvertFrom-Json | ForEach-Object {\n        $_.userIdentity.type -eq 'AssumedRole' -and $_.userAgent -notmatch 'aws-sdk'\n    }\n}"
+      },
+      {
+        "description": "Hunt for Azure IMDS token requests logged by Defender for Endpoint",
+        "method": "PowerShell/MDE API",
+        "command": "# Via Microsoft Defender for Endpoint API or MDE advanced hunting\n# Query process network connections to 169.254.169.254:80\nInvoke-RestMethod -Uri 'https://api.securitycenter.microsoft.com/api/machines/url/169.254.169.254' -Headers @{Authorization=\"Bearer $token\"} | Select-Object computerDnsName, lastSeen, osPlatform"
+      }
+    ],
+    "mitre": "T1552.005",
+    "tuning": "Alert on LSASS/SAM access from non-system processes. Whitelist backup agents and EDR sensors. Correlate credential access with subsequent unusual auth activity in PowerShell."
+  }
+}

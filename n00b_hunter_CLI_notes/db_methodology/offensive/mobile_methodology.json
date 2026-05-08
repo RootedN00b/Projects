@@ -1,0 +1,343 @@
+{
+  "Mobile Methodology": {
+    "description": "Mobile application penetration testing methodology covering Android and iOS — static analysis, dynamic analysis, network testing, and storage inspection.",
+    "sections": {
+      "Android": {
+        "description": "Android app security testing methodology.",
+        "phases": [
+          {
+            "phase": "1. Setup & App Acquisition",
+            "steps": [
+              {
+                "step": "1.1",
+                "status": "[ ]",
+                "task": "Set up Android emulator or rooted test device (AVD or physical Pixel)"
+              },
+              {
+                "step": "1.2",
+                "status": "[ ]",
+                "task": "Install Frida server on device — push and run as root"
+              },
+              {
+                "step": "1.3",
+                "status": "[ ]",
+                "task": "Configure BurpSuite as proxy — set device proxy, install CA cert"
+              },
+              {
+                "step": "1.4",
+                "status": "[ ]",
+                "task": "Extract APK — adb pull or APK downloader (APKPure, gplaycli)"
+              },
+              {
+                "step": "1.5",
+                "status": "[ ]",
+                "task": "Install app on test device — adb install {app.apk}"
+              }
+            ]
+          },
+          {
+            "phase": "2. Static Analysis",
+            "steps": [
+              {
+                "step": "2.1",
+                "status": "[ ]",
+                "task": "Decompile APK — apktool d {app.apk} (smali/resources)"
+              },
+              {
+                "step": "2.2",
+                "status": "[ ]",
+                "task": "Decompile to Java — jadx-gui {app.apk}"
+              },
+              {
+                "step": "2.3",
+                "status": "[ ]",
+                "task": "Review AndroidManifest.xml — permissions, exported activities, backup flag"
+              },
+              {
+                "step": "2.4",
+                "status": "[ ]",
+                "task": "Check for hardcoded secrets — grep -r 'api_key\\|password\\|secret\\|token' ./decompiled/"
+              },
+              {
+                "step": "2.5",
+                "status": "[ ]",
+                "task": "Check network security config — allow cleartext? Certificate pinning?"
+              },
+              {
+                "step": "2.6",
+                "status": "[ ]",
+                "task": "Identify insecure data storage — SharedPreferences, SQLite, external storage"
+              },
+              {
+                "step": "2.7",
+                "status": "[ ]",
+                "task": "Run automated scan with MobSF — mobsf static analysis"
+              },
+              {
+                "step": "2.8",
+                "status": "[ ]",
+                "task": "Check for exported components — activities, providers, receivers, services"
+              }
+            ]
+          },
+          {
+            "phase": "3. Dynamic Analysis",
+            "steps": [
+              {
+                "step": "3.1",
+                "status": "[ ]",
+                "task": "Capture API traffic in Burp — use certificate pinning bypass if needed"
+              },
+              {
+                "step": "3.2",
+                "status": "[ ]",
+                "task": "Bypass certificate pinning with Frida — frida -U -f {package} -l cert_bypass.js"
+              },
+              {
+                "step": "3.3",
+                "status": "[ ]",
+                "task": "Use objection for runtime analysis — objection -g {package} explore"
+              },
+              {
+                "step": "3.4",
+                "status": "[ ]",
+                "task": "Check filesystem during runtime — adb shell ls /data/data/{package}/"
+              },
+              {
+                "step": "3.5",
+                "status": "[ ]",
+                "task": "Test exported activities for access control bypass — adb shell am start -n {package}/{activity}"
+              },
+              {
+                "step": "3.6",
+                "status": "[ ]",
+                "task": "Check logcat for sensitive data leakage — adb logcat | grep {package}"
+              },
+              {
+                "step": "3.7",
+                "status": "[ ]",
+                "task": "Test deeplinks and intent handling for injection"
+              },
+              {
+                "step": "3.8",
+                "status": "not_started",
+                "task": "Deep link / URI scheme attack — enumerate custom scheme handlers in manifest; test parameter injection: adb shell am start -d 'myapp://action?param=<payload>'; test OAuth redirect URI hijacking"
+              },
+              {
+                "step": "3.9",
+                "status": "not_started",
+                "task": "Fragment injection in exported Activities — use adb am start with extra data to load arbitrary fragments or bypass authentication screens"
+              }
+            ]
+          },
+          {
+            "phase": "4. Network & API Testing",
+            "steps": [
+              {
+                "step": "4.1",
+                "status": "[ ]",
+                "task": "Test all API endpoints via Burp — auth, IDOR, injection"
+              },
+              {
+                "step": "4.2",
+                "status": "[ ]",
+                "task": "Test for insecure HTTP in any API call"
+              },
+              {
+                "step": "4.3",
+                "status": "[ ]",
+                "task": "Check if API keys in requests are reusable outside the app"
+              },
+              {
+                "step": "4.4",
+                "status": "[ ]",
+                "task": "Test OAuth flows — PKCE, state parameter, redirect URI validation"
+              },
+              {
+                "step": "4.5",
+                "status": "[ ]",
+                "task": "Check for sensitive data in HTTP headers (auth tokens in logs)"
+              }
+            ]
+          },
+          {
+            "phase": "5. Storage & Crypto Testing",
+            "steps": [
+              {
+                "step": "5.1",
+                "status": "[ ]",
+                "task": "Check SharedPreferences for sensitive data — adb shell cat /data/data/{package}/shared_prefs/*.xml"
+              },
+              {
+                "step": "5.2",
+                "status": "[ ]",
+                "task": "Check SQLite databases — adb shell sqlite3 /data/data/{package}/databases/*.db .dump"
+              },
+              {
+                "step": "5.3",
+                "status": "[ ]",
+                "task": "Check external storage — /sdcard/{package}/ for sensitive files"
+              },
+              {
+                "step": "5.4",
+                "status": "[ ]",
+                "task": "Check if encryption keys are hardcoded or derived insecurely"
+              },
+              {
+                "step": "5.5",
+                "status": "[ ]",
+                "task": "Check backup flag in manifest — adb backup {package} && abe unpack backup.ab"
+              },
+              {
+                "step": "5.6",
+                "status": "not_started",
+                "task": "ADB backup abuse (allowBackup=true) — adb backup -apk -f backup.ab {package}; extract with Android Backup Extractor: java -jar abe.jar unpack backup.ab backup.tar; inspect for tokens, creds, db files"
+              },
+              {
+                "step": "5.7",
+                "status": "not_started",
+                "task": "Content Provider testing — enumerate exported providers; test for SQL injection via URI: content query --uri content://{authority}/table --where \"1=1--\"; test path traversal in file providers"
+              }
+            ]
+          }
+        ]
+      },
+      "iOS": {
+        "description": "iOS app security testing methodology.",
+        "phases": [
+          {
+            "phase": "1. Setup",
+            "steps": [
+              {
+                "step": "1.1",
+                "status": "[ ]",
+                "task": "Use jailbroken device (Checkra1n, Palera1n) or use Corellium for cloud device"
+              },
+              {
+                "step": "1.2",
+                "status": "[ ]",
+                "task": "Install Frida via Cydia/Sileo on jailbroken device"
+              },
+              {
+                "step": "1.3",
+                "status": "[ ]",
+                "task": "Configure BurpSuite proxy — set device proxy, install cert via Settings > VPN & Device Management"
+              },
+              {
+                "step": "1.4",
+                "status": "[ ]",
+                "task": "Extract IPA — sideloadly/AltStore for non-jailbroken, or pull from jailbroken device"
+              }
+            ]
+          },
+          {
+            "phase": "2. Static Analysis",
+            "steps": [
+              {
+                "step": "2.1",
+                "status": "[ ]",
+                "task": "Decrypt IPA if needed — frida-ios-dump or clutch on jailbroken device"
+              },
+              {
+                "step": "2.2",
+                "status": "[ ]",
+                "task": "Inspect IPA structure — unzip {app.ipa} and examine Payload/{app}.app/"
+              },
+              {
+                "step": "2.3",
+                "status": "[ ]",
+                "task": "Check Info.plist — permissions, URL schemes, App Transport Security (ATS)"
+              },
+              {
+                "step": "2.4",
+                "status": "[ ]",
+                "task": "Disassemble binary — Hopper, Ghidra, or radare2 on binary"
+              },
+              {
+                "step": "2.5",
+                "status": "[ ]",
+                "task": "Strings analysis — strings {binary} | grep -i 'key\\|pass\\|secret\\|token'"
+              },
+              {
+                "step": "2.6",
+                "status": "[ ]",
+                "task": "Run automated scan with MobSF — iOS static analysis"
+              },
+              {
+                "step": "2.7",
+                "status": "[ ]",
+                "task": "Check for ATS exceptions — NSAllowsArbitraryLoads in Info.plist"
+              }
+            ]
+          },
+          {
+            "phase": "3. Dynamic Analysis",
+            "steps": [
+              {
+                "step": "3.1",
+                "status": "[ ]",
+                "task": "Bypass certificate pinning — SSL Kill Switch 2 or Frida ssl pinning bypass script"
+              },
+              {
+                "step": "3.2",
+                "status": "[ ]",
+                "task": "Use objection for runtime analysis — objection -g {bundle_id} explore"
+              },
+              {
+                "step": "3.3",
+                "status": "[ ]",
+                "task": "Hook methods with Frida — trace classes, intercept return values, bypass auth"
+              },
+              {
+                "step": "3.4",
+                "status": "[ ]",
+                "task": "Check Keychain — objection: ios keychain dump"
+              },
+              {
+                "step": "3.5",
+                "status": "[ ]",
+                "task": "Check NSUserDefaults — objection: ios nsuserdefaults get"
+              },
+              {
+                "step": "3.6",
+                "status": "[ ]",
+                "task": "Check plist files in app sandbox for sensitive data"
+              },
+              {
+                "step": "3.7",
+                "status": "[ ]",
+                "task": "Test URL scheme handling for open redirect or injection"
+              }
+            ]
+          },
+          {
+            "phase": "4. Network & API Testing",
+            "steps": [
+              {
+                "step": "4.1",
+                "status": "[ ]",
+                "task": "Intercept all API traffic in Burp after pinning bypass"
+              },
+              {
+                "step": "4.2",
+                "status": "[ ]",
+                "task": "Test authentication — token reuse, logout invalidation, session fixation"
+              },
+              {
+                "step": "4.3",
+                "status": "[ ]",
+                "task": "Test for IDOR in all resource-specific API endpoints"
+              },
+              {
+                "step": "4.4",
+                "status": "[ ]",
+                "task": "Check for sensitive data in HTTP headers and URL parameters"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "mitre": "T1418,T1625,T1553.002,T1532"
+  }
+}

